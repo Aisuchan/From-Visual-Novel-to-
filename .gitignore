@@ -1,0 +1,9 @@
+node_modules/
+out/
+release/
+dev.log
+packaged-run.log
+*.log
+.DS_Store
+.claude/settings.local.json
+*.tsbuildinfo

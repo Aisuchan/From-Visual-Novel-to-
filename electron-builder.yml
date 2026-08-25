@@ -1,0 +1,25 @@
+appId: com.aisuchan.fromvisualnovel
+productName: From Visual Novel
+directories:
+  buildResources: build
+  output: release
+files:
+  - out/**/*
+  - package.json
+asarUnpack:
+  - "**/*.node"
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-setup.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+publish:
+  provider: github
+  owner: aisuchan
+  repo: from-visual-novel

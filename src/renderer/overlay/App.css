@@ -1,0 +1,77 @@
+html,
+body {
+  background: transparent;
+}
+
+.overlay-panel {
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 100%;
+  padding: 0 10px;
+  background: rgba(9, 14, 23, 0.92);
+  border: 1px solid var(--color-bg-alt);
+  border-radius: 8px;
+  position: relative;
+}
+
+.overlay-icon-button {
+  -webkit-app-region: no-drag;
+  background: var(--color-bg-alt);
+  color: var(--color-text-bright);
+  border: none;
+  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overlay-timer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+}
+
+.rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e0245e;
+}
+
+.rec-dot.paused {
+  background: var(--color-text-dim);
+}
+
+.overlay-time {
+  font-family: var(--font-numeric);
+  font-size: 20px;
+  color: var(--color-text-bright);
+}
+
+.overlay-drag-handle {
+  -webkit-app-region: drag;
+  color: var(--color-text-dim);
+  cursor: grab;
+  padding: 0 4px;
+}
+
+.overlay-toast {
+  -webkit-app-region: no-drag;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: rgba(9, 14, 23, 0.96);
+  color: var(--color-text-bright);
+  font-size: 12px;
+  border-radius: 8px;
+}

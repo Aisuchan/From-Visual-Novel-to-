@@ -1,0 +1,143 @@
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.add-game-dialog {
+  width: 620px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--color-bg);
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+  padding: 20px 28px;
+}
+
+.dialog-title {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 26px;
+  margin: 4px 0 20px;
+}
+
+.dialog-body {
+  display: flex;
+  gap: 24px;
+}
+
+.dialog-column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dialog-column.wide {
+  flex: 1;
+}
+
+.field-label {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-top: 10px;
+}
+
+.dialog-column input,
+.exe-row input {
+  background: var(--color-bg-deep);
+  border: 1px solid var(--color-bg-alt);
+  color: var(--color-text);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.thumb-picker,
+.icon-picker {
+  width: 180px;
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-bg-alt);
+  color: var(--color-text-muted);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.thumb-picker {
+  height: 130px;
+}
+
+.icon-picker {
+  height: 130px;
+}
+
+.thumb-picker img,
+.icon-picker img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dialog-body hr,
+.add-game-dialog > hr {
+  border: none;
+  border-top: 1px solid var(--color-bg-alt);
+  margin: 16px 0;
+}
+
+.exe-row {
+  display: flex;
+  gap: 8px;
+}
+
+.exe-row input {
+  flex: 1;
+}
+
+.exe-row button {
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0 16px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-top: 10px;
+}
+
+.dialog-error {
+  color: #ff6b6b;
+  font-size: 13px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.cancel-button {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 10px 24px;
+}
+
+.ok-button {
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 24px;
+}

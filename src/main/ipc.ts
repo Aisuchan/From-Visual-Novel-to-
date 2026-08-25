@@ -1,0 +1,164 @@
+import { ipcMain, dialog, app } from 'electron'
+import path from 'node:path'
+import fs from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import * as db from './db'
+import { launchGame } from './launcher'
+import { captureScreenshot } from './screenshot'
+import {
+  createOverlayWindow,
+  closeOverlayWindow,
+  getLibraryWindow,
+  getOverlayWindow
+} from './windows'
+import { IpcChannels } from '../shared/ipc-types'
+import type { LaunchPrefs, NewGameInput } from '../shared/db-types'
+import type { StartSessionRequest } from '../shared/ipc-types'
+
+interface ActiveSession {
+  sessionId: number
+  gameId: number
+  gameTitle: string
+  startedAtMs: number
+  paused: boolean
+  pausedAccumMs: number
+  pauseStartedAtMs: number | null
+  tickTimer: NodeJS.Timeout
+}
+
+let active: ActiveSession | null = null
+
+function elapsedSeconds(session: ActiveSession): number {
+  const now = Date.now()
+  const ongoingPauseMs =
+    session.paused && session.pauseStartedAtMs ? now - session.pauseStartedAtMs : 0
+  const pausedMs = session.pausedAccumMs + ongoingPauseMs
+  return Math.max(0, Math.floor((now - session.startedAtMs - pausedMs) / 1000))
+}
+
+function broadcastTick(): void {
+  if (!active) return
+  getOverlayWindow()?.webContents.send(IpcChannels.OverlayTick, {
+    sessionId: active.sessionId,
+    elapsedSeconds: elapsedSeconds(active),
+    paused: active.paused
+  })
+}
+
+function finishActiveSession(): void {
+  if (!active) return
+  const finished = active
+  clearInterval(finished.tickTimer)
+  active = null
+
+  const session = db.endSession(finished.sessionId)
+  closeOverlayWindow()
+  getLibraryWindow()?.webContents.send(IpcChannels.SessionEnded, {
+    sessionId: session.id,
+    gameId: session.gameId,
+    durationSeconds: session.durationSeconds
+  })
+}
+
+export function registerIpcHandlers(): void {
+  ipcMain.handle(IpcChannels.GamesList, () => db.listGames())
+
+  ipcMain.handle(IpcChannels.GamesAdd, (_event, input: NewGameInput) => db.addGame(input))
+
+  ipcMain.handle(IpcChannels.GamesDelete, (_event, gameId: number) => db.deleteGame(gameId))
+
+  ipcMain.handle(IpcChannels.GamesReorder, (_event, orderedIds: number[]) =>
+    db.reorderGames(orderedIds)
+  )
+
+  ipcMain.handle(IpcChannels.GamesFooterStats, () => db.getFooterStats())
+
+  ipcMain.handle(IpcChannels.LaunchPrefsGet, (_event, gameId: number) => db.getLaunchPrefs(gameId))
+
+  ipcMain.handle(IpcChannels.LaunchPrefsSet, (_event, prefs: LaunchPrefs) =>
+    db.setLaunchPrefs(prefs)
+  )
+
+  ipcMain.handle(IpcChannels.GamesPickExe, async () => {
+    const result = await dialog.showOpenDialog({
+      title: '実行ファイルを選択',
+      properties: ['openFile'],
+      filters: [{ name: '実行ファイル', extensions: ['exe'] }]
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+
+  ipcMain.handle(IpcChannels.GamesPickImage, async () => {
+    const result = await dialog.showOpenDialog({
+      title: '画像を選択',
+      properties: ['openFile'],
+      filters: [{ name: '画像', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+
+    const destDir = path.join(app.getPath('userData'), 'images')
+    fs.mkdirSync(destDir, { recursive: true })
+    const src = result.filePaths[0]
+    const dest = path.join(destDir, `${randomUUID()}${path.extname(src)}`)
+    fs.copyFileSync(src, dest)
+    return dest
+  })
+
+  ipcMain.handle(IpcChannels.SessionStart, (_event, req: StartSessionRequest) => {
+    if (active) {
+      throw new Error('既に別のセッションが進行中です')
+    }
+    const game = db.getGame(req.gameId)
+    if (!game) throw new Error('ゲームが見つかりません')
+
+    const session = db.startSession(game.id, req.recordTime)
+
+    launchGame(game.exePath, req.runAsAdmin, () => finishActiveSession())
+
+    active = {
+      sessionId: session.id,
+      gameId: game.id,
+      gameTitle: game.title,
+      startedAtMs: Date.now(),
+      paused: false,
+      pausedAccumMs: 0,
+      pauseStartedAtMs: null,
+      tickTimer: setInterval(broadcastTick, 1000)
+    }
+
+    if (req.useRecorderPanel) {
+      createOverlayWindow()
+    }
+
+    return { sessionId: session.id, gameTitle: game.title }
+  })
+
+  ipcMain.handle(IpcChannels.SessionTogglePause, () => {
+    if (!active) throw new Error('進行中のセッションがありません')
+    if (active.paused) {
+      active.pausedAccumMs += active.pauseStartedAtMs ? Date.now() - active.pauseStartedAtMs : 0
+      active.pauseStartedAtMs = null
+      active.paused = false
+    } else {
+      active.paused = true
+      active.pauseStartedAtMs = Date.now()
+    }
+    broadcastTick()
+    return { paused: active.paused }
+  })
+
+  ipcMain.handle(IpcChannels.SessionScreenshot, async () => {
+    if (!active) throw new Error('進行中のセッションがありません')
+    const filePath = await captureScreenshot(
+      active.gameTitle,
+      active.gameId,
+      app.getPath('userData')
+    )
+    return { filePath }
+  })
+
+  ipcMain.on(IpcChannels.OverlayClose, () => {
+    closeOverlayWindow()
+  })
+}

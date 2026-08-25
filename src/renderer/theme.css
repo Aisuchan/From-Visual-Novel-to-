@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Girassol&family=Alumni+Sans+Collegiate+One&family=GFS+Didot&display=swap');
+
+:root {
+  --color-bg: #14171a;
+  --color-bg-alt: #2a2d31;
+  --color-bg-deep: #090e17;
+  --color-text: #e1e8ed;
+  --color-text-muted: #aab8c2;
+  --color-text-dim: #657786;
+  --color-text-bright: #f5f8fa;
+  --color-accent: #1da1f2;
+  --color-border: #b1b2b5;
+
+  --font-display: 'Girassol', 'GFS Didot', serif;
+  --font-numeric: 'Alumni Sans Collegiate One', 'Girassol', sans-serif;
+  --font-body: 'GFS Didot', 'Girassol', serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input {
+  font-family: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-bg-alt);
+  border-radius: 4px;
+}

@@ -1,0 +1,33 @@
+{
+  "name": "from-visual-novel",
+  "version": "0.1.0",
+  "description": "ノベルゲームのライブラリ管理・プレイ時間計測・拡張UIオーバーレイを提供するデスクトップアプリ",
+  "main": "./out/main/main.js",
+  "author": "aisuchan",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "tsc --noEmit -p tsconfig.json && electron-vite build",
+    "start": "electron-vite preview",
+    "dist": "npm run build && electron-builder --win",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.5.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^32.0.1",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^2.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2"
+  }
+}

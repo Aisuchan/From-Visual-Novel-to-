@@ -1,0 +1,122 @@
+.side-panel {
+  width: 260px;
+  min-width: 260px;
+  background: var(--color-bg);
+  border-right: 1px solid var(--color-bg-alt);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.clock {
+  margin: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.clock-date {
+  color: var(--color-text-muted);
+  font-family: var(--font-numeric);
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+.clock-time {
+  color: var(--color-text-bright);
+  font-family: var(--font-numeric);
+  font-size: 36px;
+  line-height: 1;
+}
+
+.home-label {
+  text-align: center;
+  padding: 10px 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 2px;
+  border-top: 1px solid var(--color-bg-alt);
+  border-bottom: 1px solid var(--color-bg-alt);
+}
+
+.search-row {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+}
+
+.search-input {
+  flex: 1;
+  background: var(--color-bg-deep);
+  border: 1px solid var(--color-bg-alt);
+  color: var(--color-text);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.search-button {
+  background: var(--color-accent);
+  border: none;
+  border-radius: 6px;
+  width: 32px;
+  color: white;
+}
+
+.delete-selected {
+  margin: 0 12px 8px;
+  background: #a33;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px;
+  font-size: 12px;
+}
+
+.game-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.game-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-bg-alt);
+  cursor: pointer;
+}
+
+.game-item.active {
+  background: var(--color-bg-alt);
+}
+
+.game-item-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.drag-handle {
+  color: var(--color-text-dim);
+  cursor: grab;
+}
+
+.add-game-button {
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  padding: 14px;
+  font-family: var(--font-display);
+  font-size: 16px;
+}

@@ -1,0 +1,99 @@
+.game-detail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 32px;
+  overflow: hidden;
+}
+
+.game-detail-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.game-title {
+  font-family: var(--font-display);
+  font-size: 34px;
+  margin: 0;
+  color: var(--color-text-bright);
+}
+
+.title-underline {
+  height: 2px;
+  background: var(--color-text);
+  width: 60%;
+}
+
+.game-banner-row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 0;
+}
+
+.nav-arrow {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 28px;
+  padding: 8px;
+}
+
+.nav-arrow:hover {
+  color: var(--color-text-bright);
+}
+
+.game-banner {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-banner img,
+.game-banner-placeholder {
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #b1b2b5;
+  border-radius: 4px;
+}
+
+.game-detail-footer {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding-top: 20px;
+  margin-top: 16px;
+  border-top: 1px solid var(--color-bg-alt);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--color-text-dim);
+  letter-spacing: 1px;
+}
+
+.stat-value {
+  font-family: var(--font-numeric);
+  font-size: 22px;
+  color: var(--color-text-bright);
+}
+
+.playing-badge {
+  margin-left: auto;
+  color: var(--color-accent);
+  font-family: var(--font-display);
+}
