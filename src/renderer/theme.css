@@ -10,6 +10,9 @@
   --color-text-bright: #f5f8fa;
   --color-accent: #1da1f2;
   --color-border: #b1b2b5;
+  --color-clock-bg: #2c3034;
+  --color-strip: #222326;
+  --color-chip: #2f3236;
 
   --font-display: 'Girassol', 'GFS Didot', serif;
   --font-numeric: 'Alumni Sans Collegiate One', 'Girassol', sans-serif;
@@ -25,6 +28,7 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 body {
@@ -42,6 +46,23 @@ button {
 
 input {
   font-family: inherit;
+}
+
+/* Chromium's default focus ring reads as a yellow/orange box on this dark
+   palette. Replace it with an accent outline drawn inside the control. */
+:focus {
+  outline: none;
+}
+
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
 
 ::-webkit-scrollbar {

@@ -7,6 +7,10 @@ export interface Game {
   exePath: string
   groupName: string | null
   useExeIcon: boolean
+  /** Fall back to `shortName` where the full title would not fit. */
+  useShortName: boolean
+  /** Reserved for the deferred ErogeScape/VNDB import. */
+  useThumbnailAsDefault: boolean
   createdAt: string
 }
 
@@ -18,6 +22,8 @@ export interface NewGameInput {
   exePath: string
   groupName: string | null
   useExeIcon: boolean
+  useShortName: boolean
+  useThumbnailAsDefault: boolean
 }
 
 export interface GameStats {

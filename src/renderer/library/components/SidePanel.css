@@ -1,122 +1,433 @@
-.side-panel {
-  width: 260px;
-  min-width: 260px;
-  background: var(--color-bg);
-  border-right: 1px solid var(--color-bg-alt);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
+/* All values below are literal Penpot values from board "Side Panel"
+   (8f0287cf-fa1e-801b-8008-6b5446b13627), 335x988 on the 1920x1080 canvas. */
 
-.clock {
-  margin: 12px;
-  padding: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
+.side-panel {
+  width: 335px;
+  min-width: 335px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-text-dim);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  height: 100%;
+  position: relative;
 }
 
+/* Penpot: Clock — 311x194, fill #2c3034 @50%, stroke #aab8c2 2px inner, r40, 25px below panel top */
+.clock {
+  width: 311px;
+  height: 194px;
+  margin-top: 25px;
+  background: rgba(44, 48, 52, 0.5);
+  border: 2px solid var(--color-text-muted);
+  border-radius: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* Penpot: "2026 8/1 (Sat.)" — Alumni Sans Collegiate One 60px, #aab8c2.
+   Penpot's text box is 66px tall for 60px text, so line-height 1.1. */
 .clock-date {
   color: var(--color-text-muted);
   font-family: var(--font-numeric);
-  font-size: 14px;
-  letter-spacing: 1px;
-}
-
-.clock-time {
-  color: var(--color-text-bright);
-  font-family: var(--font-numeric);
-  font-size: 36px;
-  line-height: 1;
-}
-
-.home-label {
+  font-size: 60px;
+  line-height: 1.1;
   text-align: center;
-  padding: 10px 0;
-  font-family: var(--font-display);
-  font-size: 18px;
-  letter-spacing: 2px;
-  border-top: 1px solid var(--color-bg-alt);
-  border-bottom: 1px solid var(--color-bg-alt);
+  white-space: nowrap;
 }
 
-.search-row {
-  display: flex;
-  gap: 6px;
-  padding: 10px 12px;
-}
-
-.search-input {
-  flex: 1;
-  background: var(--color-bg-deep);
-  border: 1px solid var(--color-bg-alt);
+/* Penpot: "11:23:58" — Alumni Sans Collegiate One 110px, #e1e8ed. Penpot's box
+   is only 78px tall for 110px text, which is what closes the gap to the date. */
+.clock-time {
   color: var(--color-text);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 13px;
+  font-family: var(--font-numeric);
+  font-size: 110px;
+  line-height: 0.71;
+  text-align: center;
+  white-space: nowrap;
 }
 
-.search-button {
-  background: var(--color-accent);
-  border: none;
-  border-radius: 6px;
-  width: 32px;
-  color: white;
-}
-
-.delete-selected {
-  margin: 0 12px 8px;
-  background: #a33;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 6px;
-  font-size: 12px;
-}
-
-.game-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.game-item {
+/* Penpot: Home Button — 335x100, fill #090e17, stroke #aab8c2 1px inner, 25px below clock */
+.home-button {
+  width: 335px;
+  height: 100px;
+  margin-top: 25px;
+  flex-shrink: 0;
+  background: var(--color-bg-deep);
+  border: 1px solid var(--color-text-muted);
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--color-bg-alt);
-  cursor: pointer;
+  justify-content: center;
+  font-family: var(--font-display);
+  line-height: 1;
+  color: var(--color-text);
 }
 
-.game-item.active {
-  background: var(--color-bg-alt);
+/* Penpot: "♦ home ♦" — Girassol, ♦ at 40px and "home" at 55px, #e1e8ed */
+.home-button-word {
+  font-size: 55px;
 }
 
-.game-item-title {
+.home-button-diamond {
+  font-size: 40px;
+}
+
+/* Penpot: Search Option Container — 335 wide, 10px below the home button.
+   80px tall while collapsed; grows to 190px with the two select rows shown.
+   Sized to the panel's 333px content box rather than the literal 335 so the
+   select rows inside cannot overhang and paint out the panel's side border. */
+.search-option-container {
+  width: 100%;
+  margin-top: 10px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Penpot: Search Box row — 333x55, flex row centered */
+.search-box {
+  width: 333px;
+  height: 55px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Penpot: Search Box field — h40, fill #090e17, stroke #aab8c2 2px, r10, 10px side padding, 15px from panel edge */
+.search-input {
   flex: 1;
+  height: 40px;
+  margin-left: 15px;
+  background: var(--color-bg-deep);
+  border: 2px solid var(--color-text-muted);
+  border-radius: 10px;
+  color: var(--color-text-muted);
+  padding: 0 10px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.search-input::placeholder {
+  color: var(--color-text-dim);
+}
+
+/* Penpot: Search Submit — 40x40, fill #1da1f2, stroke #aab8c2 2px, r10, 5px gap / 15px from panel edge */
+.search-submit {
+  width: 40px;
+  height: 40px;
+  margin-left: 5px;
+  margin-right: 15px;
+  flex-shrink: 0;
+  background: var(--color-accent);
+  border: 2px solid var(--color-text-muted);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1;
+  padding: 0;
+  transition: filter 0.15s ease;
+}
+
+.search-submit:hover {
+  filter: brightness(1.18);
+}
+
+/* Penpot: Select Group / Select Tag and Choose Way To Sort — 55px tall,
+   #14171a. Penpot draws these 335 wide, but the side panel's own 1px stroke
+   leaves only 333: at 335 the row painted over that stroke and the panel's
+   side border vanished alongside these two rows. Penpot itself sizes the
+   Search Box row to 333 for the same reason, so these follow suit and their
+   side margins come down from 15 to 14 to keep the contents fitting. */
+.select-row {
+  width: 100%;
+  height: 55px;
+  flex-shrink: 0;
+  background: var(--color-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Penpot: Search Box (265x40) / Way of Sort (144x40) — fill #090e17,
+   stroke #aab8c2 2px, 10px side padding, 15px from the panel edge. The field
+   and its caret button are rounded on opposite sides so the pair reads as one
+   pill: 10px on the outer corners, square where they meet. */
+.select-field {
+  width: 265px;
+  height: 40px;
+  margin-left: 14px;
+  flex-shrink: 0;
+  padding: 0 10px;
+  background: var(--color-bg-deep);
+  border: 2px solid var(--color-text-muted);
+  border-radius: 10px 0 0 10px;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.select-field::placeholder {
+  color: var(--color-text-dim);
+}
+
+.select-field.sort {
+  width: 144px;
+}
+
+/* Penpot: Show List of Group / Show Way of Sort — 40x40, fill #1da1f2,
+   stroke #aab8c2 2px, rounded on the outer (right) corners only,
+   ▼ Girassol 24px #ffffff */
+.select-caret {
+  width: 40px;
+  height: 40px;
+  margin-right: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 0 0 1px;
+  background: var(--color-accent);
+  border: 2px solid var(--color-text-muted);
+  border-radius: 0 10px 10px 0;
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  cursor: not-allowed;
+}
+
+.select-caret.sort {
+  margin-right: 0;
+  padding-top: 3px;
+}
+
+/* Penpot: Add Tag — 111x40, fill #2f3236, stroke #aab8c2 2px, r5 */
+.add-tag {
+  width: 111px;
+  height: 40px;
+  margin: 0 14px 0 10px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  background: var(--color-chip);
+  border: 2px solid var(--color-text-muted);
+  border-radius: 5px;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  cursor: not-allowed;
+}
+
+/* Penpot: Strech / Shrink Search Option — 305x15 button, fill #222326,
+   stroke #aab8c2 1px *inner*, 3px top padding, caret 10px sourcesanspro,
+   10px below the row above. Rounded on the bottom corners only, so it reads
+   as a tab hanging off the row above. The stroke is an inset shadow rather
+   than a border: a border would eat 2 of the bar's 15px and squash the caret. */
+.search-strech {
+  width: 305px;
+  height: 15px;
+  margin-top: 10px;
+  flex-shrink: 0;
+  background: var(--color-strip);
+  box-shadow: inset 0 0 0 1px var(--color-text-muted);
+  border: none;
+  border-radius: 0 0 10px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 0 0;
+  color: var(--color-text);
+  font-family: 'Segoe UI Symbol', sans-serif;
+  font-size: 10px;
+  line-height: 1.2;
+  transition: filter 0.15s ease;
+}
+
+.search-strech:hover {
+  filter: brightness(1.6);
+}
+
+/* Right-click menu on a game row. Not in the Penpot design, so it borrows the
+   dialog's surface colours. Positioned in the panel's design-pixel space. */
+.game-context-menu {
+  position: absolute;
+  z-index: 40;
+  min-width: 190px;
+  background: var(--color-bg-alt);
+  border: 3px solid var(--color-text-dim);
+  display: flex;
+  flex-direction: column;
+}
+
+.game-context-menu button {
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 8px 20px;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 24px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.game-context-menu button:hover {
+  background: var(--color-accent);
+  color: var(--color-text-bright);
+}
+
+.game-context-menu button.danger:hover {
+  background: #c42b1c;
+}
+
+/* Penpot: Game LIst — 335 wide, stroke #657786 5px inner, 5px top padding, 10px below search */
+.game-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 5px 0 0;
+  width: 335px;
+  border: 5px solid var(--color-text-dim);
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Penpot: Game Column — 335x60, fill #14171a */
+.game-column {
+  position: relative;
+  width: 100%;
+  height: 60px;
+  flex-shrink: 0;
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Penpot: Border — 285x1, #B1B2B5. Absolutely placed and lifted onto the
+   positive z layer: under the shell `zoom` a 1px line lands on a fractional
+   device row, and the next row's snapped background painted straight over it —
+   which is why only the last row's separator used to survive. */
+.game-column-border {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 285px;
+  height: 1px;
+  background: var(--color-border);
+  z-index: 1;
+}
+
+/* Penpot: Contents — 335x59, flex row, 15px column gap, 1px/5px padding */
+.contents {
+  position: relative;
+  width: 100%;
+  height: 59px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 15px;
+  padding: 1px 5px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.contents:hover {
+  background: rgba(225, 232, 237, 0.08);
+}
+
+.contents.active {
+  background: rgba(29, 161, 242, 0.15);
+}
+
+.contents.active:hover {
+  background: rgba(29, 161, 242, 0.26);
+}
+
+/* Penpot: Game icon — 35x35, fill #B1B2B5, stroke #1da1f2 2px inner, r5, 20px left margin */
+.game-icon {
+  width: 35px;
+  height: 35px;
+  margin-left: 20px;
+  flex-shrink: 0;
+  background: var(--color-border);
+  border: 2px solid var(--color-accent);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+/* A game with no icon shows nothing at all — frame included. */
+.game-icon.empty {
+  background: transparent;
+  border-color: transparent;
+}
+
+.game-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Penpot: Game Name — GFS Didot 26px, #aab8c2, 5px top padding */
+.game-name {
+  flex: 1;
+  min-width: 0;
+  padding-top: 5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-text);
-  font-size: 14px;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 26px;
+  line-height: 1.2;
 }
 
+/* Penpot: "⋮⋮" — 32px, #e1e8ed. Sole drag affordance for reordering, so it
+   takes the pointer outright (`touch-action: none` keeps the list from
+   scrolling instead of dragging). */
 .drag-handle {
-  color: var(--color-text-dim);
+  color: var(--color-text);
+  font-size: 32px;
+  line-height: 1.2;
+  flex-shrink: 0;
   cursor: grab;
+  touch-action: none;
+  padding: 0 4px;
+  transition: color 0.15s ease;
 }
 
-.add-game-button {
-  background: var(--color-accent);
-  color: white;
-  border: none;
-  padding: 14px;
-  font-family: var(--font-display);
-  font-size: 16px;
+.drag-handle:hover {
+  color: var(--color-text-bright);
 }
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* The row being dragged, so it stays legible as the others move around it. */
+.game-column.dragging {
+  background: var(--color-bg-alt);
+}
+
+.game-column.dragging .contents {
+  opacity: 0.85;
+}
+

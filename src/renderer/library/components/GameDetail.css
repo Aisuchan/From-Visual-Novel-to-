@@ -1,99 +1,314 @@
+/* All values below are literal Penpot values from board "Game"
+   (14a53abb-4228-8001-8008-6f4914993c02), 1585x984 on the 1920x1080 canvas. */
+
 .game-detail {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 24px 32px;
+  align-items: flex-start;
+  background: var(--color-bg);
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+}
+
+/* ---------------------------------------------------------------- Top ---- */
+
+/* Penpot: Top — 1585x197, flex row, space-between, align start */
+.game-top {
+  width: 100%;
+  height: 197px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+/* Penpot: Titles — flex column, 40px top/left/right padding */
+/* `min-width: 0` on this and the two boxes below is what lets the title
+   ellipsize: without it the flex chain keeps its min-content width and the
+   text runs under the Progress triangle. */
+.game-titles {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 40px 40px 0;
+  width: fit-content;
+  min-width: 0;
+  max-width: 1300px;
+}
+
+.title-row {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Penpot: "Title Example" — Girassol 61px, #e1e8ed, line-height 1.2 */
+.game-title {
+  font-family: var(--font-display);
+  font-size: 61px;
+  line-height: 1.2;
+  margin: 0;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Penpot places a "◯" run here at 50px; rendered as Font Awesome circle-info. */
+.title-marker {
+  font-size: 50px;
+  line-height: 1;
+  color: var(--color-text);
+  padding-left: 25px;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.title-marker:hover {
+  color: var(--color-text-bright);
+}
+
+/* Penpot: Under Line — 8px tall; solid bar then a 132px taper, running 73px
+   past the title text the way the design draws it. */
+.title-underline {
+  height: 8px;
+  width: calc(100% + 73px);
+  min-width: 200px;
+  display: flex;
+  flex-shrink: 0;
+}
+
+.title-underline-bar {
+  flex: 1;
+  background: var(--color-text);
+}
+
+.title-underline-tail {
+  width: 132px;
+  height: 8px;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* Penpot: Progress — 265x246 triangle overhanging the Top board */
+.game-progress {
+  width: 265px;
+  height: 246px;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* ------------------------------------------------------------- Middle ---- */
+
+/* Penpot: Middle — 1585x610, flex row, align center, space-between */
+.game-middle {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Penpot: Sub Image — 142x467, fill #657786 */
+.sub-image {
+  width: 142px;
+  height: 467px;
+  flex-shrink: 0;
+  background: var(--color-text-dim);
+}
+
+/* Penpot: Left/Right Arrow — 43.29x86.58 paths, fill #B1B2B5 */
+.nav-arrow {
+  width: 43.29px;
+  height: 86.58px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.nav-arrow svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.nav-arrow:hover path {
+  fill: var(--color-text-bright);
+}
+
+/* Penpot: Main Image — 1084x610, fill #B1B2B5 */
+.main-image {
+  width: 1084px;
+  height: 610px;
+  max-height: 100%;
+  flex-shrink: 0;
+  background: var(--color-border);
   overflow: hidden;
 }
 
-.game-detail-header {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 16px;
-}
-
-.game-title {
-  font-family: var(--font-display);
-  font-size: 34px;
-  margin: 0;
-  color: var(--color-text-bright);
-}
-
-.title-underline {
-  height: 2px;
-  background: var(--color-text);
-  width: 60%;
-}
-
-.game-banner-row {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-height: 0;
-}
-
-.nav-arrow {
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: 28px;
-  padding: 8px;
-}
-
-.nav-arrow:hover {
-  color: var(--color-text-bright);
-}
-
-.game-banner {
-  flex: 1;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.game-banner img,
-.game-banner-placeholder {
-  max-width: 100%;
-  max-height: 100%;
+.main-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  background: #b1b2b5;
-  border-radius: 4px;
+  display: block;
 }
 
-.game-detail-footer {
+/* -------------------------------------------------------------- Under ---- */
+
+/* Penpot: Under — 1585x177. Children are absolutely placed so the play/stats
+   block can size to its content without moving the ROUTE frame; GameDetail
+   recomputes the rule and the ROUTE offset from the measured block width. */
+.game-under {
+  position: relative;
+  width: 100%;
+  height: 177px;
+  flex-shrink: 0;
+}
+
+/* Penpot: Under decoration — absolute, 50px from the board top, 126px tall */
+.under-decoration {
+  position: absolute;
+  left: 0;
+  top: 50px;
+  width: 100%;
+  height: 126px;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* Penpot: Button and Info — flex row, 40px gap, 30px from the left edge,
+   centred in the 127px below the rule's top run. */
+.button-and-info {
+  position: absolute;
+  left: 30px;
+  top: 50px;
+  bottom: 0;
   display: flex;
   align-items: center;
-  gap: 32px;
-  padding-top: 20px;
-  margin-top: 16px;
-  border-top: 1px solid var(--color-bg-alt);
+  gap: 40px;
+  z-index: 1;
 }
 
+/* Penpot: Total Play / Last Play — flex row, align center, 5px gap */
 .stat {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
 }
 
+/* Penpot: "total\nplay" — Girassol 35px, #aab8c2, line-height 0.7, centered */
 .stat-label {
-  font-size: 11px;
-  color: var(--color-text-dim);
-  letter-spacing: 1px;
+  font-family: var(--font-display);
+  font-size: 35px;
+  line-height: 0.7;
+  color: var(--color-text-muted);
+  text-align: center;
+  white-space: nowrap;
 }
 
+/* Penpot: ":" — Girassol 50px, #aab8c2 */
+.stat-sep {
+  font-family: var(--font-display);
+  font-size: 50px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+}
+
+/* Penpot: "0h" / "99/99" — Girassol 50px, #e1e8ed, line-height 0.7, centered.
+   "last played" can render on two lines (yester/day, last/year, n year/ago). */
 .stat-value {
-  font-family: var(--font-numeric);
-  font-size: 22px;
+  font-family: var(--font-display);
+  font-size: 50px;
+  line-height: 0.7;
+  color: var(--color-text);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.stat-value.editable {
+  cursor: text;
+  transition: color 0.15s ease;
+}
+
+.stat-value.editable:hover {
   color: var(--color-text-bright);
 }
 
+/* Inline total-play editor: two digit fields sized to their content so the
+   surrounding rule and the ROUTE frame reflow with them. */
+.stat-edit {
+  display: inline-flex;
+  align-items: baseline;
+}
+
+.stat-edit input {
+  width: 4ch;
+  background: var(--color-bg-alt);
+  border: none;
+  border-radius: 5px;
+  padding: 0 4px;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 50px;
+  line-height: 0.7;
+  text-align: right;
+}
+
+.stat-edit input:last-of-type {
+  width: 3ch;
+}
+
+/* Penpot: Route Manegement — 94px tall, stroke #657786 3px inner. `left` and
+   `width` come from GameDetail so it stays centred in the rule's recess. */
+.route-button {
+  position: absolute;
+  top: 56px;
+  height: 94px;
+  border: 3px solid var(--color-text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 10px;
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* Penpot: "route" — Girassol 70px, #aab8c2, line-height 0.7 */
+.route-button span {
+  font-family: var(--font-display);
+  font-size: 70px;
+  line-height: 0.7;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* Penpot: Play Log Button — 77x76, 40px top / 15px right padding, 🧾 at 50px */
+.play-log-button {
+  position: absolute;
+  right: 0;
+  top: 75px;
+  width: 77px;
+  height: 76px;
+  padding: 40px 15px 0 0;
+  font-family: var(--font-display);
+  font-size: 50px;
+  line-height: 0.7;
+  color: var(--color-text);
+  z-index: 1;
+}
+
 .playing-badge {
-  margin-left: auto;
+  position: absolute;
+  right: 40px;
+  top: 40px;
   color: var(--color-accent);
   font-family: var(--font-display);
+  font-size: 28px;
 }

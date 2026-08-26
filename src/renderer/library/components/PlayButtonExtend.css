@@ -1,26 +1,46 @@
+/* Penpot: Play Button (291x62) and Play Button Extend (341x348). */
+
 .play-split {
   position: relative;
   display: inline-flex;
-  height: 56px;
+  width: 291px;
+  height: 62px;
+  flex-shrink: 0;
 }
 
+/* Penpot: Button — 256x62, fill #1da1f2, stroke #e1e8ed 1px, 3px bottom pad,
+   "play" Girassol 45px #e1e8ed */
 .play-main {
+  width: 256px;
   background: var(--color-accent);
-  color: white;
-  border: none;
+  color: var(--color-text);
+  border: 1px solid var(--color-text);
   font-family: var(--font-display);
-  font-size: 22px;
-  padding: 0 28px;
-  border-radius: 4px 0 0 4px;
+  font-size: 45px;
+  line-height: 1;
+  /* Penpot has 3px here; Girassol's small caps sit low in the line box, which
+     left the glyphs 3px off centre, so the bottom padding is raised to 8px to
+     even out the space above and below. */
+  padding: 0 0 8px;
+  transition: filter 0.15s ease;
 }
 
+/* Penpot: IF — 35x62, same fill/stroke, "▲" at 10px */
 .play-caret {
+  width: 35px;
   background: var(--color-accent);
-  color: white;
-  border: none;
-  border-left: 1px solid rgba(255, 255, 255, 0.4);
-  width: 36px;
-  border-radius: 0 4px 4px 0;
+  color: var(--color-text);
+  border: 1px solid var(--color-text);
+  border-left: none;
+  font-size: 10px;
+  line-height: 1;
+  padding: 0;
+  transition: filter 0.15s ease;
+}
+
+.play-main:hover:not(:disabled),
+.play-caret:hover:not(:disabled) {
+  filter: brightness(1.18);
 }
 
 .play-main:disabled,
@@ -29,47 +49,77 @@
   cursor: not-allowed;
 }
 
+/* Penpot: Play Button Extend — 341x348, fill #14171a, stroke #1da1f2 3px,
+   15px top / 25px side padding, 10px row gap. Anchored bottom-left so its own
+   copy of the play button lands exactly on the one behind it (the board's
+   25px left padding is cancelled by the -25px offset). */
 .play-extend-popover {
   position: absolute;
-  bottom: 64px;
-  left: 0;
-  width: 230px;
-  background: var(--color-bg-deep);
-  border: 2px solid var(--color-accent);
-  border-radius: 6px;
-  padding: 16px;
+  /* Penpot's 3px stroke is *inner*, so it overlaps the padding rather than
+     displacing it. An inset box-shadow reproduces that without taking part in
+     layout — which is what lands this popover's own play button exactly on the
+     one behind it (a real border would push the content in by 3px). */
+  left: -25px;
+  bottom: 0;
+  width: 341px;
+  height: 348px;
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 3px var(--color-accent);
+  padding: 15px 25px 0;
   z-index: 20;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.play-extend-title {
-  font-family: var(--font-display);
-  font-size: 18px;
-  text-align: center;
-  letter-spacing: 1px;
-}
-
-.play-extend-row {
-  display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: 10px;
+}
+
+/* Penpot: "Setting" — Girassol 36px, #e1e8ed, 5px bottom padding */
+/* Everything in the popover is `flex-shrink: 0`: the Penpot rows add up to
+   within a pixel of the 348px board, so any rounding would otherwise squeeze
+   the 1px divider out of existence. */
+.play-extend-title {
+  flex-shrink: 0;
+  padding-bottom: 5px;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
   color: var(--color-text);
 }
 
-.play-extend-popover hr {
-  border: none;
-  border-top: 1px solid var(--color-bg-alt);
-  width: 100%;
+/* Penpot: setting rows — 291x34, 10px gap, Girassol 28px */
+.play-extend-row {
+  width: 291px;
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
 }
 
-.play-extend-launch {
-  background: var(--color-accent);
-  color: white;
-  border: none;
-  padding: 10px;
-  font-family: var(--font-display);
-  font-size: 16px;
+/* Penpot: Rectangle — 291x1 #B1B2B5 with 10px above and below. Drawn as this
+   row's top border rather than a 1px flex item: under the shell `zoom` such an
+   item collapsed to near-zero coverage, whereas a real border still paints. */
+.play-extend-row.last {
+  height: 45px;
+  margin-top: 10px;
+  margin-bottom: 5px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.play-extend-row input[type='checkbox'] {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+
+/* The popover's own play button is the same control as the one it covers. */
+.play-split.overlaid {
+  margin-top: auto;
 }

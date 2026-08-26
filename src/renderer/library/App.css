@@ -1,7 +1,19 @@
+/* The shell is laid out in Penpot design pixels (1920 wide) and scaled to the
+   window by `useUiScale`, which sets `zoom`, `width` and `height` inline. */
 .app-shell {
+  position: relative;
   display: flex;
-  height: 100%;
-  width: 100%;
+  flex-direction: column;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+/* Penpot: Side Panel (335) + content area (1585) fill the space between the
+   36px header and the 56px footer. */
+.app-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
 }
 
 .main-column {
@@ -18,5 +30,5 @@
   justify-content: center;
   color: var(--color-text-dim);
   font-family: var(--font-display);
-  font-size: 20px;
+  font-size: 40px;
 }

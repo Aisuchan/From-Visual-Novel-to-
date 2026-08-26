@@ -34,10 +34,13 @@ export default function PlayButtonExtend({ gameId, onLaunch, disabled }: Props):
     setOpen(false)
   }
 
-  return (
-    <div className="play-split">
+  /* Penpot: Play Button — 291x62 (a 256px button plus a 35px "IF" caret).
+     The same control appears at the foot of the Play Button Extend board, so
+     the popover is anchored to sit its own copy exactly over this one. */
+  const playButton = (
+    <>
       <button className="play-main" disabled={disabled} onClick={launchNow}>
-        PLAY
+        play
       </button>
       <button
         className="play-caret"
@@ -47,10 +50,17 @@ export default function PlayButtonExtend({ gameId, onLaunch, disabled }: Props):
       >
         ▲
       </button>
+    </>
+  )
+
+  return (
+    <div className="play-split">
+      {playButton}
 
       {open && (
         <div className="play-extend-popover">
-          <div className="play-extend-title">SETTING</div>
+          {/* Penpot: "Setting" — Girassol 36px, centred, 5px bottom padding */}
+          <div className="play-extend-title">Setting</div>
 
           <label className="play-extend-row">
             <input
@@ -76,12 +86,11 @@ export default function PlayButtonExtend({ gameId, onLaunch, disabled }: Props):
               checked={prefs.runAsAdmin}
               onChange={(e) => setPrefs({ ...prefs, runAsAdmin: e.target.checked })}
             />
-            Play As Administrator
+            Play As Administrater
           </label>
 
-          <hr />
-
-          <label className="play-extend-row">
+          {/* Penpot's 291x1 divider is drawn as this row's top border. */}
+          <label className="play-extend-row last">
             <input
               type="checkbox"
               checked={prefs.keepSetting}
@@ -90,9 +99,8 @@ export default function PlayButtonExtend({ gameId, onLaunch, disabled }: Props):
             Keep This Setting
           </label>
 
-          <button className="play-extend-launch" onClick={launchNow}>
-            PLAY
-          </button>
+          {/* Overlays the play button above — this is the same control. */}
+          <div className="play-split overlaid">{playButton}</div>
         </div>
       )}
     </div>

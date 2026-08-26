@@ -1,0 +1,57 @@
+/* Penpot: Header — 1920x36, stroke #657786 2px outer, flex row center */
+.app-header {
+  position: relative;
+  -webkit-app-region: drag;
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  border-bottom: 2px solid var(--color-text-dim);
+}
+
+/* Penpot: "From Visual Novel to ..." — GFS Didot 26px, #657786, center */
+.app-header-title {
+  font-family: 'GFS Didot', serif;
+  font-size: 26px;
+  line-height: 1.2;
+  color: var(--color-text-dim);
+  letter-spacing: 0;
+}
+
+/* Not in Penpot — see Header.tsx. Absolutely positioned so the title stays
+   centred on the window rather than being pushed off by the buttons. */
+.window-controls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 2px;
+  -webkit-app-region: no-drag;
+  display: flex;
+}
+
+.window-control {
+  width: 60px;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-dim);
+  font-family: var(--font-body);
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.window-control:hover {
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+}
+
+.window-control.close:hover {
+  background: #c42b1c;
+  color: var(--color-text-bright);
+}

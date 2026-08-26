@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FooterStats, GameWithStats, NewGameInput } from '../../shared/db-types'
+import { useUiScale } from './useUiScale'
+import Header from './components/Header'
 import SidePanel from './components/SidePanel'
 import GameDetail from './components/GameDetail'
 import FooterBar from './components/FooterBar'
@@ -11,7 +13,11 @@ export default function App(): React.JSX.Element {
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null)
   const [footerStats, setFooterStats] = useState<FooterStats | null>(null)
   const [showAddGame, setShowAddGame] = useState(false)
+  const [editingGame, setEditingGame] = useState<GameWithStats | null>(null)
   const [playingGameId, setPlayingGameId] = useState<number | null>(null)
+  const shellRef = useRef<HTMLDivElement | null>(null)
+
+  useUiScale(shellRef)
 
   async function refreshGames(): Promise<void> {
     const list = await window.library.listGames()
@@ -47,11 +53,23 @@ export default function App(): React.JSX.Element {
     setSelectedGameId(created.id)
   }
 
-  async function handleDeleteSelected(gameIds: number[]): Promise<void> {
-    for (const id of gameIds) {
-      await window.library.deleteGame(id)
-    }
+  async function handleUpdateGame(input: NewGameInput): Promise<void> {
+    if (!editingGame) return
+    await window.library.updateGame(editingGame.id, input)
+    setEditingGame(null)
     await refreshGames()
+  }
+
+  async function handleDeleteGame(gameId: number): Promise<void> {
+    await window.library.deleteGame(gameId)
+    if (selectedGameId === gameId) setSelectedGameId(null)
+    await refreshGames()
+  }
+
+  async function handleEditPlayTime(gameId: number, seconds: number): Promise<void> {
+    await window.library.setTotalPlaySeconds(gameId, seconds)
+    await refreshGames()
+    await refreshFooterStats()
   }
 
   async function handleReorder(orderedIds: number[]): Promise<void> {
@@ -83,33 +101,48 @@ export default function App(): React.JSX.Element {
   }
 
   return (
-    <div className="app-shell">
-      <SidePanel
-        games={games}
-        selectedGameId={selectedGameId}
-        onSelect={setSelectedGameId}
-        onReorder={handleReorder}
-        onDeleteSelected={handleDeleteSelected}
-        onAddGame={() => setShowAddGame(true)}
-      />
+    <div className="app-shell" ref={shellRef}>
+      <Header />
 
-      <div className="main-column">
-        {selectedGame ? (
-          <GameDetail
-            game={selectedGame}
-            isPlaying={playingGameId === selectedGame.id}
-            onLaunch={handleLaunch}
-            onPrev={() => stepSelection(-1)}
-            onNext={() => stepSelection(1)}
-          />
-        ) : (
-          <div className="empty-state">「Add Game +」からゲームを登録してください</div>
-        )}
-        <FooterBar stats={footerStats} />
+      <div className="app-body">
+        <SidePanel
+          games={games}
+          selectedGameId={selectedGameId}
+          onSelect={setSelectedGameId}
+          onReorder={handleReorder}
+          onEditGame={setEditingGame}
+          onDeleteGame={handleDeleteGame}
+        />
+
+        <div className="main-column">
+          {selectedGame ? (
+            <GameDetail
+              game={selectedGame}
+              isPlaying={playingGameId === selectedGame.id}
+              onLaunch={handleLaunch}
+              onPrev={() => stepSelection(-1)}
+              onNext={() => stepSelection(1)}
+              onEditPlayTime={handleEditPlayTime}
+            />
+          ) : (
+            <div className="empty-state">「Add Game +」からゲームを登録してください</div>
+          )}
+        </div>
       </div>
+
+      <FooterBar stats={footerStats} onAddGame={() => setShowAddGame(true)} />
 
       {showAddGame && (
         <AddGameDialog onCancel={() => setShowAddGame(false)} onSubmit={handleAddGame} />
+      )}
+
+      {editingGame && (
+        <AddGameDialog
+          key={editingGame.id}
+          game={editingGame}
+          onCancel={() => setEditingGame(null)}
+          onSubmit={handleUpdateGame}
+        />
       )}
     </div>
   )

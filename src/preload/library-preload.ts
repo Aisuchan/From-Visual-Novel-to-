@@ -6,10 +6,16 @@ import type { LibraryApi, SessionEndedPayload, StartSessionRequest } from '../sh
 const libraryApi: LibraryApi = {
   listGames: () => ipcRenderer.invoke(IpcChannels.GamesList),
   addGame: (input: NewGameInput) => ipcRenderer.invoke(IpcChannels.GamesAdd, input),
+  updateGame: (gameId: number, input: NewGameInput) =>
+    ipcRenderer.invoke(IpcChannels.GamesUpdate, gameId, input),
   deleteGame: (gameId: number) => ipcRenderer.invoke(IpcChannels.GamesDelete, gameId),
   reorderGames: (orderedIds: number[]) => ipcRenderer.invoke(IpcChannels.GamesReorder, orderedIds),
   pickExecutable: () => ipcRenderer.invoke(IpcChannels.GamesPickExe),
   pickImage: () => ipcRenderer.invoke(IpcChannels.GamesPickImage),
+  extractExeIcon: (exePath: string) =>
+    ipcRenderer.invoke(IpcChannels.GamesExtractExeIcon, exePath),
+  setTotalPlaySeconds: (gameId: number, seconds: number) =>
+    ipcRenderer.invoke(IpcChannels.GamesSetPlayTime, gameId, seconds),
   getFooterStats: () => ipcRenderer.invoke(IpcChannels.GamesFooterStats),
   getLaunchPrefs: (gameId: number) => ipcRenderer.invoke(IpcChannels.LaunchPrefsGet, gameId),
   setLaunchPrefs: (prefs: LaunchPrefs) => ipcRenderer.invoke(IpcChannels.LaunchPrefsSet, prefs),
@@ -19,6 +25,14 @@ const libraryApi: LibraryApi = {
       cb(payload)
     ipcRenderer.on(IpcChannels.SessionEnded, listener)
     return () => ipcRenderer.removeListener(IpcChannels.SessionEnded, listener)
+  },
+  minimizeWindow: () => ipcRenderer.send(IpcChannels.WindowMinimize),
+  toggleMaximizeWindow: () => ipcRenderer.send(IpcChannels.WindowToggleMaximize),
+  closeWindow: () => ipcRenderer.send(IpcChannels.WindowClose),
+  onMaximizedChanged: (cb: (maximized: boolean) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, maximized: boolean): void => cb(maximized)
+    ipcRenderer.on(IpcChannels.WindowMaximizedChanged, listener)
+    return () => ipcRenderer.removeListener(IpcChannels.WindowMaximizedChanged, listener)
   }
 }
 

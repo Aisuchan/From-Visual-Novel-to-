@@ -1,0 +1,37 @@
+.game-hover {
+  width: 346px;
+  background: var(--color-bg-alt);
+  border: 6px solid #657786;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* Penpot: rows are 39px tall; the name rows use a 5px gap, the value rows 10px */
+.game-hover-row {
+  height: 39px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.game-hover-row.name {
+  gap: 5px;
+}
+
+.game-hover-label {
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.game-hover-value {
+  font-family: var(--font-display);
+  font-size: 32px;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

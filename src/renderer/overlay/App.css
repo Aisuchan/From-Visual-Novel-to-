@@ -1,65 +1,129 @@
+/* All values below are literal Penpot values from board "Recorder Panel"
+   (8dc20177-e0ad-80ef-8008-7eae9a5b82b2), 449x56. The overlay window is
+   created at exactly that size, so no scaling is involved. */
+
 html,
 body {
   background: transparent;
 }
 
+/* Penpot: Recorder Panel — 449x56, fill #14171a, r10, row with 14px gap */
 .overlay-panel {
   -webkit-app-region: drag;
   display: flex;
+  align-items: stretch;
+  gap: 14px;
+  height: 100%;
+  background: var(--color-bg);
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  font-family: var(--font-display);
+}
+
+/* Penpot: Open / Close Button — 45x56 (44px button + 1px border) */
+.overlay-open-close {
+  -webkit-app-region: no-drag;
+  width: 45px;
+  flex-shrink: 0;
+  display: flex;
+}
+
+/* Penpot: Button — 44x56, fill #090e17, 10px side padding, "▶" 24px #657786 */
+.overlay-open-close button {
+  width: 44px;
+  background: var(--color-bg-deep);
+  border: none;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  color: var(--color-text-dim);
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+/* Penpot: Border — 1x56, #B1B2B5 */
+.overlay-open-close-border {
+  width: 1px;
+  flex-shrink: 0;
+  background: var(--color-border);
+}
+
+/* Penpot: Play Time — 169x56, 15px side padding, 10px gap */
+.overlay-play-time {
+  -webkit-app-region: no-drag;
+  display: flex;
   align-items: center;
   gap: 10px;
-  height: 100%;
-  padding: 0 10px;
-  background: rgba(9, 14, 23, 0.92);
-  border: 1px solid var(--color-bg-alt);
-  border-radius: 8px;
-  position: relative;
+  padding: 0 15px;
+  flex-shrink: 0;
 }
 
-.overlay-icon-button {
-  -webkit-app-region: no-drag;
-  background: var(--color-bg-alt);
-  color: var(--color-text-bright);
-  border: none;
-  border-radius: 4px;
+/* Penpot: Play / Pause — 28x56, "■"/"▶" 28px #cd1e1e */
+.overlay-play-pause {
   width: 28px;
-  height: 28px;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #cd1e1e;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  padding: 0;
 }
 
-.overlay-timer {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-  justify-content: center;
-}
-
-.rec-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #e0245e;
-}
-
-.rec-dot.paused {
-  background: var(--color-text-dim);
-}
-
+/* Penpot: "00:00:00" — Girassol 28px, #aab8c2 */
 .overlay-time {
-  font-family: var(--font-numeric);
-  font-size: 20px;
-  color: var(--color-text-bright);
+  width: 101px;
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
-.overlay-drag-handle {
+/* Penpot: Convinient Button — 145x56, 10px side padding, 10px gap */
+.overlay-convenient {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  flex-shrink: 0;
+}
+
+/* Penpot: Screen Shots / Sound Capture — 35x35 #B1B2B5,
+   Movie Capture — a 35px #690a0a ellipse */
+.overlay-capture {
+  width: 35px;
+  height: 35px;
+  flex-shrink: 0;
+  background: var(--color-border);
+  border: none;
+  padding: 0;
+}
+
+.overlay-capture.movie {
+  background: #690a0a;
+  border-radius: 50%;
+}
+
+span.overlay-capture {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Penpot: Move Button — 48x56, 15px left / 5px right padding, "⋮⋮" 44px #e1e8ed */
+.overlay-move {
   -webkit-app-region: drag;
-  color: var(--color-text-dim);
+  width: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 5px 0 15px;
+  color: var(--color-text);
+  font-size: 44px;
+  line-height: 1.2;
   cursor: grab;
-  padding: 0 4px;
 }
 
 .overlay-toast {
@@ -72,6 +136,6 @@ body {
   text-align: center;
   background: rgba(9, 14, 23, 0.96);
   color: var(--color-text-bright);
-  font-size: 12px;
-  border-radius: 8px;
+  font-size: 16px;
+  border-radius: 10px;
 }

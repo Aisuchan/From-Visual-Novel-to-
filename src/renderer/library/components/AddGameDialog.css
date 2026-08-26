@@ -1,5 +1,8 @@
+/* All values below are literal Penpot values from board "Add Game"
+   (8f38878f-add2-802f-8008-76f5b7e8f073), 870x1000 on the 1920x1080 canvas. */
+
 .dialog-backdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
   display: flex;
@@ -8,136 +11,390 @@
   z-index: 50;
 }
 
+/* Penpot: Add Game — 870x1000, fill #14171a, stroke #657786 10px inner */
 .add-game-dialog {
-  width: 620px;
-  max-height: 90vh;
+  width: 870px;
+  /* Penpot's board is 1000px; letting it size to content avoids a scrollbar
+     over the 988px the stacked sections actually add up to. */
+  min-height: 1000px;
+  max-height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   background: var(--color-bg);
-  border: 2px solid var(--color-border);
-  border-radius: 8px;
-  padding: 20px 28px;
-}
-
-.dialog-title {
-  text-align: center;
-  font-family: var(--font-display);
-  font-size: 26px;
-  margin: 4px 0 20px;
-}
-
-.dialog-body {
-  display: flex;
-  gap: 24px;
-}
-
-.dialog-column {
+  border: 10px solid var(--color-text-dim);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  align-items: flex-start;
+  font-family: var(--font-display);
 }
 
-.dialog-column.wide {
-  flex: 1;
-}
-
-.field-label {
-  font-size: 13px;
-  color: var(--color-text-muted);
-  margin-top: 10px;
-}
-
-.dialog-column input,
-.exe-row input {
-  background: var(--color-bg-deep);
-  border: 1px solid var(--color-bg-alt);
-  color: var(--color-text);
-  border-radius: 4px;
-  padding: 8px 10px;
-  font-size: 13px;
-}
-
-.thumb-picker,
-.icon-picker {
-  width: 180px;
+/* Penpot: Top Latter — 870x61, fill #2a2d31, stroke #657786 5px inner,
+   "add game" Girassol 48px #e1e8ed, 3px bottom padding */
+.dialog-top-latter {
+  width: 100%;
+  height: 61px;
+  flex-shrink: 0;
   background: var(--color-bg-alt);
-  border: 1px solid var(--color-bg-alt);
+  border: 5px solid var(--color-text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 3px;
+  font-size: 48px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Penpot: Reference — 15px/36px padding, 15px row gap */
+.dialog-reference {
+  width: 100%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 15px 36px;
+}
+
+.dialog-reference.bottom {
+  padding: 0 36px;
+}
+
+/* Penpot: field captions — Girassol 24px, #e1e8ed */
+.field-label {
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Penpot: Url Box — 798x39 row, 10px gap */
+.url-box {
+  width: 100%;
+  height: 39px;
+  display: flex;
+  gap: 10px;
+}
+
+/* Penpot: Url Input / Path Input — 696x39, fill #2a2d31, r5, 5px/10px padding */
+.url-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-bg-alt);
+  border: none;
+  border-radius: 5px;
+  color: var(--color-text);
+  padding: 5px 10px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.url-input::placeholder {
+  color: var(--color-text-dim);
+}
+
+/* Penpot: Submit / Reference Button — 92x39, fill #1da1f2, stroke #e1e8ed 2px, r5 */
+.url-button {
+  width: 92px;
+  flex-shrink: 0;
+  background: var(--color-accent);
+  border: 2px solid var(--color-text);
+  border-radius: 5px;
+  color: var(--color-text);
+  padding: 5px 10px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.url-button.ref {
+  padding: 5px 28px;
+}
+
+.url-button:disabled,
+.url-input:disabled,
+.setting-row input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Penpot: Setting1 — checkbox + label, 10px gap */
+.setting-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.setting-row.centered {
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 48px;
+}
+
+.setting-row input[type='checkbox'] {
+  width: 24px;
+  height: 24px;
+  margin: 3px 0 0;
+  accent-color: var(--color-accent);
+}
+
+.setting-row.centered input[type='checkbox'] {
+  margin: 0;
+}
+
+/* Penpot: setting text — Girassol 24px (20px for the two-line note), #aab8c2 */
+.setting-text {
+  font-size: 24px;
+  line-height: 1.2;
   color: var(--color-text-muted);
-  border-radius: 4px;
+}
+
+/* Penpot keeps this note on exactly two lines in a 394px shape; the explicit
+   <br /> supplies the break, so don't let it re-wrap. */
+.setting-text.small {
+  font-size: 20px;
+  white-space: nowrap;
+}
+
+/* Penpot: Border — 800x1, #B1B2B5, 15px/35px margins */
+.dialog-border {
+  width: 800px;
+  height: 1px;
+  flex-shrink: 0;
+  margin: 15px 35px;
+  background: var(--color-border);
+}
+
+/* Penpot: Top Container — 870x483, 36px side padding */
+.dialog-top-container {
+  width: 100%;
+  height: 483px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  padding: 0 36px;
+}
+
+/* Penpot: Images Preview — 311x483, column, centered */
+.images-preview {
+  width: 311px;
+  height: 100%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Penpot: Images — 311x454, space-around, 10px row gap */
+.images {
+  width: 100%;
+  height: 454px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+  gap: 10px;
+}
+
+.image-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+/* Penpot: Thumbnail Image — 311x175, fill #B1B2B5, stroke #657786 1px */
+.thumbnail-image {
+  width: 311px;
+  height: 175px;
+  display: block;
+  background: var(--color-border);
+  border: 1px solid var(--color-text-dim);
   overflow: hidden;
 }
 
-.thumb-picker {
-  height: 130px;
+/* Penpot: Icon Image — 175x175, fill #B1B2B5, stroke #657786 1px */
+.icon-image {
+  width: 175px;
+  height: 175px;
+  display: block;
+  background: var(--color-border);
+  border: 1px solid var(--color-text-dim);
+  overflow: hidden;
 }
 
-.icon-picker {
-  height: 130px;
-}
-
-.thumb-picker img,
-.icon-picker img {
+.thumbnail-image img,
+.icon-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
-.dialog-body hr,
-.add-game-dialog > hr {
-  border: none;
-  border-top: 1px solid var(--color-bg-alt);
-  margin: 16px 0;
+/* Penpot: "Thumbnail" / "Icon" captions — Girassol 24px, #657786, 3px above */
+.image-caption {
+  margin-top: 3px;
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text-dim);
 }
 
-.exe-row {
-  display: flex;
-  gap: 8px;
+/* Penpot: Rectangle — 1x483, #B1B2B5, 30px side margins */
+.column-divider {
+  width: 1px;
+  height: 100%;
+  flex-shrink: 0;
+  margin: 0 30px;
+  background: var(--color-border);
 }
 
-.exe-row input {
+/* Penpot: Top Right — 426x483, column, 15px row gap */
+.top-right {
   flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
 
-.exe-row button {
-  background: var(--color-accent);
-  color: white;
+/* Penpot: Name Container / Group and Tag — 15px row gap */
+.name-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Penpot: Full Name / Short Name / Group / Tag — caption + input, 10px gap */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Penpot: Name Input — 426x39, fill #2a2d31, r5, 5px/10px padding */
+.field-input {
+  width: 100%;
+  height: 39px;
+  background: var(--color-bg-alt);
   border: none;
-  border-radius: 4px;
-  padding: 0 16px;
+  border-radius: 5px;
+  color: var(--color-text);
+  padding: 5px 10px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
 }
 
-.checkbox-row {
+.field-input::placeholder {
+  color: var(--color-text-dim);
+}
+
+/* Penpot: Border — 426x1, #B1B2B5, 10px above / 5px below */
+.field-border {
+  width: 100%;
+  height: 1px;
+  margin: 10px 0 5px;
+  background: var(--color-border);
+}
+
+/* Penpot: Group / Tag rows — field, 1px #B1B2B5 divider, trailing button */
+.split-input {
+  width: 100%;
+  height: 39px;
+  display: flex;
+  background: var(--color-bg-alt);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.split-input-field {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  padding: 5px 10px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.split-input-field::placeholder {
+  color: var(--color-text);
+}
+
+.split-input-divider {
+  width: 1px;
+  flex-shrink: 0;
+  background: var(--color-border);
+}
+
+/* Penpot: Show Option (36x39) / Add (70x39) */
+.split-input-button {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--color-text-muted);
-  margin-top: 10px;
+  justify-content: center;
+  padding: 0 15px;
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.split-input-button.small-caret {
+  padding: 3px 10px 0;
+  font-size: 16px;
 }
 
 .dialog-error {
+  margin: 0 36px;
   color: #ff6b6b;
-  font-size: 13px;
+  font-size: 20px;
 }
 
+/* Penpot: Cancel OK Button — 850x88, 20px padding, 30px gap, right aligned */
 .dialog-actions {
+  width: 100%;
+  height: 88px;
+  margin: auto 0 10px;
+  flex-shrink: 0;
   display: flex;
   justify-content: flex-end;
-  gap: 14px;
-  margin-top: 20px;
+  gap: 30px;
+  padding: 20px;
 }
 
+/* Penpot: Cancel — 130x48, fill #2a2d31, stroke #657786 2px, r3, "cancel" 36px */
 .cancel-button {
-  background: transparent;
+  width: 130px;
+  height: 48px;
+  background: var(--color-bg-alt);
   color: var(--color-text);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  padding: 10px 24px;
+  border: 2px solid var(--color-text-dim);
+  border-radius: 3px;
+  padding: 0 16px 4px;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
 }
 
+/* Penpot: OK — 129x48, fill #1da1f2, stroke #e1e8ed 2px, r3, "ok" 36px */
 .ok-button {
+  width: 129px;
+  height: 48px;
   background: var(--color-accent);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 10px 24px;
+  color: var(--color-text);
+  border: 2px solid var(--color-text);
+  border-radius: 3px;
+  padding: 0 47px 4px;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
 }

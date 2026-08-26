@@ -65,6 +65,28 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IpcChannels.GamesAdd, (_event, input: NewGameInput) => db.addGame(input))
 
+  ipcMain.handle(IpcChannels.GamesUpdate, (_event, gameId: number, input: NewGameInput) =>
+    db.updateGame(gameId, input)
+  )
+
+  ipcMain.handle(IpcChannels.GamesSetPlayTime, (_event, gameId: number, seconds: number) =>
+    db.setTotalPlaySeconds(gameId, seconds)
+  )
+
+  ipcMain.handle(IpcChannels.GamesExtractExeIcon, async (_event, exePath: string) => {
+    try {
+      const image = await app.getFileIcon(exePath, { size: 'large' })
+      if (image.isEmpty()) return null
+      const dir = path.join(app.getPath('userData'), 'icons')
+      fs.mkdirSync(dir, { recursive: true })
+      const filePath = path.join(dir, `${randomUUID()}.png`)
+      fs.writeFileSync(filePath, image.toPNG())
+      return filePath
+    } catch {
+      return null
+    }
+  })
+
   ipcMain.handle(IpcChannels.GamesDelete, (_event, gameId: number) => db.deleteGame(gameId))
 
   ipcMain.handle(IpcChannels.GamesReorder, (_event, orderedIds: number[]) =>
@@ -160,5 +182,23 @@ export function registerIpcHandlers(): void {
 
   ipcMain.on(IpcChannels.OverlayClose, () => {
     closeOverlayWindow()
+  })
+
+  // The library window draws its own title bar buttons (the native overlay
+  // can't be made short enough to fit the 36px design header — Windows
+  // enforces a ~31px minimum), so it drives them over IPC.
+  ipcMain.on(IpcChannels.WindowMinimize, () => {
+    getLibraryWindow()?.minimize()
+  })
+
+  ipcMain.on(IpcChannels.WindowToggleMaximize, () => {
+    const win = getLibraryWindow()
+    if (!win) return
+    if (win.isMaximized()) win.unmaximize()
+    else win.maximize()
+  })
+
+  ipcMain.on(IpcChannels.WindowClose, () => {
+    getLibraryWindow()?.close()
   })
 }

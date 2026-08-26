@@ -3,10 +3,13 @@ import type { FooterStats, GameWithStats, LaunchPrefs, NewGameInput } from './db
 export const IpcChannels = {
   GamesList: 'games:list',
   GamesAdd: 'games:add',
+  GamesUpdate: 'games:update',
   GamesDelete: 'games:delete',
   GamesReorder: 'games:reorder',
   GamesPickExe: 'games:pick-exe',
   GamesPickImage: 'games:pick-image',
+  GamesExtractExeIcon: 'games:extract-exe-icon',
+  GamesSetPlayTime: 'games:set-play-time',
   GamesFooterStats: 'games:footer-stats',
   LaunchPrefsGet: 'launch-prefs:get',
   LaunchPrefsSet: 'launch-prefs:set',
@@ -15,7 +18,11 @@ export const IpcChannels = {
   SessionScreenshot: 'session:screenshot',
   SessionTogglePause: 'session:toggle-pause',
   OverlayTick: 'overlay:tick',
-  OverlayClose: 'overlay:close'
+  OverlayClose: 'overlay:close',
+  WindowMinimize: 'window:minimize',
+  WindowToggleMaximize: 'window:toggle-maximize',
+  WindowClose: 'window:close',
+  WindowMaximizedChanged: 'window:maximized-changed'
 } as const
 
 export interface StartSessionRequest {
@@ -49,15 +56,23 @@ export interface ScreenshotResult {
 export interface LibraryApi {
   listGames(): Promise<GameWithStats[]>
   addGame(input: NewGameInput): Promise<GameWithStats>
+  updateGame(gameId: number, input: NewGameInput): Promise<GameWithStats>
   deleteGame(gameId: number): Promise<void>
   reorderGames(orderedIds: number[]): Promise<void>
   pickExecutable(): Promise<string | null>
   pickImage(): Promise<string | null>
+  /** Writes the executable's icon to a PNG in userData and returns its path. */
+  extractExeIcon(exePath: string): Promise<string | null>
+  setTotalPlaySeconds(gameId: number, seconds: number): Promise<void>
   getFooterStats(): Promise<FooterStats>
   getLaunchPrefs(gameId: number): Promise<LaunchPrefs>
   setLaunchPrefs(prefs: LaunchPrefs): Promise<void>
   startSession(req: StartSessionRequest): Promise<StartSessionResult>
   onSessionEnded(cb: (payload: SessionEndedPayload) => void): () => void
+  minimizeWindow(): void
+  toggleMaximizeWindow(): void
+  closeWindow(): void
+  onMaximizedChanged(cb: (maximized: boolean) => void): () => void
 }
 
 export interface OverlayApi {

@@ -49,6 +49,26 @@ export function initDb(): void {
       keep_setting INTEGER NOT NULL DEFAULT 0
     );
   `)
+
+  addMissingColumns('games', {
+    use_short_name: 'INTEGER NOT NULL DEFAULT 0',
+    use_thumbnail_default: 'INTEGER NOT NULL DEFAULT 0',
+    // Manual correction to the total play time, kept as an offset so sessions
+    // recorded after the edit still accumulate on top of it.
+    play_time_offset: 'INTEGER NOT NULL DEFAULT 0'
+  })
+}
+
+/** SQLite has no `ADD COLUMN IF NOT EXISTS`, so check the table first. */
+function addMissingColumns(table: string, columns: Record<string, string>): void {
+  const existing = new Set(
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name)
+  )
+  for (const [name, definition] of Object.entries(columns)) {
+    if (!existing.has(name)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`)
+    }
+  }
 }
 
 function rowToGameWithStats(row: any): GameWithStats {
@@ -68,12 +88,30 @@ function rowToGameWithStats(row: any): GameWithStats {
     exePath: row.exe_path,
     groupName: row.group_name,
     useExeIcon: !!row.use_exe_icon,
+    useShortName: !!row.use_short_name,
+    useThumbnailAsDefault: !!row.use_thumbnail_default,
     createdAt: row.created_at,
     stats: {
-      totalPlaySeconds: stats.total,
+      totalPlaySeconds: Math.max(0, stats.total + (row.play_time_offset ?? 0)),
       lastPlayedAt: stats.last
     }
   }
+}
+
+/**
+ * Stores the difference between the requested total and what the recorded
+ * sessions add up to, so later sessions keep incrementing from the new value.
+ */
+export function setTotalPlaySeconds(gameId: number, seconds: number): void {
+  const recorded = (
+    db
+      .prepare('SELECT COALESCE(SUM(duration_seconds), 0) AS total FROM sessions WHERE game_id = ?')
+      .get(gameId) as { total: number }
+  ).total
+  db.prepare('UPDATE games SET play_time_offset = ? WHERE id = ?').run(
+    Math.round(seconds) - recorded,
+    gameId
+  )
 }
 
 export function listGames(): GameWithStats[] {
@@ -87,8 +125,10 @@ export function addGame(input: NewGameInput): GameWithStats {
   ).m
   const info = db
     .prepare(
-      `INSERT INTO games (title, short_name, thumbnail_path, icon_path, exe_path, group_name, use_exe_icon, sort_order)
-       VALUES (@title, @shortName, @thumbnailPath, @iconPath, @exePath, @groupName, @useExeIcon, @sortOrder)`
+      `INSERT INTO games (title, short_name, thumbnail_path, icon_path, exe_path, group_name,
+                          use_exe_icon, use_short_name, use_thumbnail_default, sort_order)
+       VALUES (@title, @shortName, @thumbnailPath, @iconPath, @exePath, @groupName,
+               @useExeIcon, @useShortName, @useThumbnailAsDefault, @sortOrder)`
     )
     .run({
       title: input.title,
@@ -98,10 +138,43 @@ export function addGame(input: NewGameInput): GameWithStats {
       exePath: input.exePath,
       groupName: input.groupName,
       useExeIcon: input.useExeIcon ? 1 : 0,
+      useShortName: input.useShortName ? 1 : 0,
+      useThumbnailAsDefault: input.useThumbnailAsDefault ? 1 : 0,
       sortOrder: maxOrder + 1
     })
 
   const row = db.prepare('SELECT * FROM games WHERE id = ?').get(info.lastInsertRowid)
+  return rowToGameWithStats(row)
+}
+
+export function updateGame(gameId: number, input: NewGameInput): GameWithStats {
+  db.prepare(
+    `UPDATE games SET
+       title = @title,
+       short_name = @shortName,
+       thumbnail_path = @thumbnailPath,
+       icon_path = @iconPath,
+       exe_path = @exePath,
+       group_name = @groupName,
+       use_exe_icon = @useExeIcon,
+       use_short_name = @useShortName,
+       use_thumbnail_default = @useThumbnailAsDefault
+     WHERE id = @gameId`
+  ).run({
+    gameId,
+    title: input.title,
+    shortName: input.shortName,
+    thumbnailPath: input.thumbnailPath,
+    iconPath: input.iconPath,
+    exePath: input.exePath,
+    groupName: input.groupName,
+    useExeIcon: input.useExeIcon ? 1 : 0,
+    useShortName: input.useShortName ? 1 : 0,
+    useThumbnailAsDefault: input.useThumbnailAsDefault ? 1 : 0
+  })
+
+  const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
+  if (!row) throw new Error(`ゲームが見つかりません (id=${gameId})`)
   return rowToGameWithStats(row)
 }
 

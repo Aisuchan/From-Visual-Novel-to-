@@ -1,6 +1,7 @@
 import { BrowserWindow, Menu, shell } from 'electron'
 import path from 'node:path'
 import { is } from './env'
+import { IpcChannels } from '../shared/ipc-types'
 
 let libraryWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
@@ -26,13 +27,23 @@ export function createLibraryWindow(): BrowserWindow {
     height: 800,
     minWidth: 960,
     minHeight: 600,
-    backgroundColor: '#0d0f14',
+    backgroundColor: '#14171a',
     show: false,
+    // No `titleBarOverlay`: Windows enforces a ~31px minimum on the native
+    // caption buttons, which is taller than the scaled 36px design header, so
+    // they painted over the header's bottom rule. The Header component draws
+    // its own buttons and drives them over IPC instead.
+    frame: false,
     webPreferences: {
       preload: path.join(__dirname, '../preload/library.js'),
       sandbox: false
     }
   })
+
+  const emitMaximized = (maximized: boolean): void =>
+    win.webContents.send(IpcChannels.WindowMaximizedChanged, maximized)
+  win.on('maximize', () => emitMaximized(true))
+  win.on('unmaximize', () => emitMaximized(false))
 
   win.once('ready-to-show', () => win.show())
   win.webContents.setWindowOpenHandler((details) => {
@@ -55,8 +66,9 @@ export function createOverlayWindow(): BrowserWindow {
   }
 
   const win = new BrowserWindow({
-    width: 340,
-    height: 60,
+    // Penpot "Recorder Panel" board is 449x56.
+    width: 449,
+    height: 56,
     x: 40,
     y: 40,
     frame: false,
