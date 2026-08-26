@@ -42,6 +42,7 @@ export default function GameDetail({
   const [infoWidth, setInfoWidth] = useState(782)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState({ hours: '0', minutes: '0' })
+  const committedRef = useRef(false)
 
   const canShorten = game.useShortName && !!game.shortName
   const displayTitle = canShorten && useShortTitle ? (game.shortName as string) : game.title
@@ -97,14 +98,25 @@ export default function GameDetail({
   function beginEdit(): void {
     const { hours, minutes } = splitPlaytime(game.stats.totalPlaySeconds)
     setDraft({ hours: String(hours), minutes: String(minutes) })
+    committedRef.current = false
     setEditing(true)
   }
 
   function commitEdit(): void {
+    // Enter and the focus leaving the editor can both land here; only the
+    // first one should reach the database.
+    if (committedRef.current) return
+    committedRef.current = true
     const hours = Number(draft.hours || 0)
     const minutes = Number(draft.minutes || 0)
     setEditing(false)
     onEditPlayTime(game.id, hours * 3600 + minutes * 60)
+  }
+
+  /** Commit when focus leaves the editor entirely, but not when it moves
+      between the hours and minutes fields. */
+  function onEditorBlur(e: React.FocusEvent<HTMLElement>): void {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) commitEdit()
   }
 
   /** Digits only, and minutes never exceed 59. */
@@ -198,7 +210,7 @@ export default function GameDetail({
             </span>
             <span className="stat-sep">:</span>
             {editing ? (
-              <span className="stat-value stat-edit">
+              <span className="stat-value stat-edit" onBlur={onEditorBlur}>
                 <input
                   autoFocus
                   inputMode="numeric"
@@ -213,7 +225,6 @@ export default function GameDetail({
                   value={draft.minutes}
                   onChange={(e) => onDigits('minutes', e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && commitEdit()}
-                  onBlur={commitEdit}
                   aria-label="プレイ時間（分）"
                 />
                 m

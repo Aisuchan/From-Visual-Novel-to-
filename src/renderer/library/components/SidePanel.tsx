@@ -32,6 +32,8 @@ export default function SidePanel({
   onDeleteGame
 }: Props): React.JSX.Element {
   const [now, setNow] = useState(new Date())
+  /** What is typed in the box, and the term actually applied to the list. */
+  const [searchInput, setSearchInput] = useState('')
   const [query, setQuery] = useState('')
   const [dragId, setDragId] = useState<number | null>(null)
   const [dragOrder, setDragOrder] = useState<number[] | null>(null)
@@ -165,17 +167,22 @@ export default function SidePanel({
 
       <div className="search-option-container">
         <div className="search-box">
+          {/* Typing only edits the field; the list is filtered when the search
+              is submitted with the button or Enter. */}
           <input
             className="search-input"
             placeholder="Search..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') setQuery(searchInput.trim())
+            }}
           />
           <button
             className="search-submit"
-            onClick={() => setQuery('')}
-            title="検索をクリア"
-            aria-label="検索をクリア"
+            onClick={() => setQuery(searchInput.trim())}
+            title="検索"
+            aria-label="検索"
           >
             <i className="fa-brands fa-sistrix" />
           </button>
