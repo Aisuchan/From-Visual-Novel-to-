@@ -25,6 +25,12 @@ const WHEEL_NOTCH = 100
 /** Delay between the diagonals the pictures flip in along, in milliseconds. */
 const FLIP_STAGGER = 55
 
+/* The board's own fade-in (`board-fade-in`, App.css) is what covers the read
+   and the decode. The flip waits it out rather than running through it: a grid
+   of 3D-transformed pictures inside a layer that is still being composited at
+   a changing opacity is what made the flip flicker. */
+const FADE_COVER_MS = 300
+
 /* The viewer steps like the Middle row's carousel: the arriving picture grows
    as it slides in, the leaving one shrinks as it slides out. Both side slots
    sit a whole stage away, i.e. clear of it. */
@@ -60,6 +66,9 @@ export default function AddThumbnail({
   onGamesChanged
 }: Props): React.JSX.Element {
   const [images, setImages] = useState<GameImage[]>([])
+  // "no images yet" is a verdict, not a waiting state: it stays off until the
+  // list has actually come back.
+  const [loaded, setLoaded] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [page, setPage] = useState(1)
   const [deleting, setDeleting] = useState<GameImage | null>(null)
@@ -68,6 +77,18 @@ export default function AddThumbnail({
   const gridRef = useRef<HTMLDivElement | null>(null)
   const wheelAccum = useRef(0)
   const turnedBack = useRef(false)
+  // Pictures Chromium has already decoded once. Decoding a page's worth of
+  // them is what stalls the very frame the flip-in starts on the first time a
+  // page is opened, so the flip is held back until they are decoded: the
+  // animation itself is untouched, it just no longer competes with the decode.
+  const decoded = useRef(new Set<string>())
+  const [, setDecodedPass] = useState(0)
+  const [faded, setFaded] = useState(false)
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setFaded(true), FADE_COVER_MS)
+    return () => window.clearTimeout(id)
+  }, [])
 
   // Start on the image that is already applied as the thumbnail, and open on
   // the page holding it rather than burying the current choice pages in.
@@ -75,6 +96,7 @@ export default function AddThumbnail({
     async (focusPath: string | null): Promise<void> => {
       const list = await window.library.listGameImages(game.id)
       setImages(list)
+      setLoaded(true)
       const index = focusPath ? list.findIndex((image) => image.filePath === focusPath) : -1
       setSelectedId(index >= 0 ? list[index].id : null)
       setPage(index >= 0 ? Math.floor(index / PAGE_SIZE) + 1 : 1)
@@ -89,6 +111,28 @@ export default function AddThumbnail({
   const pageCount = Math.max(1, Math.ceil(images.length / PAGE_SIZE))
   const current = Math.min(page, pageCount)
   const visible = images.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
+  const ready = faded && visible.every((image) => decoded.current.has(image.filePath))
+  const visibleKey = visible.map((image) => image.id).join(',')
+
+  useEffect(() => {
+    if (visible.every((image) => decoded.current.has(image.filePath))) return
+    let cancelled = false
+    void Promise.all(
+      visible.map(async (image) => {
+        const preload = new Image()
+        preload.src = mediaUrl(image.filePath)
+        // One that fails to load must not hold the rest of the page back.
+        await preload.decode().catch(() => undefined)
+        decoded.current.add(image.filePath)
+      })
+    ).then(() => {
+      if (!cancelled) setDecodedPass((pass) => pass + 1)
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleKey, ready])
 
   // A page turn lands at the edge the reader came from, so a continued scroll
   // reads on rather than immediately turning back.
@@ -183,10 +227,10 @@ export default function AddThumbnail({
     <section className="add-thumbnail">
       {/* Penpot: Image Container — 1585x885, 35px top / 50px side padding */}
       <div className="thumb-container" ref={gridRef} onWheel={onWheel}>
-        {images.length === 0 ? (
+        {!loaded ? null : images.length === 0 ? (
           <p className="thumb-empty">no images yet — use ADD IMAGE</p>
         ) : (
-          <div className="thumb-grid">
+          <div className={`thumb-grid${ready ? ' is-ready' : ''}`}>
             {visible.map((image, index) => (
               <div
                 key={image.id}
@@ -204,6 +248,7 @@ export default function AddThumbnail({
                   <img
                     src={mediaUrl(image.filePath)}
                     alt=""
+                    decoding="async"
                     style={{
                       animationDelay: `${
                         (Math.floor(index / COLUMNS) + (index % COLUMNS)) * FLIP_STAGGER

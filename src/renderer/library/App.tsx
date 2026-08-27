@@ -9,6 +9,8 @@ import FooterBar from './components/FooterBar'
 import AddGameDialog from './components/AddGameDialog'
 import './App.css'
 
+type MainView = 'game' | 'add-thumbnail'
+
 export default function App(): React.JSX.Element {
   const [games, setGames] = useState<GameWithStats[]>([])
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null)
@@ -17,7 +19,7 @@ export default function App(): React.JSX.Element {
   const [editingGame, setEditingGame] = useState<GameWithStats | null>(null)
   const [playingGameId, setPlayingGameId] = useState<number | null>(null)
   // Which board fills the content column: Penpot's "Game" or "Add Thumbnail".
-  const [mainView, setMainView] = useState<'game' | 'add-thumbnail'>('game')
+  const [mainView, setMainView] = useState<MainView>('game')
   const shellRef = useRef<HTMLDivElement | null>(null)
 
   useUiScale(shellRef)
@@ -105,6 +107,34 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  function renderBoard(view: MainView): React.JSX.Element {
+    if (!selectedGame) {
+      return <div className="empty-state">「Add Game +」からゲームを登録してください</div>
+    }
+    if (view === 'add-thumbnail') {
+      return (
+        <AddThumbnail
+          game={selectedGame}
+          onCancel={() => setMainView('game')}
+          onApplied={async () => {
+            await refreshGames()
+            setMainView('game')
+          }}
+          onGamesChanged={refreshGames}
+        />
+      )
+    }
+    return (
+      <GameDetail
+        game={selectedGame}
+        isPlaying={playingGameId === selectedGame.id}
+        onLaunch={handleLaunch}
+        onEditPlayTime={handleEditPlayTime}
+        onOpenThumbnails={() => setMainView('add-thumbnail')}
+      />
+    )
+  }
+
   return (
     <div className="app-shell" ref={shellRef}>
       <Header />
@@ -120,27 +150,12 @@ export default function App(): React.JSX.Element {
         />
 
         <div className="main-column">
-          {selectedGame && mainView === 'add-thumbnail' ? (
-            <AddThumbnail
-              game={selectedGame}
-              onCancel={() => setMainView('game')}
-              onApplied={async () => {
-                await refreshGames()
-                setMainView('game')
-              }}
-              onGamesChanged={refreshGames}
-            />
-          ) : selectedGame ? (
-            <GameDetail
-              game={selectedGame}
-              isPlaying={playingGameId === selectedGame.id}
-              onLaunch={handleLaunch}
-              onEditPlayTime={handleEditPlayTime}
-              onOpenThumbnails={() => setMainView('add-thumbnail')}
-            />
-          ) : (
-            <div className="empty-state">「Add Game +」からゲームを登録してください</div>
-          )}
+          {/* Keyed on the board so a switch remounts the slot, which is what
+              re-runs its fade-in — and starts the new board's reading on the
+              same frame the fade begins. */}
+          <div className="board-slot" key={mainView}>
+            {renderBoard(mainView)}
+          </div>
         </div>
       </div>
 

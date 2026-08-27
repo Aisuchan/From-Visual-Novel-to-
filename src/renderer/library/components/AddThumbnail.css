@@ -70,6 +70,13 @@
   object-fit: contain;
   display: block;
   backface-visibility: hidden;
+  /* Facing away is the resting state, so the grid shows nothing but its frames
+     until `is-ready` starts the flip. */
+  transform: rotateY(180deg);
+}
+
+.thumb-grid.is-ready .thumb-cell img {
+  transform: rotateY(0deg);
   animation: thumb-flip-in 300ms ease-out backwards;
 }
 

@@ -23,6 +23,33 @@
   min-width: 0;
 }
 
+/* The board is wrapped so it can be keyed and faded as a whole: the wrapper
+   fills the column exactly the way the board used to.
+
+   Every board paints `--color-bg`, the same colour as the shell behind it, so
+   what the fade actually crosses is a flat ground rather than the board being
+   left — the switch reads as one screen resolving, not two blended. It also
+   buys the arriving board its reading time: Add Thumbnail mounts, and so
+   starts reading and decoding, on the frame the fade begins. */
+.main-column > .board-slot {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  animation: board-fade-in 300ms ease-out;
+}
+
+@keyframes board-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
 .empty-state {
   flex: 1;
   display: flex;

@@ -102,8 +102,10 @@ function addMissingColumns(table: string, columns: Record<string, string>): void
 function rowToGameWithStats(row: any): GameWithStats {
   const stats = db
     .prepare(
+      /* Sessions launched with "Record Time" off are kept as history but left
+         out of the stats the library shows. */
       `SELECT COALESCE(SUM(duration_seconds), 0) AS total, MAX(started_at) AS last
-       FROM sessions WHERE game_id = ?`
+       FROM sessions WHERE game_id = ? AND recorded = 1`
     )
     .get(row.id) as { total: number; last: string | null }
 
@@ -133,7 +135,9 @@ function rowToGameWithStats(row: any): GameWithStats {
 export function setTotalPlaySeconds(gameId: number, seconds: number): void {
   const recorded = (
     db
-      .prepare('SELECT COALESCE(SUM(duration_seconds), 0) AS total FROM sessions WHERE game_id = ?')
+      .prepare(
+        'SELECT COALESCE(SUM(duration_seconds), 0) AS total FROM sessions WHERE game_id = ? AND recorded = 1'
+      )
       .get(gameId) as { total: number }
   ).total
   db.prepare('UPDATE games SET play_time_offset = ? WHERE id = ?').run(
@@ -401,7 +405,8 @@ export function getFooterStats(): FooterStats {
   const sumSince = (iso: string): number => {
     const result = db
       .prepare(
-        `SELECT COALESCE(SUM(duration_seconds), 0) AS total FROM sessions WHERE started_at >= ?`
+        `SELECT COALESCE(SUM(duration_seconds), 0) AS total
+         FROM sessions WHERE started_at >= ? AND recorded = 1`
       )
       .get(iso) as { total: number }
     return result.total
