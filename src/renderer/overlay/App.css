@@ -1,131 +1,201 @@
-/* All values below are literal Penpot values from board "Recorder Panel"
-   (8dc20177-e0ad-80ef-8008-7eae9a5b82b2), 449x56. The overlay window is
-   created at exactly that size, so no scaling is involved. */
+/* Every value below is a literal from the Penpot board "Recorder Panel"
+   (8dc20177-e0ad-80ef-8008-7eae9a5b82b2): 225x28 of content inside a 1px
+   outer stroke, so the window is created at 227x30 and nothing is scaled.
+   Each rule below maps to one Penpot board, in the design's own order. */
 
 html,
 body {
   background: transparent;
 }
 
-/* Penpot: Recorder Panel — 449x56, fill #14171a, r10, row with 14px gap */
+/* Recorder Panel — 225x28, fill #14171a, 1px outer stroke #2a2d31,
+   radius 5px on the left corners only, row / align start / gap 0 / pad 0.
+   Sized in design px rather than 100% so the panel keeps the design's
+   dimensions even if the window is not exactly 227x30. */
 .overlay-panel {
   -webkit-app-region: drag;
+  box-sizing: content-box;
+  width: 225px;
+  height: 28px;
   display: flex;
-  align-items: stretch;
-  gap: 14px;
-  height: 100%;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0;
   background: var(--color-bg);
-  border-radius: 10px;
+  border: 1px solid var(--color-bg-alt);
+  border-radius: 5px 0 0 5px;
   position: relative;
   overflow: hidden;
   font-family: var(--font-display);
 }
 
-/* Penpot: Open / Close Button — 45x56 (44px button + 1px border) */
-.overlay-open-close {
+/* Shrunk, only "Strech / Shrink Button" (25) and "Move Button" (24) remain. */
+.overlay-panel.is-shrunk {
+  width: 49px;
+}
+
+/* Strech / Shrink Button — 25x28, row / align start / gap 0 / pad 0 */
+.overlay-shrink {
   -webkit-app-region: no-drag;
-  width: 45px;
+  width: 25px;
+  height: 28px;
   flex-shrink: 0;
   display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
 }
 
-/* Penpot: Button — 44x56, fill #090e17, 10px side padding, "▶" 24px #657786 */
-.overlay-open-close button {
-  width: 44px;
+/* Button — 24x28, fill #090e17, pad 0 5 0 7, row / align center */
+.overlay-shrink-button {
+  width: 24px;
+  height: 28px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 5px 0 7px;
   background: var(--color-bg-deep);
   border: none;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  color: var(--color-text-dim);
-  font-family: var(--font-display);
-  font-size: 24px;
-  line-height: 1.2;
 }
 
-/* Penpot: Border — 1x56, #B1B2B5 */
-.overlay-open-close-border {
+/* "▶" — Girassol 400, 12px, #657786, line-height 1.2 (12x15) */
+.overlay-shrink-button > span {
+  font-family: var(--font-display);
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--color-text-dim);
+}
+
+/* Border — 1x28, #B1B2B5 */
+.overlay-shrink-border {
   width: 1px;
+  height: 28px;
   flex-shrink: 0;
   background: var(--color-border);
 }
 
-/* Penpot: Play Time — 169x56, 15px side padding, 10px gap */
+/* Play Time — 85x28, margin 0 5, pad 0 5, row / align start / gap 10 */
 .overlay-play-time {
   -webkit-app-region: no-drag;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 15px;
+  width: 85px;
+  height: 28px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 10px;
+  margin: 0 5px;
+  padding: 0 5px;
 }
 
-/* Penpot: Play / Pause — 28x56, "■"/"▶" 28px #cd1e1e */
+/* Play / Pause — 14x28, row / align center / justify start */
 .overlay-play-pause {
-  width: 28px;
+  width: 14px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0;
   background: transparent;
   border: none;
-  color: #cd1e1e;
-  font-family: var(--font-display);
-  font-size: 28px;
-  line-height: 1.2;
-  padding: 0;
 }
 
-/* Penpot: "00:00:00" — Girassol 28px, #aab8c2 */
+/* "■" / "▶" — Girassol 400, 14px, #cd1e1e, line-height 1.2 (14x17) */
+.overlay-play-pause > span {
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 1.2;
+  color: #cd1e1e;
+}
+
+/* time elapsed — 51x28, row / align center / justify center */
 .overlay-time {
-  width: 101px;
-  font-size: 28px;
+  width: 51px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+/* "00:00:00" — Girassol 400, 14px, #aab8c2, line-height 1.2 (51x17) */
+.overlay-time > span {
+  font-size: 14px;
   line-height: 1.2;
   color: var(--color-text-muted);
   white-space: nowrap;
 }
 
-/* Penpot: Convinient Button — 145x56, 10px side padding, 10px gap */
+/* Convinient Button — 81x28, pad 0 5, row / align center / gap 10 */
 .overlay-convenient {
   -webkit-app-region: no-drag;
+  width: 81px;
+  height: 28px;
+  flex-shrink: 0;
   display: flex;
+  flex-direction: row;
   align-items: center;
+  justify-content: flex-start;
   gap: 10px;
-  padding: 0 10px;
-  flex-shrink: 0;
+  padding: 0 5px;
 }
 
-/* Penpot: Screen Shots / Sound Capture — 35x35 #B1B2B5,
-   Movie Capture — a 35px #690a0a ellipse */
-.overlay-capture {
-  width: 35px;
-  height: 35px;
+/* Screen Shots / Sound Capture — 17x17 boards holding a 17x17 #B1B2B5 rect */
+.overlay-shot,
+.overlay-sound {
+  width: 17px;
+  height: 17px;
   flex-shrink: 0;
-  background: var(--color-border);
-  border: none;
   padding: 0;
+  border: none;
+  background: var(--color-border);
 }
 
-.overlay-capture.movie {
+/* Movie Capture — a 17x17 #690a0a ellipse */
+.overlay-movie {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
   background: #690a0a;
   border-radius: 50%;
 }
 
-span.overlay-capture {
-  opacity: 0.5;
-  cursor: not-allowed;
+/* Movie / sound capture are deferred; the design draws them the same as the
+   working one, so only the cursor gives them away. */
+.overlay-movie,
+.overlay-sound {
+  cursor: default;
 }
 
-/* Penpot: Move Button — 48x56, 15px left / 5px right padding, "⋮⋮" 44px #e1e8ed */
+/* Move Button — 24x28, pad 0 5, row / align start */
 .overlay-move {
   -webkit-app-region: drag;
-  width: 48px;
+  width: 24px;
+  height: 28px;
   flex-shrink: 0;
   display: flex;
-  align-items: center;
-  padding: 0 5px 0 15px;
-  color: var(--color-text);
-  font-size: 44px;
-  line-height: 1.2;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 0 5px;
   cursor: grab;
 }
 
+/* "⋮⋮" — Girassol 400, 22px, #e1e8ed, line-height 1.2 (14x27) */
+.overlay-move > span {
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Not in the design: a transient confirmation over the panel after a capture. */
 .overlay-toast {
   -webkit-app-region: no-drag;
   position: absolute;
@@ -136,6 +206,5 @@ span.overlay-capture {
   text-align: center;
   background: rgba(9, 14, 23, 0.96);
   color: var(--color-text-bright);
-  font-size: 16px;
-  border-radius: 10px;
+  font-size: 11px;
 }

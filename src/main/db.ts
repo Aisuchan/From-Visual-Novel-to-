@@ -359,7 +359,11 @@ export function startSession(gameId: number, recorded: boolean): Session {
   }
 }
 
-export function endSession(sessionId: number): Session {
+/**
+ * `durationSeconds` is the Recorder Panel's elapsed time rather than the wall
+ * clock, so spans the player paused never reach the play-time totals.
+ */
+export function endSession(sessionId: number, durationSeconds: number): Session {
   const row = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId) as {
     id: number
     game_id: number
@@ -370,14 +374,10 @@ export function endSession(sessionId: number): Session {
   }
 
   const endedAt = new Date().toISOString()
-  const durationSeconds = Math.max(
-    0,
-    Math.round((new Date(endedAt).getTime() - new Date(row.started_at).getTime()) / 1000)
-  )
 
   db.prepare('UPDATE sessions SET ended_at = ?, duration_seconds = ? WHERE id = ?').run(
     endedAt,
-    durationSeconds,
+    Math.max(0, Math.round(durationSeconds)),
     sessionId
   )
 
@@ -386,7 +386,7 @@ export function endSession(sessionId: number): Session {
     gameId: row.game_id,
     startedAt: row.started_at,
     endedAt,
-    durationSeconds,
+    durationSeconds: Math.max(0, Math.round(durationSeconds)),
     recorded: !!row.recorded
   }
 }

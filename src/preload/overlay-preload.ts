@@ -11,7 +11,7 @@ const overlayApi: OverlayApi = {
   },
   takeScreenshot: () => ipcRenderer.invoke(IpcChannels.SessionScreenshot),
   togglePause: () => ipcRenderer.invoke(IpcChannels.SessionTogglePause),
-  closeOverlay: () => ipcRenderer.send(IpcChannels.OverlayClose)
+  setShrunk: (shrunk: boolean) => ipcRenderer.invoke(IpcChannels.OverlayToggleShrink, shrunk)
 }
 
 contextBridge.exposeInMainWorld('overlay', overlayApi)

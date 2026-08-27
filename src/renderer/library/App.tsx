@@ -25,9 +25,14 @@ export default function App(): React.JSX.Element {
   async function refreshGames(): Promise<void> {
     const list = await window.library.listGames()
     setGames(list)
-    if (selectedGameId === null && list.length > 0) {
-      setSelectedGameId(list[0].id)
-    }
+    // Functional update on purpose: this also runs from the session-ended
+    // subscription, whose closure would otherwise still see the selection as
+    // it was when the subscription was set up and jump back to the first game.
+    setSelectedGameId((current) =>
+      current !== null && list.some((game) => game.id === current)
+        ? current
+        : (list[0]?.id ?? null)
+    )
   }
 
   async function refreshFooterStats(): Promise<void> {
@@ -70,7 +75,6 @@ export default function App(): React.JSX.Element {
 
   async function handleDeleteGame(gameId: number): Promise<void> {
     await window.library.deleteGame(gameId)
-    if (selectedGameId === gameId) setSelectedGameId(null)
     await refreshGames()
   }
 

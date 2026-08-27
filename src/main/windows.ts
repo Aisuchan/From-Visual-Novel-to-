@@ -1,4 +1,4 @@
-import { BrowserWindow, Menu, shell } from 'electron'
+import { BrowserWindow, Menu, screen, shell } from 'electron'
 import path from 'node:path'
 import { is } from './env'
 import { IpcChannels } from '../shared/ipc-types'
@@ -59,18 +59,29 @@ export function createLibraryWindow(): BrowserWindow {
   return win
 }
 
+/* Penpot "Recorder Panel": 225x28 with a 1px outer stroke on every side.
+   Shrunk, only the 25px "Strech / Shrink Button" and the 24px "Move Button"
+   remain. */
+const OVERLAY_WIDTH = 227
+const OVERLAY_SHRUNK_WIDTH = 51
+const OVERLAY_HEIGHT = 30
+
 export function createOverlayWindow(): BrowserWindow {
   if (overlayWindow) {
     overlayWindow.show()
     return overlayWindow
   }
 
+  // Flush into the bottom-right corner of the usable desktop (the work area,
+  // so the taskbar does not sit on top of it).
+  const { workArea } = screen.getPrimaryDisplay()
+
   const win = new BrowserWindow({
-    // Penpot "Recorder Panel" board is 449x56.
-    width: 449,
-    height: 56,
-    x: 40,
-    y: 40,
+    // Penpot "Recorder Panel" board is 225x28 plus its 1px outer stroke.
+    width: OVERLAY_WIDTH,
+    height: OVERLAY_HEIGHT,
+    x: workArea.x + workArea.width - OVERLAY_WIDTH,
+    y: workArea.y + workArea.height - OVERLAY_HEIGHT,
     frame: false,
     transparent: true,
     resizable: false,
@@ -92,6 +103,19 @@ export function createOverlayWindow(): BrowserWindow {
   loadRenderer(win, 'overlay.html')
   overlayWindow = win
   return win
+}
+
+/**
+ * Collapses towards the right edge: that edge stays put while the left one
+ * moves, so a panel parked in the bottom-right corner stays in the corner.
+ * Read from the current bounds so a panel the user dragged keeps its place.
+ */
+export function setOverlayShrunk(shrunk: boolean): void {
+  const win = overlayWindow
+  if (!win) return
+  const { x, y, width } = win.getBounds()
+  const nextWidth = shrunk ? OVERLAY_SHRUNK_WIDTH : OVERLAY_WIDTH
+  win.setBounds({ x: x + width - nextWidth, y, width: nextWidth, height: OVERLAY_HEIGHT })
 }
 
 export function closeOverlayWindow(): void {

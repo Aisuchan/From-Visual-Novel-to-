@@ -9,7 +9,8 @@ import {
   createOverlayWindow,
   closeOverlayWindow,
   getLibraryWindow,
-  getOverlayWindow
+  getOverlayWindow,
+  setOverlayShrunk
 } from './windows'
 import { IpcChannels } from '../shared/ipc-types'
 import type { LaunchPrefs, NewGameInput } from '../shared/db-types'
@@ -51,7 +52,9 @@ function finishActiveSession(): void {
   clearInterval(finished.tickTimer)
   active = null
 
-  const session = db.endSession(finished.sessionId)
+  // The Recorder Panel's own elapsed time is what gets banked, so any span the
+  // player paused is left out of the game's total play time.
+  const session = db.endSession(finished.sessionId, elapsedSeconds(finished))
   closeOverlayWindow()
   getLibraryWindow()?.webContents.send(IpcChannels.SessionEnded, {
     sessionId: session.id,
@@ -218,8 +221,12 @@ export function registerIpcHandlers(): void {
     return { filePath }
   })
 
-  ipcMain.on(IpcChannels.OverlayClose, () => {
-    closeOverlayWindow()
+  // The Recorder Panel's "Strech / Shrink" button hides its Play Time and
+  // Convinient Button sections; the window narrows to match so the leftover
+  // transparent area stops swallowing clicks meant for the game underneath.
+  ipcMain.handle(IpcChannels.OverlayToggleShrink, (_event, shrunk: boolean) => {
+    setOverlayShrunk(shrunk)
+    return { shrunk }
   })
 
   // The library window draws its own title bar buttons (the native overlay

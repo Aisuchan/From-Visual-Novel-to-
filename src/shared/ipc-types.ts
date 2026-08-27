@@ -22,7 +22,7 @@ export const IpcChannels = {
   SessionScreenshot: 'session:screenshot',
   SessionTogglePause: 'session:toggle-pause',
   OverlayTick: 'overlay:tick',
-  OverlayClose: 'overlay:close',
+  OverlayToggleShrink: 'overlay:toggle-shrink',
   WindowMinimize: 'window:minimize',
   WindowToggleMaximize: 'window:toggle-maximize',
   WindowClose: 'window:close',
@@ -89,5 +89,6 @@ export interface OverlayApi {
   onTick(cb: (payload: OverlayTickPayload) => void): () => void
   takeScreenshot(): Promise<ScreenshotResult>
   togglePause(): Promise<{ paused: boolean }>
-  closeOverlay(): void
+  /** Narrows the panel window to the buttons the shrunk design keeps. */
+  setShrunk(shrunk: boolean): Promise<{ shrunk: boolean }>
 }
