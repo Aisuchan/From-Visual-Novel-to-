@@ -1,0 +1,345 @@
+/* All values below are literal Penpot values from board "Add Thumbnail"
+   (d3f72a50-bc2e-80de-8008-7ab294474f8f), 1585x984 — the same slot in Main
+   Display that board "Game" occupies. */
+
+.add-thumbnail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-bg);
+}
+
+/* Penpot: Image Container — 1585x885, 35px top and 50px side padding */
+.thumb-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 35px 50px 0;
+  overflow-y: auto;
+}
+
+/* Penpot: 5 columns x 5 rows of 273x154, 30px column gap, 20px row gap.
+   5 * 273 + 4 * 30 = 1485 = the 1585 board minus its 50px side padding. */
+.thumb-grid {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(5, 273px);
+  grid-auto-rows: 154px;
+  column-gap: 30px;
+  row-gap: 20px;
+}
+
+/* Penpot draws the one cell it shows with the 5px #1da1f2 stroke, i.e. in its
+   selected state; an unselected image slot carries the same 1px #657786 stroke
+   the thumbnail slot in "Add Game" does. The board's #B1B2B5 fill is the
+   placeholder plate, and a cell always has an image, so it is not painted —
+   a non-16:9 image is letterboxed against the page instead. */
+.thumb-cell {
+  position: relative;
+  width: 273px;
+  height: 154px;
+  border: 1px solid var(--color-text-dim);
+  overflow: hidden;
+  /* Each picture turns about its own centre. */
+  perspective: 600px;
+}
+
+.thumb-cell.selected {
+  border: 5px solid var(--color-accent);
+}
+
+.thumb-cell-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+/* The pictures arrive back-first and spin round to face the reader. Until
+   their turn comes they are still facing away, which — with the back face
+   hidden — leaves the grid showing nothing but its frames. */
+.thumb-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  backface-visibility: hidden;
+  animation: thumb-flip-in 300ms ease-out backwards;
+}
+
+@keyframes thumb-flip-in {
+  from {
+    transform: rotateY(180deg);
+  }
+
+  to {
+    transform: rotateY(0deg);
+  }
+}
+
+/* Appears over the image's top-right corner while the cell is hovered. No
+   frame of its own — the drop shadow is what keeps it legible on a light
+   image. */
+.thumb-cell-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-danger);
+  font-size: 24px;
+  line-height: 1;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.thumb-cell:hover .thumb-cell-delete,
+.thumb-cell-delete:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.thumb-cell-delete:hover {
+  color: var(--color-danger-bright);
+}
+
+.thumb-empty {
+  margin: auto;
+  color: var(--color-text-dim);
+  font-family: var(--font-display);
+  font-size: 42px;
+}
+
+/* Penpot: Bottom — 1585x99, row-reverse with a 30px gap and 50px side padding,
+   which puts the buttons at the right edge and the pager at the left. */
+.thumb-bottom {
+  height: 99px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 30px;
+  padding: 0 50px;
+}
+
+/* Penpot: Buttons — 1182x61, 30px gap */
+.thumb-buttons {
+  width: 1182px;
+  height: 61px;
+  display: flex;
+  gap: 30px;
+}
+
+/* Penpot: 61px tall, 7px/3px vertical padding, r5, stroke #e1e8ed 1px,
+   Girassol 42px */
+.thumb-button {
+  height: 61px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 0 3px;
+  border: 1px solid var(--color-text);
+  border-radius: 5px;
+  font-family: var(--font-display);
+  font-size: 42px;
+  line-height: 1.2;
+  transition: filter 0.15s ease;
+}
+
+.thumb-button.add-image {
+  width: 575px;
+  background: var(--color-bg-alt);
+  color: var(--color-text-muted);
+}
+
+.thumb-button.apply {
+  width: 274px;
+  background: var(--color-accent);
+  color: var(--color-text);
+}
+
+.thumb-button.cancel {
+  width: 273px;
+  background: var(--color-bg-alt);
+  color: var(--color-text-muted);
+}
+
+/* Same lift the footer's "Add Game +" button uses. */
+.thumb-button:hover:not(:disabled) {
+  filter: brightness(1.18);
+}
+
+.thumb-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Penpot: Page Switcher — 273x44, 2px gap, centred */
+.thumb-pager {
+  width: 273px;
+  height: 44px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+/* Penpot: number boxes are 44 tall with 3px side padding — 26 wide for "1",
+   45 for two digits — in Girassol 36px. */
+.pager-page,
+.pager-gap {
+  height: 44px;
+  min-width: 20px;
+  padding: 0 3px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 42px;
+  text-align: center;
+}
+
+.pager-gap {
+  width: 36px;
+  padding: 0;
+}
+
+.pager-page:hover {
+  color: var(--color-text-bright);
+}
+
+/* Penpot: Median Selected — fill #2a2d31, stroke #657786 1px, r5, text #e1e8ed */
+.pager-page.selected {
+  background: var(--color-bg-alt);
+  border-color: var(--color-text-dim);
+  color: var(--color-text);
+}
+
+/* ------------------------------------------------------- Image viewer ---- */
+
+/* Not in the design. Anchored to `.app-shell`, so it covers the header and
+   footer too — double-clicking a cell shows that picture full screen. */
+.image-viewer {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+  background: rgba(9, 14, 23, 0.94);
+  animation: viewer-fade-in 180ms ease-out;
+}
+
+@keyframes viewer-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* The band the picture occupies: symmetric top and bottom, so it sits in the
+   middle of the window whatever its aspect ratio. Keeping the back button
+   clear of it is the side gutters' job, not a band above — at 95px they are
+   wider than the button's own 20 + 50, so no picture can ever reach it. */
+.viewer-stage {
+  position: absolute;
+  top: 40px;
+  right: 95px;
+  bottom: 40px;
+  left: 95px;
+}
+
+.viewer-slot {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.4s ease;
+}
+
+.viewer-slot img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* Penpot's Left/Right Arrow shape, at the same 43.29x86.58. */
+.viewer-arrow {
+  position: absolute;
+  top: 50%;
+  width: 43.29px;
+  height: 86.58px;
+  transform: translateY(-50%);
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+/* Centred in the 95px gutter, so they never sit over the picture. */
+.viewer-arrow.prev {
+  left: 25.86px;
+}
+
+.viewer-arrow.next {
+  right: 25.86px;
+}
+
+.viewer-arrow svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.viewer-arrow:hover:not(:disabled) path {
+  fill: var(--color-text-bright);
+}
+
+.viewer-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Sits in the left gutter — its right edge at 70px stays 25px clear of the
+   picture, which starts at 95px. */
+.viewer-back {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--color-accent);
+  border: none;
+  border-radius: 5%;
+  color: var(--color-text-bright);
+  font-size: 28px;
+  line-height: 1;
+  transition: filter 0.15s ease;
+}
+
+.viewer-back:hover {
+  filter: brightness(1.18);
+}

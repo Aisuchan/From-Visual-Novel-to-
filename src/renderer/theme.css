@@ -9,6 +9,9 @@
   --color-text-dim: #657786;
   --color-text-bright: #f5f8fa;
   --color-accent: #1da1f2;
+  /* Destructive counterpart of the accent. */
+  --color-danger: #cc1b1b;
+  --color-danger-bright: #e63b3b;
   --color-border: #b1b2b5;
   --color-clock-bg: #2c3034;
   --color-strip: #222326;

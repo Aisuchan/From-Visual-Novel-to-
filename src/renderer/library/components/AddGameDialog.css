@@ -371,6 +371,22 @@
   padding: 20px;
 }
 
+/* Same lift the footer's "Add Game +" button uses, on every button in the
+   dialog that actually does something. */
+.cancel-button,
+.ok-button,
+.url-button,
+.image-slot {
+  transition: filter 0.15s ease;
+}
+
+.cancel-button:hover:not(:disabled),
+.ok-button:hover:not(:disabled),
+.url-button:hover:not(:disabled),
+.image-slot:hover {
+  filter: brightness(1.18);
+}
+
 /* Penpot: Cancel — 130x48, fill #2a2d31, stroke #657786 2px, r3, "cancel" 36px */
 .cancel-button {
   width: 130px;

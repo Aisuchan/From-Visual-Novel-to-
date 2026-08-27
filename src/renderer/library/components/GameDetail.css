@@ -104,32 +104,159 @@
 
 /* ------------------------------------------------------------- Middle ---- */
 
-/* Penpot: Middle — 1585x610, flex row, align center, space-between */
+/* Penpot: Middle — 1585x610. Laid out as a carousel stage rather than a flex
+   row: the entries are absolutely placed and the row clips them, which is what
+   turns the outer 142px of each side into the design's Sub Image frame. */
 .game-middle {
+  position: relative;
   width: 100%;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+}
+
+/* The 610px band the design's Main Image occupies, centred in whatever height
+   the row ends up with. */
+.carousel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 610px;
+  transform: translateY(-50%);
+}
+
+/* Penpot: Main Image — 1084x610 at x=250.5. `transform` moves an entry between
+   the centre and the side slots, so the slide and the shrink/grow are one
+   transition and nothing around it reflows. */
+.carousel-item {
+  position: absolute;
+  left: 250.5px;
+  top: 0;
+  width: 1084px;
+  height: 610px;
+  transition: transform 0.4s ease;
+}
+
+/* Loading another game's images re-seeds the slots; they must appear in place
+   rather than sliding there from the previous game's position. */
+.carousel.instant .carousel-item {
+  transition: none;
+}
+
+.carousel-item.center {
+  z-index: 1;
+}
+
+/* Penpot fills this 1084x610 board #B1B2B5, but that is the placeholder plate:
+   it is not painted, so a game with no image shows nothing and a non-16:9
+   image is letterboxed against the page. */
+.main-image {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  transition: transform 0.15s ease;
+}
+
+/* Hovering the thumbnail lifts it slightly. `transform` keeps the row's
+   layout — and every literal Penpot position around it — untouched. */
+.main-image:not(.side):hover {
+  transform: scale(1.02);
+}
+
+/* The whole image, scaled to fit its frame, whatever its aspect ratio. */
+.main-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  transition: filter 0.4s ease;
+}
+
+/* The peeking neighbours sit in shadow. */
+.main-image.side img {
+  filter: brightness(0.5);
+}
+
+.carousel-side-hit {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.main-image.side:hover img {
+  filter: brightness(0.72);
+}
+
+/* Not in the design: the entry point to Add Thumbnail. Sits inside the image's
+   top-right corner and only appears — at 50% — while the image is hovered. */
+.main-image-setting {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 75px;
+  height: 75px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  padding: 0;
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-text);
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  font-size: 42.5px;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, color 0.15s ease;
 }
 
-/* Penpot: Sub Image — 142x467, fill #657786 */
-.sub-image {
-  width: 142px;
-  height: 467px;
-  flex-shrink: 0;
-  background: var(--color-text-dim);
+.main-image:hover .main-image-setting:not(.centered) {
+  opacity: 0.5;
+  pointer-events: auto;
 }
 
-/* Penpot: Left/Right Arrow — 43.29x86.58 paths, fill #B1B2B5 */
+/* With no thumbnail and no gallery there is nothing to hover, so the way in
+   sits in the middle of the empty frame and stays there. */
+.main-image-setting.centered {
+  top: 50%;
+  left: 50%;
+  right: auto;
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.main-image .main-image-setting:hover,
+.main-image .main-image-setting:focus-visible {
+  opacity: 1;
+  color: var(--color-text-bright);
+  pointer-events: auto;
+}
+
+/* Penpot: Left/Right Arrow — 43.29x86.58 paths, fill #B1B2B5, vertically
+   centred at x=174.6 from either edge. */
 .nav-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
   width: 43.29px;
   height: 86.58px;
-  flex-shrink: 0;
+  transform: translateY(-50%);
   padding: 0;
   border: none;
   background: transparent;
+}
+
+.nav-arrow.prev {
+  left: 174.6px;
+}
+
+.nav-arrow.next {
+  right: 174.6px;
 }
 
 .nav-arrow svg {
@@ -138,25 +265,13 @@
   display: block;
 }
 
-.nav-arrow:hover path {
+.nav-arrow:hover:not(:disabled) path {
   fill: var(--color-text-bright);
 }
 
-/* Penpot: Main Image — 1084x610, fill #B1B2B5 */
-.main-image {
-  width: 1084px;
-  height: 610px;
-  max-height: 100%;
-  flex-shrink: 0;
-  background: var(--color-border);
-  overflow: hidden;
-}
-
-.main-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+.nav-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 /* -------------------------------------------------------------- Under ---- */
@@ -230,6 +345,11 @@
   color: var(--color-text);
   text-align: center;
   white-space: nowrap;
+}
+
+/* The "last played" value reads in full capitals; its caption does not. */
+.stat.last-played .stat-value {
+  text-transform: uppercase;
 }
 
 .stat-value.editable {

@@ -38,6 +38,15 @@
   transition: filter 0.15s ease;
 }
 
+.play-caret-glyph {
+  display: inline-block;
+  transition: transform 0.22s ease-out;
+}
+
+.play-caret-glyph.flipped {
+  transform: rotate(180deg);
+}
+
 .play-main:hover:not(:disabled),
 .play-caret:hover:not(:disabled) {
   filter: brightness(1.18);
@@ -71,6 +80,34 @@
   flex-direction: column;
   align-items: center;
   gap: 10px;
+  /* Grows up out of the play button: the panel starts at the button's own
+     height and the settings above it are clipped until there is room. The
+     play button itself is taken out of the flow (below) so it stays whole
+     throughout. Closing plays the same move backwards. */
+  overflow: hidden;
+  animation: play-extend-grow 0.11s ease-out;
+}
+
+.play-extend-popover.closing {
+  animation: play-extend-shrink 0.11s ease-in forwards;
+}
+
+@keyframes play-extend-grow {
+  from {
+    height: 62px;
+  }
+  to {
+    height: 348px;
+  }
+}
+
+@keyframes play-extend-shrink {
+  from {
+    height: 348px;
+  }
+  to {
+    height: 62px;
+  }
 }
 
 /* Penpot: "Setting" — Girassol 36px, #e1e8ed, 5px bottom padding */
@@ -119,7 +156,11 @@
 }
 
 
-/* The popover's own play button is the same control as the one it covers. */
+/* The popover's own play button is the same control as the one it covers.
+   Pinned to the bottom rather than pushed there by the flex flow, so the
+   growing/shrinking panel never clips it. */
 .play-split.overlaid {
-  margin-top: auto;
+  position: absolute;
+  left: 25px;
+  bottom: 0;
 }

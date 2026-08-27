@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { GameWithStats, NewGameInput } from '../../../shared/db-types'
-import { fileUrl } from '../format'
+import { mediaUrl } from '../../../shared/media-url'
 import './AddGameDialog.css'
 
 interface Props {
@@ -115,14 +115,14 @@ export default function AddGameDialog({ game, onCancel, onSubmit }: Props): Reac
             <div className="images">
               <button className="image-slot" onClick={pickThumbnail}>
                 <span className="thumbnail-image">
-                  {thumbnailPath ? <img src={fileUrl(thumbnailPath)} alt="thumbnail" /> : null}
+                  {thumbnailPath ? <img src={mediaUrl(thumbnailPath)} alt="thumbnail" /> : null}
                 </span>
                 <span className="image-caption">Thumbnail</span>
               </button>
 
               <button className="image-slot" onClick={pickIcon}>
                 <span className="icon-image">
-                  {iconPath ? <img src={fileUrl(iconPath)} alt="icon" /> : null}
+                  {iconPath ? <img src={mediaUrl(iconPath)} alt="icon" /> : null}
                 </span>
                 <span className="image-caption">Icon</span>
               </button>

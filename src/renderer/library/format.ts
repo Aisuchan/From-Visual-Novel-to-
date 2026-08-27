@@ -1,24 +1,13 @@
-/**
- * Windows paths are not valid file URLs on their own: `file://C:\dir\x.png`
- * has no host/path split, and any non-ASCII segment (this app lives under a
- * Japanese user directory) has to be percent-encoded. The drive letter is left
- * alone so the colon survives.
- */
-export function fileUrl(filePath: string): string {
-  const [drive, ...rest] = filePath.replace(/\\/g, '/').split('/')
-  return `file:///${drive}/${rest.map(encodeURIComponent).join('/')}`
-}
-
 export function formatHours(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600)
   return `${hours}h`
 }
 
-/** Minute-resolution play time, e.g. "0h00m" … "999h59m". */
+/** Minute-resolution play time, e.g. "0h0m" … "999h59m" (minutes unpadded). */
 export function formatPlaytime(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600)
   const minutes = Math.floor((totalSeconds % 3600) / 60)
-  return `${hours}h${String(minutes).padStart(2, '0')}m`
+  return `${hours}h${minutes}m`
 }
 
 export function splitPlaytime(totalSeconds: number): { hours: number; minutes: number } {

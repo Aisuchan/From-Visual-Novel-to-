@@ -1,0 +1,93 @@
+/* All values below are literal Penpot values from board "Delete Image Confilm"
+   (3a42d79e-e96e-80d3-8008-8b9cae85e75a), 450x278. `.dialog-backdrop` comes
+   from AddGameDialog.css. */
+
+.delete-confirm {
+  width: 450px;
+  height: 278px;
+  background: var(--color-bg);
+  /* Penpot's 5px stroke is inner, so the children still span the full 450px —
+     an inset shadow reproduces that where a border would inset them. */
+  box-shadow: inset 0 0 0 5px var(--color-text-dim);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* Penpot: "delete image" — Girassol 42px #e1e8ed, 5px bottom padding */
+.delete-confirm-top {
+  width: 450px;
+  height: 56px;
+  flex-shrink: 0;
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 5px var(--color-text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 5px;
+  font-family: var(--font-display);
+  font-size: 42px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Penpot sets this line in sourcesanspro 32px; the app's own body face is
+   used instead. */
+.delete-confirm-sentence {
+  width: 450px;
+  height: 119px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  font-family: var(--font-body);
+  font-size: 32px;
+  line-height: 1.2;
+  color: var(--color-text);
+  text-align: center;
+}
+
+/* Penpot: Rectangle — 390x1 #B1B2B5 with 25px below it, drawn as this row's
+   top border (a 1px flex item all but vanishes under the shell zoom). */
+.delete-confirm-actions {
+  width: 390px;
+  margin: 0 30px;
+  padding-top: 25px;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+  display: flex;
+  gap: 30px;
+}
+
+/* Penpot: both buttons 180x52, r5, 10px/8px vertical padding, Girassol 28px */
+.delete-confirm-actions button {
+  width: 180px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0 8px;
+  border-radius: 5px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+  transition: filter 0.15s ease;
+}
+
+/* Penpot: OK — fill #1da1f2, stroke #e1e8ed 2px inner */
+.delete-confirm-ok {
+  background: var(--color-accent);
+  border: 2px solid var(--color-text);
+}
+
+/* Penpot: CANCEL — fill #2a2d31, stroke #657786 2px inner */
+.delete-confirm-cancel {
+  background: var(--color-bg-alt);
+  border: 2px solid var(--color-text-dim);
+}
+
+.delete-confirm-actions button:hover {
+  filter: brightness(1.18);
+}

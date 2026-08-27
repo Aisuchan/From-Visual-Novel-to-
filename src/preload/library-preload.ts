@@ -16,6 +16,12 @@ const libraryApi: LibraryApi = {
     ipcRenderer.invoke(IpcChannels.GamesExtractExeIcon, exePath),
   setTotalPlaySeconds: (gameId: number, seconds: number) =>
     ipcRenderer.invoke(IpcChannels.GamesSetPlayTime, gameId, seconds),
+  setThumbnail: (gameId: number, filePath: string) =>
+    ipcRenderer.invoke(IpcChannels.GamesSetThumbnail, gameId, filePath),
+  listGameImages: (gameId: number) => ipcRenderer.invoke(IpcChannels.GameImagesList, gameId),
+  addGameImages: (gameId: number) => ipcRenderer.invoke(IpcChannels.GameImagesAdd, gameId),
+  deleteGameImage: (gameId: number, imageId: number) =>
+    ipcRenderer.invoke(IpcChannels.GameImagesDelete, gameId, imageId),
   getFooterStats: () => ipcRenderer.invoke(IpcChannels.GamesFooterStats),
   getLaunchPrefs: (gameId: number) => ipcRenderer.invoke(IpcChannels.LaunchPrefsGet, gameId),
   setLaunchPrefs: (prefs: LaunchPrefs) => ipcRenderer.invoke(IpcChannels.LaunchPrefsSet, prefs),

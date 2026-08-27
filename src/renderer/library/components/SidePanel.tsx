@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { GameWithStats } from '../../../shared/db-types'
-import { fileUrl, formatClock } from '../format'
+import { mediaUrl } from '../../../shared/media-url'
+import { formatClock } from '../format'
 import './SidePanel.css'
 
 interface Props {
@@ -248,7 +249,7 @@ export default function SidePanel({
               }}
             >
               <span className={`game-icon ${game.iconPath ? '' : 'empty'}`}>
-                {game.iconPath ? <img src={fileUrl(game.iconPath)} alt="" /> : null}
+                {game.iconPath ? <img src={mediaUrl(game.iconPath)} alt="" /> : null}
               </span>
               {/* The short name stands in only when the game opts into it. */}
               <span className="game-name">

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { GameWithStats } from '../../../shared/db-types'
-import { fileUrl, formatLastPlayed, formatPlaytime, splitPlaytime } from '../format'
+import { mediaUrl } from '../../../shared/media-url'
+import { formatLastPlayed, formatPlaytime, splitPlaytime } from '../format'
 import PlayButtonExtend from './PlayButtonExtend'
 import './GameDetail.css'
 
@@ -8,9 +9,9 @@ interface Props {
   game: GameWithStats
   isPlaying: boolean
   onLaunch: (opts: { recordTime: boolean; useRecorderPanel: boolean; runAsAdmin: boolean }) => void
-  onPrev: () => void
-  onNext: () => void
   onEditPlayTime: (gameId: number, seconds: number) => void
+  /** Opens the Add Thumbnail screen for this game. */
+  onOpenThumbnails: () => void
 }
 
 /* Penpot "Under decoration" geometry, in the 1585px content space: the rule
@@ -26,13 +27,29 @@ const ROUTE_MAX_WIDTH = 416
 const ROUTE_SIDE_GAP = 30
 const MIN_RECESS = ROUTE_MAX_WIDTH * 0.5 + ROUTE_SIDE_GAP
 
+/* Carousel geometry, all from Penpot's "Middle": the Main Image is 1084x610 at
+   x=250.5, and each Sub Image is a 142px window at the row's outer edge. A
+   neighbour drawn at 467/610 of full size and slid 1065.5px lands its edge
+   exactly on that window — and its height on the design's 467 — so the row's
+   own overflow does the cutting and no separate Sub Image frame is needed. */
+const SIDE_SCALE = 467 / 610
+const SIDE_SHIFT = 1065.5
+/* One item width further out again, i.e. clear of the row. */
+const OFF_SHIFT = SIDE_SHIFT + 830
+const SLOT_OFFSETS = [-2, -1, 0, 1, 2]
+
+function slotTransform(offset: number): string {
+  if (offset === 0) return 'translateX(0) scale(1)'
+  const shift = (Math.abs(offset) === 1 ? SIDE_SHIFT : OFF_SHIFT) * Math.sign(offset)
+  return `translateX(${shift}px) scale(${SIDE_SCALE})`
+}
+
 export default function GameDetail({
   game,
   isPlaying,
   onLaunch,
-  onPrev,
-  onNext,
-  onEditPlayTime
+  onEditPlayTime,
+  onOpenThumbnails
 }: Props): React.JSX.Element {
   const lastPlayed = formatLastPlayed(game.stats.lastPlayedAt)
   const titleRef = useRef<HTMLHeadingElement | null>(null)
@@ -40,12 +57,43 @@ export default function GameDetail({
   const infoRef = useRef<HTMLDivElement | null>(null)
   const [useShortTitle, setUseShortTitle] = useState(false)
   const [infoWidth, setInfoWidth] = useState(782)
+  const [carousel, setCarousel] = useState<string[]>([])
+  const [imageIndex, setImageIndex] = useState(0)
+  const [animated, setAnimated] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState({ hours: '0', minutes: '0' })
   const committedRef = useRef(false)
 
   const canShorten = game.useShortName && !!game.shortName
   const displayTitle = canShorten && useShortTitle ? (game.shortName as string) : game.title
+
+  // The Middle row is a carousel over the game's registered images, centred on
+  // whichever one is currently applied as the thumbnail. A thumbnail set from
+  // the Add Game dialog never went through the gallery, so fold it in.
+  useEffect(() => {
+    let cancelled = false
+    // Seeding the slots is not a step through the carousel, so it must not
+    // animate: the transition is switched off until the new positions have
+    // been painted once.
+    setAnimated(false)
+    window.library.listGameImages(game.id).then((list) => {
+      if (cancelled) return
+      const paths = list.map((image) => image.filePath)
+      if (game.thumbnailPath && !paths.includes(game.thumbnailPath)) {
+        paths.unshift(game.thumbnailPath)
+      }
+      setCarousel(paths)
+      setImageIndex(Math.max(0, game.thumbnailPath ? paths.indexOf(game.thumbnailPath) : 0))
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          if (!cancelled) setAnimated(true)
+        })
+      )
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [game.id, game.thumbnailPath])
 
   // "if there is not enoght space to display the name, short name will be
   // displayed instead" — swap in the short name once the full title overflows
@@ -94,6 +142,16 @@ export default function GameDetail({
   const recessWidth = recessEnd - recessStart
   const routeWidth = Math.min(ROUTE_MAX_WIDTH, recessWidth - ROUTE_SIDE_GAP)
   const routeLeft = recessStart + (recessWidth - routeWidth) / 2
+
+  const imageCount = carousel.length
+  // Slots are keyed by an ever-increasing virtual index rather than by their
+  // offset, so stepping keeps each element alive and only changes its
+  // transform — which is what the slide/scale transition animates.
+  const slots = imageCount > 1 ? SLOT_OFFSETS : [0]
+
+  function stepImage(direction: 1 | -1): void {
+    if (imageCount > 1) setImageIndex((i) => i + direction)
+  }
 
   function beginEdit(): void {
     const { hours, minutes } = splitPlaytime(game.stats.totalPlaySeconds)
@@ -160,27 +218,70 @@ export default function GameDetail({
         </svg>
       </div>
 
-      {/* Penpot: Middle — 1585x610, space-between */}
+      {/* Penpot: Middle — 1585x610. The Sub Image frames are the row's own left
+          and right edges cutting off the neighbouring carousel entries. */}
       <div className="game-middle">
-        <div className="sub-image" />
+        <div className={`carousel ${animated ? '' : 'instant'}`}>
+          {slots.map((offset) => {
+            const virtual = imageIndex + offset
+            const src = imageCount
+              ? carousel[((virtual % imageCount) + imageCount) % imageCount]
+              : null
+            const center = offset === 0
+            return (
+              <div
+                key={`${game.id}:${virtual}`}
+                className={`carousel-item ${center ? 'center' : 'side'}`}
+                style={{ transform: slotTransform(offset) }}
+              >
+                <div className={`main-image ${center ? '' : 'side'}`}>
+                  {src ? <img src={mediaUrl(src)} alt={center ? game.title : ''} /> : null}
 
-        <button className="nav-arrow" onClick={onPrev} aria-label="前のゲーム">
+                  {center ? (
+                    /* Revealed at 50% while the image is hovered — or parked in
+                       the middle for good when the game has no images at all. */
+                    <button
+                      className={`main-image-setting ${imageCount === 0 ? 'centered' : ''}`}
+                      onClick={onOpenThumbnails}
+                      title="画像を追加 / サムネイルを変更"
+                      aria-label="画像を追加 / サムネイルを変更"
+                    >
+                      <i className="fa-solid fa-gear" />
+                    </button>
+                  ) : (
+                    <button
+                      className="carousel-side-hit"
+                      onClick={() => stepImage(offset < 0 ? -1 : 1)}
+                      aria-label={offset < 0 ? '前の画像' : '次の画像'}
+                    />
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <button
+          className="nav-arrow prev"
+          onClick={() => stepImage(-1)}
+          disabled={imageCount <= 1}
+          aria-label="前の画像"
+        >
           <svg viewBox="0 0 43.29 86.58">
             <path d="M43.29,0 L43.29,86.58 L0,43.29 Z" fill="#B1B2B5" />
           </svg>
         </button>
 
-        <div className="main-image">
-          {game.thumbnailPath ? <img src={fileUrl(game.thumbnailPath)} alt={game.title} /> : null}
-        </div>
-
-        <button className="nav-arrow" onClick={onNext} aria-label="次のゲーム">
+        <button
+          className="nav-arrow next"
+          onClick={() => stepImage(1)}
+          disabled={imageCount <= 1}
+          aria-label="次の画像"
+        >
           <svg viewBox="0 0 43.29 86.58">
             <path d="M0,0 L0,86.58 L43.29,43.29 Z" fill="#B1B2B5" />
           </svg>
         </button>
-
-        <div className="sub-image" />
       </div>
 
       {/* Penpot: Under — 1585x177, 50px top padding */}
@@ -240,7 +341,7 @@ export default function GameDetail({
             )}
           </div>
 
-          <div className="stat">
+          <div className="stat last-played">
             <span className="stat-label">
               last
               <br />

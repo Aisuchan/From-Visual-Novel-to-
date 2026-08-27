@@ -1,10 +1,15 @@
 import { app, BrowserWindow } from 'electron'
 import { initDb } from './db'
 import { registerIpcHandlers } from './ipc'
+import { registerMediaProtocol, registerMediaScheme } from './media-protocol'
 import { createLibraryWindow } from './windows'
+
+// Scheme privileges have to be declared before the app is ready.
+registerMediaScheme()
 
 app.whenReady().then(() => {
   initDb()
+  registerMediaProtocol()
   registerIpcHandlers()
   createLibraryWindow()
 

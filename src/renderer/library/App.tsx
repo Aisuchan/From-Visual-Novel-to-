@@ -4,6 +4,7 @@ import { useUiScale } from './useUiScale'
 import Header from './components/Header'
 import SidePanel from './components/SidePanel'
 import GameDetail from './components/GameDetail'
+import AddThumbnail from './components/AddThumbnail'
 import FooterBar from './components/FooterBar'
 import AddGameDialog from './components/AddGameDialog'
 import './App.css'
@@ -15,6 +16,8 @@ export default function App(): React.JSX.Element {
   const [showAddGame, setShowAddGame] = useState(false)
   const [editingGame, setEditingGame] = useState<GameWithStats | null>(null)
   const [playingGameId, setPlayingGameId] = useState<number | null>(null)
+  // Which board fills the content column: Penpot's "Game" or "Add Thumbnail".
+  const [mainView, setMainView] = useState<'game' | 'add-thumbnail'>('game')
   const shellRef = useRef<HTMLDivElement | null>(null)
 
   useUiScale(shellRef)
@@ -46,6 +49,11 @@ export default function App(): React.JSX.Element {
 
   const selectedGame = games.find((g) => g.id === selectedGameId) ?? null
 
+  // Add Thumbnail belongs to one game; picking another returns to its Game board.
+  useEffect(() => {
+    setMainView('game')
+  }, [selectedGameId])
+
   async function handleAddGame(input: NewGameInput): Promise<void> {
     const created = await window.library.addGame(input)
     setShowAddGame(false)
@@ -75,13 +83,6 @@ export default function App(): React.JSX.Element {
   async function handleReorder(orderedIds: number[]): Promise<void> {
     await window.library.reorderGames(orderedIds)
     await refreshGames()
-  }
-
-  function stepSelection(direction: 1 | -1): void {
-    if (games.length === 0 || selectedGameId === null) return
-    const index = games.findIndex((g) => g.id === selectedGameId)
-    const nextIndex = (index + direction + games.length) % games.length
-    setSelectedGameId(games[nextIndex].id)
   }
 
   async function handleLaunch(opts: {
@@ -115,14 +116,23 @@ export default function App(): React.JSX.Element {
         />
 
         <div className="main-column">
-          {selectedGame ? (
+          {selectedGame && mainView === 'add-thumbnail' ? (
+            <AddThumbnail
+              game={selectedGame}
+              onCancel={() => setMainView('game')}
+              onApplied={async () => {
+                await refreshGames()
+                setMainView('game')
+              }}
+              onGamesChanged={refreshGames}
+            />
+          ) : selectedGame ? (
             <GameDetail
               game={selectedGame}
               isPlaying={playingGameId === selectedGame.id}
               onLaunch={handleLaunch}
-              onPrev={() => stepSelection(-1)}
-              onNext={() => stepSelection(1)}
               onEditPlayTime={handleEditPlayTime}
+              onOpenThumbnails={() => setMainView('add-thumbnail')}
             />
           ) : (
             <div className="empty-state">「Add Game +」からゲームを登録してください</div>

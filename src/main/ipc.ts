@@ -73,6 +73,44 @@ export function registerIpcHandlers(): void {
     db.setTotalPlaySeconds(gameId, seconds)
   )
 
+  ipcMain.handle(IpcChannels.GamesSetThumbnail, (_event, gameId: number, filePath: string) =>
+    db.setThumbnail(gameId, filePath)
+  )
+
+  ipcMain.handle(IpcChannels.GameImagesList, (_event, gameId: number) => db.listGameImages(gameId))
+
+  // "ADD IMAGE" in the Add Thumbnail screen. The files are copied under
+  // userData so the grid keeps working if the originals move or are deleted.
+  ipcMain.handle(IpcChannels.GameImagesAdd, async (_event, gameId: number) => {
+    const result = await dialog.showOpenDialog({
+      title: '画像を選択',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: '画像', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
+    })
+    if (result.canceled || result.filePaths.length === 0) return db.listGameImages(gameId)
+
+    const destDir = path.join(app.getPath('userData'), 'game-images', String(gameId))
+    fs.mkdirSync(destDir, { recursive: true })
+    const copied = result.filePaths.map((src) => {
+      const dest = path.join(destDir, `${randomUUID()}${path.extname(src)}`)
+      fs.copyFileSync(src, dest)
+      return dest
+    })
+    return db.addGameImages(gameId, copied)
+  })
+
+  ipcMain.handle(IpcChannels.GameImagesDelete, (_event, gameId: number, imageId: number) => {
+    const image = db.getGameImage(gameId, imageId)
+    const remaining = db.deleteGameImage(gameId, imageId)
+    // Only the copies this app made are ours to remove from disk: the gallery's
+    // own folder, and the one the Add Game dialog copies a thumbnail into.
+    const owned = ['game-images', 'images'].map((dir) => path.join(app.getPath('userData'), dir))
+    if (image && owned.some((dir) => !path.relative(dir, image.filePath).startsWith('..'))) {
+      fs.rmSync(image.filePath, { force: true })
+    }
+    return remaining
+  })
+
   ipcMain.handle(IpcChannels.GamesExtractExeIcon, async (_event, exePath: string) => {
     try {
       const image = await app.getFileIcon(exePath, { size: 'large' })

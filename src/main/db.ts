@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import Database from 'better-sqlite3'
 import type {
   FooterStats,
+  GameImage,
   GameWithStats,
   LaunchPrefs,
   NewGameInput,
@@ -42,6 +43,16 @@ export function initDb(): void {
       recorded INTEGER NOT NULL DEFAULT 1
     );
 
+    CREATE TABLE IF NOT EXISTS game_images (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+      file_path TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'manual',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_game_images_game ON game_images(game_id);
+
     CREATE TABLE IF NOT EXISTS launch_prefs (
       game_id INTEGER PRIMARY KEY REFERENCES games(id) ON DELETE CASCADE,
       use_recorder_panel INTEGER NOT NULL DEFAULT 1,
@@ -49,6 +60,23 @@ export function initDb(): void {
       keep_setting INTEGER NOT NULL DEFAULT 0
     );
   `)
+
+  // A thumbnail chosen in the Add Game dialog never went through the gallery,
+  // so it would be missing from the Add Thumbnail grid. Adopt any that predate
+  // this (the guard makes it a no-op from then on).
+  db.exec(`
+    INSERT INTO game_images (game_id, file_path, source)
+    SELECT id, thumbnail_path, 'manual' FROM games
+    WHERE thumbnail_path IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM game_images
+        WHERE game_images.game_id = games.id AND game_images.file_path = games.thumbnail_path
+      )
+  `)
+
+  addMissingColumns('launch_prefs', {
+    record_time: 'INTEGER NOT NULL DEFAULT 1'
+  })
 
   addMissingColumns('games', {
     use_short_name: 'INTEGER NOT NULL DEFAULT 0',
@@ -114,6 +142,79 @@ export function setTotalPlaySeconds(gameId: number, seconds: number): void {
   )
 }
 
+/** Keeps a thumbnail set outside the gallery listed in it all the same. */
+function linkThumbnail(gameId: number, thumbnailPath: string | null): void {
+  if (!thumbnailPath) return
+  db.prepare(
+    `INSERT INTO game_images (game_id, file_path, source)
+     SELECT ?, ?, 'manual'
+     WHERE NOT EXISTS (SELECT 1 FROM game_images WHERE game_id = ? AND file_path = ?)`
+  ).run(gameId, thumbnailPath, gameId, thumbnailPath)
+}
+
+/**
+ * The Add Thumbnail grid pages through these, so the order has to be stable as
+ * images are added: oldest first, newest on the last page.
+ */
+export function listGameImages(gameId: number): GameImage[] {
+  const rows = db
+    .prepare('SELECT * FROM game_images WHERE game_id = ? ORDER BY id ASC')
+    .all(gameId) as {
+    id: number
+    game_id: number
+    file_path: string
+    source: string
+    created_at: string
+  }[]
+
+  return rows.map((row) => ({
+    id: row.id,
+    gameId: row.game_id,
+    filePath: row.file_path,
+    source: row.source === 'screenshot' ? 'screenshot' : 'manual',
+    createdAt: row.created_at
+  }))
+}
+
+export function addGameImages(
+  gameId: number,
+  filePaths: string[],
+  source: GameImage['source'] = 'manual'
+): GameImage[] {
+  const insert = db.prepare(
+    'INSERT INTO game_images (game_id, file_path, source) VALUES (?, ?, ?)'
+  )
+  const tx = db.transaction((paths: string[]) => {
+    for (const filePath of paths) insert.run(gameId, filePath, source)
+  })
+  tx(filePaths)
+  return listGameImages(gameId)
+}
+
+export function getGameImage(gameId: number, imageId: number): GameImage | null {
+  return listGameImages(gameId).find((image) => image.id === imageId) ?? null
+}
+
+/** Deleting the applied thumbnail leaves the game without one. */
+export function deleteGameImage(gameId: number, imageId: number): GameImage[] {
+  const image = getGameImage(gameId, imageId)
+  db.prepare('DELETE FROM game_images WHERE id = ? AND game_id = ?').run(imageId, gameId)
+  if (image) {
+    db.prepare('UPDATE games SET thumbnail_path = NULL WHERE id = ? AND thumbnail_path = ?').run(
+      gameId,
+      image.filePath
+    )
+  }
+  return listGameImages(gameId)
+}
+
+export function setThumbnail(gameId: number, filePath: string): GameWithStats {
+  db.prepare('UPDATE games SET thumbnail_path = ? WHERE id = ?').run(filePath, gameId)
+  const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
+  if (!row) throw new Error(`ゲームが見つかりません (id=${gameId})`)
+  return rowToGameWithStats(row)
+}
+
 export function listGames(): GameWithStats[] {
   const rows = db.prepare('SELECT * FROM games ORDER BY sort_order ASC, id ASC').all()
   return rows.map(rowToGameWithStats)
@@ -142,6 +243,8 @@ export function addGame(input: NewGameInput): GameWithStats {
       useThumbnailAsDefault: input.useThumbnailAsDefault ? 1 : 0,
       sortOrder: maxOrder + 1
     })
+
+  linkThumbnail(info.lastInsertRowid as number, input.thumbnailPath)
 
   const row = db.prepare('SELECT * FROM games WHERE id = ?').get(info.lastInsertRowid)
   return rowToGameWithStats(row)
@@ -173,6 +276,8 @@ export function updateGame(gameId: number, input: NewGameInput): GameWithStats {
     useThumbnailAsDefault: input.useThumbnailAsDefault ? 1 : 0
   })
 
+  linkThumbnail(gameId, input.thumbnailPath)
+
   const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
   if (!row) throw new Error(`ゲームが見つかりません (id=${gameId})`)
   return rowToGameWithStats(row)
@@ -197,34 +302,42 @@ export function getGame(gameId: number): GameWithStats | null {
 
 export function getLaunchPrefs(gameId: number): LaunchPrefs {
   const row = db.prepare('SELECT * FROM launch_prefs WHERE game_id = ?').get(gameId) as
-    | { game_id: number; use_recorder_panel: number; run_as_admin: number; keep_setting: number }
+    | {
+        game_id: number
+        record_time: number
+        use_recorder_panel: number
+        run_as_admin: number
+      }
     | undefined
 
   if (!row) {
-    return { gameId, useRecorderPanel: true, runAsAdmin: false, keepSetting: false }
+    return { gameId, recordTime: true, useRecorderPanel: true, runAsAdmin: false, keepSetting: false }
   }
   return {
     gameId: row.game_id,
+    recordTime: !!row.record_time,
     useRecorderPanel: !!row.use_recorder_panel,
     runAsAdmin: !!row.run_as_admin,
-    keepSetting: !!row.keep_setting
+    // "Keep This Setting" is a one-shot instruction, so it always starts clear.
+    keepSetting: false
   }
 }
 
 export function setLaunchPrefs(prefs: LaunchPrefs): void {
   if (prefs.gameId === null) return
   db.prepare(
-    `INSERT INTO launch_prefs (game_id, use_recorder_panel, run_as_admin, keep_setting)
-     VALUES (@gameId, @useRecorderPanel, @runAsAdmin, @keepSetting)
+    `INSERT INTO launch_prefs (game_id, record_time, use_recorder_panel, run_as_admin, keep_setting)
+     VALUES (@gameId, @recordTime, @useRecorderPanel, @runAsAdmin, 0)
      ON CONFLICT(game_id) DO UPDATE SET
+       record_time = excluded.record_time,
        use_recorder_panel = excluded.use_recorder_panel,
        run_as_admin = excluded.run_as_admin,
-       keep_setting = excluded.keep_setting`
+       keep_setting = 0`
   ).run({
     gameId: prefs.gameId,
+    recordTime: prefs.recordTime ? 1 : 0,
     useRecorderPanel: prefs.useRecorderPanel ? 1 : 0,
-    runAsAdmin: prefs.runAsAdmin ? 1 : 0,
-    keepSetting: prefs.keepSetting ? 1 : 0
+    runAsAdmin: prefs.runAsAdmin ? 1 : 0
   })
 }
 

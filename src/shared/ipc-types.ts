@@ -1,4 +1,4 @@
-import type { FooterStats, GameWithStats, LaunchPrefs, NewGameInput } from './db-types'
+import type { FooterStats, GameImage, GameWithStats, LaunchPrefs, NewGameInput } from './db-types'
 
 export const IpcChannels = {
   GamesList: 'games:list',
@@ -10,6 +10,10 @@ export const IpcChannels = {
   GamesPickImage: 'games:pick-image',
   GamesExtractExeIcon: 'games:extract-exe-icon',
   GamesSetPlayTime: 'games:set-play-time',
+  GamesSetThumbnail: 'games:set-thumbnail',
+  GameImagesList: 'game-images:list',
+  GameImagesAdd: 'game-images:add',
+  GameImagesDelete: 'game-images:delete',
   GamesFooterStats: 'games:footer-stats',
   LaunchPrefsGet: 'launch-prefs:get',
   LaunchPrefsSet: 'launch-prefs:set',
@@ -64,6 +68,12 @@ export interface LibraryApi {
   /** Writes the executable's icon to a PNG in userData and returns its path. */
   extractExeIcon(exePath: string): Promise<string | null>
   setTotalPlaySeconds(gameId: number, seconds: number): Promise<void>
+  /** Applies one of the game's registered images as its main thumbnail. */
+  setThumbnail(gameId: number, filePath: string): Promise<GameWithStats>
+  listGameImages(gameId: number): Promise<GameImage[]>
+  /** Opens the picker, copies the chosen files in, and returns the new list. */
+  addGameImages(gameId: number): Promise<GameImage[]>
+  deleteGameImage(gameId: number, imageId: number): Promise<GameImage[]>
   getFooterStats(): Promise<FooterStats>
   getLaunchPrefs(gameId: number): Promise<LaunchPrefs>
   setLaunchPrefs(prefs: LaunchPrefs): Promise<void>
