@@ -25,11 +25,12 @@ const WHEEL_NOTCH = 100
 /** Delay between the diagonals the pictures flip in along, in milliseconds. */
 const FLIP_STAGGER = 55
 
-/* The board's own fade-in (`board-fade-in`, App.css) is what covers the read
-   and the decode. The flip waits it out rather than running through it: a grid
-   of 3D-transformed pictures inside a layer that is still being composited at
-   a changing opacity is what made the flip flicker. */
-const FADE_COVER_MS = 300
+/* The board's own fade-in (`board-fade-in` at `.slow-fade`'s duration, in
+   App.css) is what covers the read and the decode. The flip waits it out
+   rather than running through it: a grid of 3D-transformed pictures inside a
+   layer that is still being composited at a changing opacity is what made the
+   flip flicker. */
+const FADE_COVER_MS = 500
 
 /* The viewer steps like the Middle row's carousel: the arriving picture grows
    as it slides in, the leaving one shrinks as it slides out. Both side slots
@@ -82,6 +83,8 @@ export default function AddThumbnail({
   // page is opened, so the flip is held back until they are decoded: the
   // animation itself is untouched, it just no longer competes with the decode.
   const decoded = useRef(new Set<string>())
+  // What the selection falls back to when a click turns out to be a double.
+  const restoreSelection = useRef<number | null>(null)
   const [, setDecodedPass] = useState(0)
   const [faded, setFaded] = useState(false)
 
@@ -239,8 +242,18 @@ export default function AddThumbnail({
                 {/* One click selects, two open it full screen. */}
                 <button
                   className="thumb-cell-image"
-                  onClick={() => setSelectedId(image.id)}
-                  onDoubleClick={() => setViewing(images.findIndex((i) => i.id === image.id))}
+                  onClick={(event) => {
+                    // `detail` is the platform's own click count, so only the
+                    // opening click of a double ever moves the selection.
+                    if (event.detail !== 1) return
+                    restoreSelection.current = selectedId
+                    setSelectedId(image.id)
+                  }}
+                  onDoubleClick={() => {
+                    // Opening a picture full screen is not choosing it.
+                    setSelectedId(restoreSelection.current)
+                    setViewing(images.findIndex((i) => i.id === image.id))
+                  }}
                   aria-pressed={selectedId === image.id}
                 >
                   {/* Flips in along the grid's anti-diagonals: top-left first,

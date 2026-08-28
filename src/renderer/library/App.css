@@ -40,6 +40,14 @@
   animation: board-fade-in 300ms ease-out;
 }
 
+/* Add Thumbnail reads its list and decodes a page of pictures behind this, so
+   a longer fade leaves less of that showing as a wait. Kept in step with
+   `FADE_COVER_MS` in AddThumbnail.tsx, which holds the flip back until it is
+   over. */
+.main-column > .board-slot.slow-fade {
+  animation-duration: 500ms;
+}
+
 @keyframes board-fade-in {
   from {
     opacity: 0;

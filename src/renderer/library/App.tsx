@@ -152,8 +152,12 @@ export default function App(): React.JSX.Element {
         <div className="main-column">
           {/* Keyed on the board so a switch remounts the slot, which is what
               re-runs its fade-in — and starts the new board's reading on the
-              same frame the fade begins. */}
-          <div className="board-slot" key={mainView}>
+              same frame the fade begins. Add Thumbnail has a whole page of
+              pictures to read and decode, so it fades for longer. */}
+          <div
+            className={`board-slot ${mainView === 'add-thumbnail' ? 'slow-fade' : ''}`}
+            key={mainView}
+          >
             {renderBoard(mainView)}
           </div>
         </div>
