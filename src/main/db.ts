@@ -85,6 +85,23 @@ export function initDb(): void {
     // recorded after the edit still accumulate on top of it.
     play_time_offset: 'INTEGER NOT NULL DEFAULT 0'
   })
+
+  /* `play_time_offset` used to be stored against the sum over every session.
+     Now that the stats only add up the ones launched with "Record Time" on,
+     an offset written back then is short by whatever the unrecorded sessions
+     came to — enough, on a game with a hand-edited total, to hold TOTAL PLAY
+     at 00:00:00 while new sessions pile up underneath it. Rebase them once so
+     they mean the same thing again. */
+  if (db.pragma('user_version', { simple: true }) === 0) {
+    db.exec(`
+      UPDATE games SET play_time_offset = play_time_offset + COALESCE((
+        SELECT SUM(duration_seconds) FROM sessions
+        WHERE sessions.game_id = games.id AND sessions.recorded = 0
+      ), 0)
+      WHERE play_time_offset <> 0
+    `)
+    db.pragma('user_version = 1')
+  }
 }
 
 /** SQLite has no `ADD COLUMN IF NOT EXISTS`, so check the table first. */
