@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:;"
+    />
+    <title>Capture Worker</title>
+  </head>
+  <body>
+    <!-- Never shown: this page only drives getDisplayMedia and MediaRecorder. -->
+    <script type="module" src="./capture/main.ts"></script>
+  </body>
+</html>

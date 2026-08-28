@@ -4,13 +4,13 @@ import fs from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import * as db from './db'
 import { launchGame } from './launcher'
-import { captureScreenshot } from './screenshot'
+import * as capture from './capture'
 import {
   createOverlayWindow,
   closeOverlayWindow,
   getLibraryWindow,
   getOverlayWindow,
-  setOverlayShrunk
+  setOverlayWidth
 } from './windows'
 import { IpcChannels } from '../shared/ipc-types'
 import type { LaunchPrefs, NewGameInput } from '../shared/db-types'
@@ -20,6 +20,9 @@ interface ActiveSession {
   sessionId: number
   gameId: number
   gameTitle: string
+  /** Both are how a capture finds the game's own window — see `findSource`. */
+  exePath: string
+  pid: number | null
   startedAtMs: number
   paused: boolean
   pausedAccumMs: number
@@ -29,12 +32,20 @@ interface ActiveSession {
 
 let active: ActiveSession | null = null
 
+function captureTarget(session: ActiveSession): capture.CaptureTarget {
+  return { title: session.gameTitle, exePath: session.exePath, pid: session.pid }
+}
+
 function elapsedSeconds(session: ActiveSession): number {
   const now = Date.now()
   const ongoingPauseMs =
     session.paused && session.pauseStartedAtMs ? now - session.pauseStartedAtMs : 0
   const pausedMs = session.pausedAccumMs + ongoingPauseMs
   return Math.max(0, Math.floor((now - session.startedAtMs - pausedMs) / 1000))
+}
+
+function broadcastCaptureState(): void {
+  getOverlayWindow()?.webContents.send(IpcChannels.OverlayCaptureState, capture.getCaptureState())
 }
 
 function broadcastTick(): void {
@@ -55,6 +66,8 @@ function finishActiveSession(): void {
   // The Recorder Panel's own elapsed time is what gets banked, so any span the
   // player paused is left out of the game's total play time.
   const session = db.endSession(finished.sessionId, elapsedSeconds(finished))
+  // Whatever was still recording is flushed to disk before the worker goes.
+  void capture.shutdownCapture()
   closeOverlayWindow()
   getLibraryWindow()?.webContents.send(IpcChannels.SessionEnded, {
     sessionId: session.id,
@@ -177,12 +190,14 @@ export function registerIpcHandlers(): void {
 
     const session = db.startSession(game.id, req.recordTime)
 
-    launchGame(game.exePath, req.runAsAdmin, () => finishActiveSession())
+    const pid = launchGame(game.exePath, req.runAsAdmin, () => finishActiveSession())
 
     active = {
       sessionId: session.id,
       gameId: game.id,
       gameTitle: game.title,
+      exePath: game.exePath,
+      pid,
       startedAtMs: Date.now(),
       paused: false,
       pausedAccumMs: 0,
@@ -213,20 +228,35 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IpcChannels.SessionScreenshot, async () => {
     if (!active) throw new Error('進行中のセッションがありません')
-    const filePath = await captureScreenshot(
-      active.gameTitle,
+    return capture.takeScreenshot(captureTarget(active), active.gameId, app.getPath('userData'))
+  })
+
+  ipcMain.handle(IpcChannels.SessionToggleVideo, async () => {
+    if (!active) throw new Error('進行中のセッションがありません')
+    const result = await capture.toggleVideo(
+      captureTarget(active),
       active.gameId,
       app.getPath('userData')
     )
-    return { filePath }
+    broadcastCaptureState()
+    return result
   })
 
-  // The Recorder Panel's "Strech / Shrink" button hides its Play Time and
-  // Convinient Button sections; the window narrows to match so the leftover
-  // transparent area stops swallowing clicks meant for the game underneath.
-  ipcMain.handle(IpcChannels.OverlayToggleShrink, (_event, shrunk: boolean) => {
-    setOverlayShrunk(shrunk)
-    return { shrunk }
+  ipcMain.handle(IpcChannels.SessionToggleAudio, async () => {
+    if (!active) throw new Error('進行中のセッションがありません')
+    const result = await capture.toggleAudio(
+      captureTarget(active),
+      active.gameId,
+      app.getPath('userData')
+    )
+    broadcastCaptureState()
+    return result
+  })
+
+  // Driven a frame at a time by the panel's collapse, so the window gives the
+  // desktop back exactly as fast as the strip slides off it.
+  ipcMain.on(IpcChannels.OverlaySetWidth, (_event, width: number) => {
+    setOverlayWidth(width)
   })
 
   // The library window draws its own title bar buttons (the native overlay

@@ -24,7 +24,16 @@ function pollUntilExited(exeName: string, onExit: () => void): void {
   }, POLL_INTERVAL_MS)
 }
 
-export function launchGame(exePath: string, runAsAdmin: boolean, onExit: () => void): void {
+/**
+ * Starts the game and reports the process id, so a capture can find its window
+ * later. An elevated launch goes through PowerShell and detaches, so there is
+ * no id to report and `null` comes back instead.
+ */
+export function launchGame(
+  exePath: string,
+  runAsAdmin: boolean,
+  onExit: () => void
+): number | null {
   const exeName = path.basename(exePath)
   const workDir = path.dirname(exePath)
 
@@ -52,10 +61,11 @@ export function launchGame(exePath: string, runAsAdmin: boolean, onExit: () => v
       }
       pollUntilExited(exeName, onExit)
     })
-    return
+    return null
   }
 
   const child = spawn(exePath, [], { cwd: workDir, detached: false })
   child.once('exit', () => onExit())
   child.once('error', () => onExit())
+  return child.pid ?? null
 }

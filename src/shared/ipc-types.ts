@@ -20,9 +20,18 @@ export const IpcChannels = {
   SessionStart: 'session:start',
   SessionEnded: 'session:ended',
   SessionScreenshot: 'session:screenshot',
+  SessionToggleVideo: 'session:toggle-video',
+  SessionToggleAudio: 'session:toggle-audio',
   SessionTogglePause: 'session:toggle-pause',
   OverlayTick: 'overlay:tick',
-  OverlayToggleShrink: 'overlay:toggle-shrink',
+  OverlayCaptureState: 'overlay:capture-state',
+  OverlaySetWidth: 'overlay:set-width',
+  /* The hidden capture window is a worker: the main process sends it commands
+     and it answers on the other two channels. */
+  CaptureReady: 'capture:ready',
+  CaptureCommand: 'capture:command',
+  CaptureChunk: 'capture:chunk',
+  CaptureResult: 'capture:result',
   WindowMinimize: 'window:minimize',
   WindowToggleMaximize: 'window:toggle-maximize',
   WindowClose: 'window:close',
@@ -54,7 +63,58 @@ export interface OverlayTickPayload {
 }
 
 export interface ScreenshotResult {
+  /** Where the app kept its own copy. */
   filePath: string
+  /** Where the player chose to put it, or null if they closed the dialog. */
+  savedTo: string | null
+}
+
+/**
+ * The answer to a recording button. Stopping one offers the finished file to
+ * the player to name and put somewhere, so the result carries where it went.
+ */
+export interface CaptureToggleResult {
+  state: CaptureState
+  savedTo: string | null
+}
+
+/** Which of the Recorder Panel's two recordings are running. */
+export interface CaptureState {
+  video: boolean
+  audio: boolean
+}
+
+export type CaptureTrack = 'video' | 'audio'
+
+/**
+ * Capture runs in a hidden renderer because `getDisplayMedia` and
+ * `MediaRecorder` are web APIs: the main process picks the window and owns the
+ * files, the worker owns the streams.
+ */
+export type CaptureCommand =
+  | { id: number; kind: 'screenshot' }
+  | { id: number; kind: 'start-video' }
+  | { id: number; kind: 'stop-video' }
+  | { id: number; kind: 'start-audio' }
+  | { id: number; kind: 'stop-audio' }
+
+export interface CaptureResultPayload {
+  id: number
+  error?: string
+  /** `screenshot` only: the PNG bytes, written out by the main process. */
+  png?: Uint8Array
+}
+
+export interface CaptureChunkPayload {
+  track: CaptureTrack
+  data: Uint8Array
+}
+
+export interface CaptureApi {
+  ready(): void
+  onCommand(cb: (command: CaptureCommand) => void): () => void
+  sendChunk(payload: CaptureChunkPayload): void
+  sendResult(payload: CaptureResultPayload): void
 }
 
 export interface LibraryApi {
@@ -87,8 +147,17 @@ export interface LibraryApi {
 
 export interface OverlayApi {
   onTick(cb: (payload: OverlayTickPayload) => void): () => void
+  onCaptureState(cb: (state: CaptureState) => void): () => void
   takeScreenshot(): Promise<ScreenshotResult>
+  /** Starts or stops recording the game window to a .webm. */
+  toggleVideo(): Promise<CaptureToggleResult>
+  /** Starts or stops recording the system's audio to a .webm. */
+  toggleAudio(): Promise<CaptureToggleResult>
   togglePause(): Promise<{ paused: boolean }>
-  /** Narrows the panel window to the buttons the shrunk design keeps. */
-  setShrunk(shrunk: boolean): Promise<{ shrunk: boolean }>
+  /**
+   * Sets the panel window's width, holding its right edge. Called once per
+   * animation frame while the panel collapses, so the desktop behind is
+   * uncovered as the strip slides rather than all at once at the end.
+   */
+  setWidth(width: number): void
 }

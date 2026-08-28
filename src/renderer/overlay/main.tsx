@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client'
 // so the window's rounded corners show, and it has to come after the theme's
 // opaque `body` background to win. Vite injects dev CSS in import order.
 import '../theme.css'
+import '@fortawesome/fontawesome-free/css/all.min.css'
 import App from './App'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

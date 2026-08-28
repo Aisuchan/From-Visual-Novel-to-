@@ -3,52 +3,123 @@
    outer stroke, so the window is created at 227x30 and nothing is scaled.
    Each rule below maps to one Penpot board, in the design's own order. */
 
+/* Not in the design, which draws each control as a plain shape: the panel's
+   glyphs are white until whatever they drive is recording, and red while it
+   is. #cd1e1e is the design's own red, off the Play / Pause glyph. */
+:root {
+  --color-icon: #ffffff;
+  --color-recording: #cd1e1e;
+}
+
 html,
 body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
   background: transparent;
 }
 
-/* Recorder Panel — 225x28, fill #14171a, 1px outer stroke #2a2d31,
-   radius 5px on the left corners only, row / align start / gap 0 / pad 0.
-   Sized in design px rather than 100% so the panel keeps the design's
-   dimensions even if the window is not exactly 227x30. */
+/*
+ * The panel is one strip that slides sideways under a stationary Move Button,
+ * and the window is only the aperture it is seen through.
+ *
+ * The strip carries the panel's own fill, stroke and rounded left edge along
+ * with the boards, so a single `transform` on a single element is the whole
+ * animation: there is nothing for the background to lag behind or run ahead
+ * of, and none of it touches layout.
+ *
+ * Both the panel and the strip are anchored to the right edge — the one that
+ * never moves — and both stay 227 wide whatever the window is doing, so the
+ * strip's position on screen depends only on how far it has slid. The window
+ * is transparent, so the desktop is uncovered by the slide itself; the width
+ * follows in a single step once the strip has settled (see
+ * `handleToggleShrink`), where it displaces nothing.
+ *
+ * The window is taller and, once shrunk, wider than the panel: Windows will
+ * not make a transparent window smaller than 64x64 (see `OVERLAY_MIN` in
+ * windows.ts). The panel therefore sits in the window's top left corner, and
+ * the main process puts that corner where the panel belongs — so parked in
+ * the bottom-right of the desktop, the 34px under it and the 13px past it
+ * hang off the screen instead of sitting on it.
+ */
 .overlay-panel {
-  -webkit-app-region: drag;
-  box-sizing: content-box;
-  width: 225px;
-  height: 28px;
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: 0;
-  padding: 0;
-  background: var(--color-bg);
-  border: 1px solid var(--color-bg-alt);
-  border-radius: 5px 0 0 5px;
-  position: relative;
+  -webkit-app-region: no-drag;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 227px;
+  height: 30px;
   overflow: hidden;
   font-family: var(--font-display);
 }
 
-/* Shrunk, only "Strech / Shrink Button" (25) and "Move Button" (24) remain. */
-.overlay-panel.is-shrunk {
-  width: 49px;
+/* At the floor the window is 64 wide and only the strip's 51 are panel, and
+   the left edge is no longer the panel's: pull it back until its right edge
+   lands 51px in from the window's, which is where the strip already is, and
+   the 13px of slack goes past the screen edge with the rest of the window.
+   176 = 227 - 51, the same distance the strip itself slides. */
+@media (max-width: 100px) {
+  .overlay-panel {
+    left: -176px;
+  }
+}
+
+.overlay-strip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 227px;
+  height: 30px;
+  will-change: transform;
+}
+
+/* Shrunk, only "Strech / Shrink Button" (25) and "Move Button" (24) are left
+   in the aperture: 225 - 176 = 49 of content, 51 with the stroke. */
+.overlay-panel.is-shrunk .overlay-strip {
+  transform: translateX(176px);
+}
+
+/* Recorder Panel — 225x28, fill #14171a, 1px outer stroke #2a2d31, radius 5px
+   on the left corners only. Drawn as its own plate so it travels with the
+   boards; its right edge slides out of the aperture, and the Move Button
+   supplies the stroke on that side. */
+.overlay-plate {
+  -webkit-app-region: drag;
+  position: absolute;
+  inset: 0;
+  background: var(--color-bg);
+  border: 1px solid var(--color-bg-alt);
+  border-radius: 5px 0 0 5px;
+}
+
+/* The boards sit at the design's own x-positions inside the plate's 225px
+   content box, offset by its 1px stroke: Strech / Shrink [0,25], Play Time
+   [30,115], Convinient Button [120,201]. */
+.overlay-shrink,
+.overlay-play-time,
+.overlay-convenient {
+  position: absolute;
+  top: 1px;
 }
 
 /* Strech / Shrink Button — 25x28, row / align start / gap 0 / pad 0 */
 .overlay-shrink {
   -webkit-app-region: no-drag;
+  left: 1px;
   width: 25px;
   height: 28px;
-  flex-shrink: 0;
   display: flex;
   flex-direction: row;
   align-items: flex-start;
   justify-content: flex-start;
 }
 
-/* Button — 24x28, fill #090e17, pad 0 5 0 7, row / align center */
+/* Button — 24x28, fill #090e17, pad 0 5 0 7, row / align center.
+   Not in the design: its left corners are rounded to 4px, nesting inside the
+   plate's 5px minus the 1px stroke it sits behind. Square, this fill was drawn
+   straight over the panel's own rounded corner and squared it off — and that
+   corner is the one on show in both resting states. */
 .overlay-shrink-button {
   width: 24px;
   height: 28px;
@@ -59,14 +130,21 @@ body {
   padding: 0 5px 0 7px;
   background: var(--color-bg-deep);
   border: none;
+  border-radius: 4px 0 0 4px;
 }
 
-/* "▶" — Girassol 400, 12px, #657786, line-height 1.2 (12x15) */
-.overlay-shrink-button > span {
-  font-family: var(--font-display);
+/* The design's "▶" is a Font Awesome chevron, at the same 12px. It is never
+   swapped for its mirror image: it turns over, on the same clock as the fold
+   it belongs to, so the click has something to answer with. */
+.overlay-shrink-button > i {
   font-size: 12px;
-  line-height: 1.2;
+  line-height: 1;
   color: var(--color-text-dim);
+  transition: transform 220ms ease-in-out;
+}
+
+.overlay-panel.is-shrunk .overlay-shrink-button > i {
+  transform: rotateY(180deg);
 }
 
 /* Border — 1x28, #B1B2B5 */
@@ -77,18 +155,17 @@ body {
   background: var(--color-border);
 }
 
-/* Play Time — 85x28, margin 0 5, pad 0 5, row / align start / gap 10 */
+/* Play Time — 85x28, pad 0 5, row / align start / gap 10 */
 .overlay-play-time {
   -webkit-app-region: no-drag;
+  left: 31px;
   width: 85px;
   height: 28px;
-  flex-shrink: 0;
   display: flex;
   flex-direction: row;
   align-items: flex-start;
   justify-content: flex-start;
   gap: 10px;
-  margin: 0 5px;
   padding: 0 5px;
 }
 
@@ -106,12 +183,12 @@ body {
   border: none;
 }
 
-/* "■" / "▶" — Girassol 400, 14px, #cd1e1e, line-height 1.2 (14x17) */
-.overlay-play-pause > span {
-  font-family: var(--font-display);
+/* The design's "■" / "▶" are fa-stop / fa-play, at the same 14px, in the
+   design's own red — this is the control the clock answers to. */
+.overlay-play-pause > i {
   font-size: 14px;
-  line-height: 1.2;
-  color: #cd1e1e;
+  line-height: 1;
+  color: var(--color-recording);
 }
 
 /* time elapsed — 51x28, row / align center / justify center */
@@ -136,9 +213,9 @@ body {
 /* Convinient Button — 81x28, pad 0 5, row / align center / gap 10 */
 .overlay-convenient {
   -webkit-app-region: no-drag;
+  left: 121px;
   width: 81px;
   height: 28px;
-  flex-shrink: 0;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -147,44 +224,52 @@ body {
   padding: 0 5px;
 }
 
-/* Screen Shots / Sound Capture — 17x17 boards holding a 17x17 #B1B2B5 rect */
+/* Screen Shots / Movie Capture / Sound Capture — 17x17 boards in the design,
+   each now holding a Font Awesome glyph instead of a plain rect or ellipse. */
 .overlay-shot,
-.overlay-sound {
-  width: 17px;
-  height: 17px;
-  flex-shrink: 0;
-  padding: 0;
-  border: none;
-  background: var(--color-border);
-}
-
-/* Movie Capture — a 17x17 #690a0a ellipse */
-.overlay-movie {
-  width: 17px;
-  height: 17px;
-  flex-shrink: 0;
-  background: #690a0a;
-  border-radius: 50%;
-}
-
-/* Movie / sound capture are deferred; the design draws them the same as the
-   working one, so only the cursor gives them away. */
 .overlay-movie,
 .overlay-sound {
-  cursor: default;
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-icon);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
 }
 
-/* Move Button — 24x28, pad 0 5, row / align start */
+/* Red for as long as it is recording — the design's own #cd1e1e. */
+.overlay-movie.is-recording,
+.overlay-sound.is-recording {
+  color: var(--color-recording);
+}
+
+/* Move Button — 24x28, pad 0 5, row / align start. It is the one part that
+   does not travel: it stays in the corner and the strip disappears beneath
+   it, so it carries the plate's fill and the stroke down its right side. */
 .overlay-move {
   -webkit-app-region: drag;
-  width: 24px;
-  height: 28px;
-  flex-shrink: 0;
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 25px;
+  height: 30px;
   display: flex;
   flex-direction: row;
   align-items: flex-start;
   justify-content: flex-start;
   padding: 0 5px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-bg-alt);
+  border-left: none;
   cursor: grab;
 }
 
@@ -195,11 +280,22 @@ body {
   color: var(--color-text);
 }
 
+/* Not in the design: while the clock is stopped the panel's own outline — the
+   board's 1px outer stroke, carried by the plate and by the Move Button that
+   supplies it down the right side — goes red, so a paused session reads at a
+   glance without anything being drawn over the controls. */
+.overlay-panel.is-paused .overlay-plate,
+.overlay-panel.is-paused .overlay-move {
+  border-color: var(--color-recording);
+}
+
 /* Not in the design: a transient confirmation over the panel after a capture. */
 .overlay-toast {
   -webkit-app-region: no-drag;
   position: absolute;
   inset: 0;
+  /* Above the Move Button, which is itself raised over the sliding strip. */
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;

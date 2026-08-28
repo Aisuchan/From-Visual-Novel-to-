@@ -1,4 +1,5 @@
 import { app, BrowserWindow } from 'electron'
+import { registerCaptureHandlers } from './capture'
 import { initDb } from './db'
 import { registerIpcHandlers } from './ipc'
 import { registerMediaProtocol, registerMediaScheme } from './media-protocol'
@@ -10,6 +11,7 @@ registerMediaScheme()
 app.whenReady().then(() => {
   initDb()
   registerMediaProtocol()
+  registerCaptureHandlers()
   registerIpcHandlers()
   createLibraryWindow()
 

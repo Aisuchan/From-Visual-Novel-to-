@@ -19,7 +19,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           library: resolve(__dirname, 'src/preload/library-preload.ts'),
-          overlay: resolve(__dirname, 'src/preload/overlay-preload.ts')
+          overlay: resolve(__dirname, 'src/preload/overlay-preload.ts'),
+          capture: resolve(__dirname, 'src/preload/capture-preload.ts')
         }
       }
     }
@@ -36,7 +37,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           library: resolve(__dirname, 'src/renderer/index.html'),
-          overlay: resolve(__dirname, 'src/renderer/overlay.html')
+          overlay: resolve(__dirname, 'src/renderer/overlay.html'),
+          capture: resolve(__dirname, 'src/renderer/capture.html')
         }
       }
     },
