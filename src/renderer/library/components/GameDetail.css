@@ -173,29 +173,41 @@
   width: 100%;
   flex: 1;
   min-height: 0;
+  /* The Main Image is drawn 5% over the design's 1084x610, grown from its
+     bottom edge, so the row has to start 30.5px (5% of 610) higher than the
+     design's Middle does. The Top board keeps its literal 197px and the row
+     laps over its empty bottom strip; at x <= 1361 the Progress triangle's
+     clip has nothing there. The row's own bottom is untouched, so everything
+     below it stays on its literal position. */
+  margin-top: -30.5px;
   overflow: hidden;
 }
 
-/* The 610px band the design's Main Image occupies, centred in whatever height
-   the row ends up with. */
+/* The band the Main Image occupies — the design's 610 plus the 5%, i.e. 640.5
+   — centred in whatever height the row ends up with. The row grew by the same
+   30.5px above, so the band's bottom edge lands exactly where the design's
+   does and only its top moves. */
 .carousel {
   position: absolute;
   left: 0;
   right: 0;
   top: 50%;
-  height: 610px;
+  height: 640.5px;
   transform: translateY(-50%);
 }
 
-/* Penpot: Main Image — 1084x610 at x=250.5. `transform` moves an entry between
-   the centre and the side slots, so the slide and the shrink/grow are one
-   transition and nothing around it reflows. */
+/* Penpot: Main Image — 1084x610 at x=250.5, drawn here 5% larger (1138.2x640.5)
+   about its bottom edge: the extra height goes up (see `.carousel` above) and
+   the extra width splits either side, so x = 250.5 - 27.1 keeps the image on
+   the design's centre line. `transform` moves an entry between the centre and
+   the side slots, so the slide and the shrink/grow are one transition and
+   nothing around it reflows. */
 .carousel-item {
   position: absolute;
-  left: 250.5px;
+  left: 223.4px;
   top: 0;
-  width: 1084px;
-  height: 610px;
+  width: 1138.2px;
+  height: 640.5px;
   transition: transform 0.4s ease;
 }
 
@@ -232,7 +244,25 @@
   height: 100%;
   object-fit: contain;
   display: block;
-  transition: filter 0.4s ease;
+  transition: filter 0.4s ease, object-position 0.4s ease;
+}
+
+/* A neighbour is seen only through the 142px Sub Image window at the row's own
+   edge — the outer sliver of its entry. `contain` centres anything that is not
+   16:9 inside that entry, so a 4:3 or portrait image is inset by its own
+   letterboxing and only a fraction of the window (or none of it) is left
+   covered. Pushing it against the edge the window is on puts its full height
+   across the whole window, exactly as a 16:9 image already does, and crops
+   nothing: the part that moves out of frame was never on screen.
+   `object-position` is animatable, and shares the slide's 0.4s above, so an
+   entry promoted to the centre eases back to the centred `contain` the main
+   image is drawn with — nothing about the main image changes. */
+.main-image.side-left img {
+  object-position: 100% 50%;
+}
+
+.main-image.side-right img {
+  object-position: 0% 50%;
 }
 
 /* The peeking neighbours sit in shadow. */
@@ -299,7 +329,12 @@
 }
 
 /* Penpot: Left/Right Arrow — 43.29x86.58 paths, fill #B1B2B5, vertically
-   centred at x=174.6 from either edge. */
+   centred. The design puts them 174.6px in from either edge, which sat them
+   against the Main Image; with the image 5% wider they are centred in the gap
+   instead: the Sub Image window ends at 141.94 (the neighbour's scaled 829.88
+   half-width out from its centre at -273) and the Main Image starts at 223.4,
+   so the gap's middle is 182.67 and the 43.29-wide arrow starts 21.645 before
+   it — 19px clear of each side. */
 .nav-arrow {
   position: absolute;
   top: 50%;
@@ -313,11 +348,11 @@
 }
 
 .nav-arrow.prev {
-  left: 174.6px;
+  left: 161.03px;
 }
 
 .nav-arrow.next {
-  right: 174.6px;
+  right: 161.03px;
 }
 
 .nav-arrow svg {

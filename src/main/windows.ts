@@ -24,10 +24,15 @@ export function createLibraryWindow(): BrowserWindow {
   }
 
   const win = new BrowserWindow({
+    // 16:9, so the 1920x1080 Penpot layout maps one-to-one at startup and
+    // nothing has to stretch (only height flexes -- see useUiScale.ts). The
+    // shape is then held there by `setAspectRatio` below, so the minimum is
+    // 16:9 too: a 960x600 floor would fight the ratio, which would have to
+    // widen the window to 1066 to satisfy it.
     width: 1280,
-    height: 800,
+    height: 720,
     minWidth: 960,
-    minHeight: 600,
+    minHeight: 540,
     backgroundColor: '#14171a',
     show: false,
     // No `titleBarOverlay`: Windows enforces a ~31px minimum on the native
@@ -40,6 +45,15 @@ export function createLibraryWindow(): BrowserWindow {
       sandbox: false
     }
   })
+
+  /* `useUiScale` scales the shell by width alone, so the design pixels a
+     window shows vertically are `innerHeight * 1920 / innerWidth`: only a 16:9
+     window gives the design's own 1080, and the Middle row has just 4 of them
+     to spare before the image band is clipped. Holding the ratio while the
+     user drags keeps every window size an exact scale of the design. Maximize
+     is the OS's own sizing and is not covered by this -- it lands on the work
+     area, which is 16:9 whenever the display is. */
+  win.setAspectRatio(16 / 9)
 
   const emitMaximized = (maximized: boolean): void =>
     win.webContents.send(IpcChannels.WindowMaximizedChanged, maximized)

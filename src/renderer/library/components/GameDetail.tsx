@@ -48,8 +48,12 @@ const INFO_MARK_INSET = 15
    x=250.5, and each Sub Image is a 142px window at the row's outer edge. A
    neighbour drawn at 467/610 of full size and slid 1065.5px lands its edge
    exactly on that window — and its height on the design's 467 — so the row's
-   own overflow does the cutting and no separate Sub Image frame is needed. */
-const SIDE_SCALE = 467 / 610
+   own overflow does the cutting and no separate Sub Image frame is needed.
+   The Main Image is drawn 5% over the design (1138.2x640.5, see
+   GameDetail.css), so the scale is taken off the grown height to leave the Sub
+   Image frames exactly as designed: 467 tall, 830 wide, 1065.5px out — the
+   entry's centre line did not move, so the shift is unchanged. */
+const SIDE_SCALE = 467 / 640.5
 const SIDE_SHIFT = 1065.5
 /* One item width further out again, i.e. clear of the row. */
 const OFF_SHIFT = SIDE_SHIFT + 830
@@ -406,7 +410,11 @@ export default function GameDetail({
                 className={`carousel-item ${center ? 'center' : 'side'}`}
                 style={{ transform: slotTransform(offset) }}
               >
-                <div className={`main-image ${center ? '' : 'side'}`}>
+                <div
+                  className={`main-image ${
+                    center ? '' : `side ${offset < 0 ? 'side-left' : 'side-right'}`
+                  }`}
+                >
                   {src ? <img src={mediaUrl(src)} alt={center ? game.title : ''} /> : null}
 
                   {center ? (
