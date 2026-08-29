@@ -1,0 +1,211 @@
+/* Not in the design: the balloons that go up when a game is marked cleared.
+   Sizes are design pixels like everything else in the shell, so they scale with
+   the window. */
+
+.balloons {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* The layer lets everything through; only the balloons take a click. */
+  pointer-events: none;
+  z-index: 55;
+}
+
+/* Leaving with the confetti. The whole layer goes rather than each balloon:
+   the climb's duration and delay are set per balloon as inline styles, which
+   no stylesheet rule could override for a second animation. */
+.balloons.leaving {
+  animation: balloons-leave 1.8s cubic-bezier(0.45, 0, 0.9, 0.5) forwards;
+}
+
+.balloons.leaving .balloon {
+  pointer-events: none;
+}
+
+@keyframes balloons-leave {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-1500px);
+    opacity: 0;
+  }
+}
+
+/* Each balloon is placed where it comes to rest — `top` from the component,
+   set so its crown meets the window's top edge — and climbs into that from
+   below the display. The climb holds its last frame, so one that is already up
+   there stays up there, and stays clickable.
+
+   The start is a flat distance rather than a share of the display: only height
+   flexes in this shell, and 1400 design px is below the bottom of it at every
+   window size the app allows. */
+.balloon {
+  position: absolute;
+  width: 120px;
+  height: 184px;
+  margin-left: -60px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  pointer-events: auto;
+  animation-name: balloon-rise;
+  animation-timing-function: cubic-bezier(0.2, 0.6, 0.3, 1);
+  animation-fill-mode: both;
+}
+
+@keyframes balloon-rise {
+  from {
+    transform: translateY(1400px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* The sway is its own layer so it can run on a different clock from the climb
+   without the two transforms fighting over one property. It never stops, which
+   is what keeps the gathered balloons alive. */
+.balloon-sway {
+  display: block;
+  width: 100%;
+  height: 100%;
+  animation-name: balloon-sway;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+  animation-fill-mode: both;
+}
+
+@keyframes balloon-sway {
+  from {
+    transform: translateX(calc(var(--sway) * -0.5));
+  }
+  to {
+    transform: translateX(var(--sway));
+  }
+}
+
+.balloon-body {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 40%;
+}
+
+.balloon-body svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+  transition: transform 0.12s ease;
+}
+
+.balloon:hover .balloon-body svg {
+  transform: scale(1.06);
+}
+
+/* ------------------------------------------------------------- Bursting --- */
+
+.balloon.popped {
+  pointer-events: none;
+}
+
+/* The skin stretches for a frame and is gone — a pop is over before a fade
+   would be, and the shards are what carry the rest of it. */
+.balloon.popped .balloon-body svg {
+  animation: balloon-burst 200ms cubic-bezier(0.3, 0, 0.2, 1) forwards;
+}
+
+@keyframes balloon-burst {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  30% {
+    transform: scale(1.32) skewX(-6deg);
+    opacity: 1;
+  }
+  55% {
+    transform: scale(1.05) skewX(8deg);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(0.35);
+    opacity: 0;
+  }
+}
+
+/* The shock ring thrown off as it goes. */
+.balloon-ring {
+  position: absolute;
+  left: 50%;
+  top: 37%;
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border: 4px solid currentColor;
+  border-radius: 50%;
+  opacity: 0;
+}
+
+.balloon.popped .balloon-ring {
+  animation: balloon-ring 380ms cubic-bezier(0.1, 0.7, 0.3, 1) forwards;
+}
+
+@keyframes balloon-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.3);
+    border-width: 6px;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(5.2);
+    border-width: 1px;
+  }
+}
+
+.balloon-shards {
+  position: absolute;
+  left: 50%;
+  top: 37%;
+  width: 0;
+  height: 0;
+}
+
+/* `--spoke`, `--throw` and `--spin` per shard come from the component, and the
+   flight is built on top of them here. The bearing has to be inside the
+   keyframe rather than beside it: a `transform` on the element would be
+   composed after the animation's and turn the whole spray one way. */
+.balloon-shard {
+  position: absolute;
+  width: 18px;
+  height: 8px;
+  margin: -4px 0 0 -9px;
+  border-radius: 4px 6px 5px 3px;
+  background: currentColor;
+  opacity: 0;
+  transform-origin: 50% 50%;
+  transform: rotate(var(--spoke)) translateX(0);
+}
+
+.balloon.popped .balloon-shard {
+  animation: balloon-shard 560ms cubic-bezier(0.12, 0.7, 0.3, 1) forwards;
+}
+
+@keyframes balloon-shard {
+  0% {
+    opacity: 1;
+    transform: rotate(var(--spoke)) translateX(0) scale(1.15);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--spoke)) translateX(var(--throw)) rotate(var(--spin)) scale(0.35);
+  }
+}

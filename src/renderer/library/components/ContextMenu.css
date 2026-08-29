@@ -1,0 +1,68 @@
+/* All proportions below are literal Penpot values from board "Right Click Menu"
+   (859aefd8-f4ae-804d-8008-8e1ff363764a), 201x295 on the 1920x1080 canvas.
+
+   The design draws the menu at 42px, which is a tenth of the canvas across and
+   reads as a banner rather than a menu once it is over the board. Every value
+   is therefore expressed against the option text's own size — `calc(n / 42 *
+   1em)` keeps each Penpot number visible and the whole plate in proportion —
+   and only the one font-size below sets how big the menu comes out. It is a
+   design pixel like everything else in the shell, so the menu still grows and
+   shrinks with the window; 26px puts it in the same family as the side panel's
+   game names (26) and its search field (24), which is the size a menu can be
+   read and clicked at without covering the board behind it. */
+
+.context-menu {
+  position: absolute;
+  z-index: 40;
+  font-size: 26px;
+  background: var(--color-bg-alt);
+  /* Penpot's own margins, kept as they are drawn rather than scaled with the
+     text: the options start 34px in, which leaves the 15px of clear the design
+     puts between border2 and the first letter, and 32px of slack on the far
+     side. Scaling these down with the font closed that gap to 9px. */
+  padding: 10px 32px 10px 34px;
+  display: flex;
+  flex-direction: column;
+  row-gap: calc(5 / 42 * 1em);
+}
+
+/* Penpot: border1 / border2 — 2x275 in a 295-tall plate, i.e. 10px clear top
+   and bottom. `left` comes from the component. Kept to a whole design pixel at
+   the least, so the pair still reads as two rules at the smaller size. */
+.context-menu-rule {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--color-border);
+}
+
+/* Penpot: Option1…Option5 — 51px rows, Girassol 42px #e1e8ed, 5px apart */
+.context-menu-option {
+  height: calc(51 / 42 * 1em);
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 1em;
+  line-height: calc(51 / 42 * 1em);
+  color: var(--color-text);
+  white-space: nowrap;
+  /* The row's highlight runs out to the plate's right edge rather than
+     stopping at the text, which is what makes it read as a row. */
+  margin-right: -32px;
+  padding-right: 32px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+/* Not in the design: the row under the pointer lights up. */
+.context-menu-option:hover {
+  background: rgba(225, 232, 237, 0.12);
+  color: var(--color-text-bright);
+}
+
+.context-menu-option.danger:hover {
+  background: rgba(204, 27, 27, 0.45);
+  color: var(--color-text-bright);
+}

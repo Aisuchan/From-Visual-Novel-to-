@@ -1,0 +1,192 @@
+/* All values below are literal Penpot values from board "Play log"
+   (d7d10095-c9e9-809c-8008-7c124e12a2d0), 547x984 on the 1920x1080 canvas. */
+
+/* Penpot: 547x984, fill #14171a at 85%. The board is exactly as tall as
+   "Game", so it covers the content column's right edge from top to bottom. */
+.play-log {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 547px;
+  background: rgba(20, 23, 26, 0.9);
+  overflow: hidden;
+  z-index: 4;
+  /* The board comes in from the right edge it is flush against. It starts one
+     board-width past it, where `.app-shell`'s own overflow hides it. */
+  transform: translateX(100%);
+  transition: transform 0.28s ease;
+}
+
+.play-log.open {
+  transform: translateX(0);
+}
+
+/* ---------------------------------------------------------------- Log ---- */
+
+/* Penpot: Log — 482x87 at 35,20 */
+.play-log-head {
+  position: absolute;
+  left: 35px;
+  top: 20px;
+  width: 482px;
+  height: 87px;
+}
+
+/* Penpot: "LOG" — Girassol 72px, #e1e8ed */
+.play-log-title {
+  font-family: var(--font-display);
+  font-size: 72px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Penpot: Rectangle — 357x1 at 160,50, i.e. 125px into the row, 30px down */
+.play-log-head-rule {
+  position: absolute;
+  left: 125px;
+  top: 30px;
+  width: 357px;
+  height: 1px;
+  background: var(--color-text);
+}
+
+/* ---------------------------------------------------------- Container ---- */
+
+/* Penpot: Rectangle — 1x830 at 45,117, i.e. 37px clear of the board's bottom */
+.play-log-spine {
+  position: absolute;
+  left: 45px;
+  top: 117px;
+  bottom: 37px;
+  width: 1px;
+  background: var(--color-text);
+}
+
+/* Penpot: Container — 482x752 at 35,107 */
+.play-log-body {
+  position: absolute;
+  left: 35px;
+  right: 30px;
+  top: 107px;
+  bottom: 125px;
+}
+
+/* Penpot: Logs — 451 wide at 66,117, i.e. 31px in from the container's left.
+   The design lists seven rows; a game with more sessions scrolls. The 8px
+   scrollbar is hung outside that 451 rather than taken out of it, so the
+   longest row — "PLAYED for 99 : 99 (not recorded)", 10px short of the full
+   width — still fits once a scrollbar appears. */
+.play-log-list {
+  position: absolute;
+  left: 31px;
+  right: -8px;
+  /* The design's first row sits at 117; every band carries 15px above its row,
+     so the list itself starts 15px higher and the row still lands there. That
+     is what gives the first and last bands the same height as the rest. */
+  top: -5px;
+  bottom: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+/* Penpot: Rectangle — a 451x1 rule between rows with 15px clear either side.
+   Drawn as each band's own bottom border so the band, not the 29px row, is
+   what the pointer lights: the highlight then runs rule to rule. */
+.play-log-entry {
+  padding: 15px 0;
+  border-bottom: 1px solid var(--color-text);
+  transition: background 0.15s ease;
+}
+
+/* No rule below the last row, but it keeps the padding so its band matches. */
+.play-log-entry:last-child {
+  border-bottom: none;
+}
+
+/* Not in the design: the band under the pointer lifts out of the list. */
+.play-log-entry:hover {
+  background: rgba(225, 232, 237, 0.1);
+}
+
+.play-log-entry:hover .play-log-date,
+.play-log-entry:hover .play-log-text {
+  color: var(--color-text-bright);
+}
+
+/* Penpot: Log1…Log7 — 451x29, flex row, space-between. The date sits 5px lower
+   than the event, so both rest on the row's bottom edge. */
+.play-log-row {
+  height: 29px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+/* Penpot tints the two clear rows. Route-level events are deferred, so nothing
+   produces them yet — the design's row states are kept for when they land. */
+.play-log-row.route-cleared {
+  background: #3a2a2a;
+}
+
+.play-log-row.game-cleared {
+  background: #4a4419;
+}
+
+/* Penpot: "2026-08-01" — Girassol 20px, #aab8c2 */
+.play-log-date {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  white-space: pre;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+/* Penpot colours one run of some rows: the heroine's name #e35c5c, GAME CLEARD
+   #ffe100. Route events are deferred, so only the latter is produced. */
+.play-log-text .accent-route {
+  color: #e35c5c;
+}
+
+.play-log-text .accent-clear {
+  color: #ffe100;
+}
+
+/* Penpot: the event — Girassol 24px, #e1e8ed. The design's double spaces are
+   part of the setting, so the runs are not collapsed. */
+.play-log-text {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: pre;
+  /* No padding of its own: the design leaves exactly 10px between the date and
+     the longest event, and anything taken here comes off the event's width. */
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+/* Penpot: Path — 164x124, fill #14171a, 1px #aab8c2 stroke. It runs 1px past
+   the board on both edges, which is where the design puts it. */
+.play-log-corner {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 164px;
+  height: 124px;
+  display: block;
+  /* The corner's stroke lies along the Play Log Button's own rule, and watching
+     that copy peel away from it is what reads wrong — so it is gone on the
+     frame the slide starts, not carried out with the board. */
+  opacity: 0;
+  transition: none;
+}
+
+/* Coming back, it waits until the board has arrived. */
+.play-log.open .play-log-corner {
+  opacity: 1;
+  transition: opacity 0.12s ease 0.28s;
+}

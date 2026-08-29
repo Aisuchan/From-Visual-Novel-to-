@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { GameWithStats } from '../../../shared/db-types'
 import { mediaUrl } from '../../../shared/media-url'
 import { formatClock } from '../format'
+import ContextMenu from './ContextMenu'
 import './SidePanel.css'
 
 interface Props {
@@ -275,29 +276,26 @@ export default function SidePanel({
       </ul>
 
       {menu && (
-        <div
-          className="game-context-menu"
+        <ContextMenu
           style={{ left: menu.x, top: menu.y }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => {
-              onEditGame(menu.game)
-              setMenu(null)
-            }}
-          >
-            情報の変更
-          </button>
-          <button
-            className="danger"
-            onClick={() => {
-              onDeleteGame(menu.game.id)
-              setMenu(null)
-            }}
-          >
-            削除
-          </button>
-        </div>
+          items={[
+            {
+              label: '情報の変更',
+              onSelect: () => {
+                onEditGame(menu.game)
+                setMenu(null)
+              }
+            },
+            {
+              label: '削除',
+              danger: true,
+              onSelect: () => {
+                onDeleteGame(menu.game.id)
+                setMenu(null)
+              }
+            }
+          ]}
+        />
       )}
     </aside>
   )

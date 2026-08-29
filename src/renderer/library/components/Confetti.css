@@ -1,0 +1,62 @@
+/* Not in the design: the celebration that runs over the whole Main Display
+   while a game is being marked cleared. */
+
+.confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* Arriving and leaving are both faded: a clip that simply appears — or stops
+     dead on its last frame — reads as a glitch rather than an ending.
+
+     `backwards` rather than `both` on purpose: a fill that held the last
+     keyframe would keep overriding `opacity` after the fade-in, and an
+     animation outranks a transition — the fade-out below would never run. */
+  animation: confetti-in 400ms ease-out backwards;
+  transition: opacity 1.8s ease-in;
+}
+
+@keyframes confetti-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Set once the clip reaches its last seconds; the transition above is the
+   fade, and it is timed to run out with the video. */
+.confetti.ending {
+  opacity: 0;
+}
+
+/* Under the dialog it is playing behind, so the score can still be typed. */
+.confetti-input {
+  z-index: 45;
+}
+
+/* The finale runs after the dialog has gone, and sits over everything. */
+.confetti-ok {
+  z-index: 60;
+}
+
+/* The keyed frames. */
+.confetti-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* The source: laid out at full size so it decodes at full size, but never
+   painted — the canvas over it carries the keyed frames. */
+.confetti-source {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+}

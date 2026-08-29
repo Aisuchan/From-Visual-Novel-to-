@@ -1,0 +1,133 @@
+/* All values below are literal Penpot values from board "Clear Window"
+   (859aefd8-f4ae-804d-8008-8e1c4aa6522f), 450x280 on the 1920x1080 canvas.
+   `.dialog-backdrop` comes from AddGameDialog.css. */
+
+.clear-window {
+  width: 450px;
+  height: 280px;
+  background: var(--color-bg);
+  /* Penpot's 5px stroke is inner, so the children still span the full 450px —
+     an inset shadow reproduces that where a border would inset them. */
+  box-shadow: inset 0 0 0 5px var(--color-text-dim);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* Penpot: Top — 450x58, fill #2a2d31, stroke #657786 5px inner, centred, with
+   the 40px title resting 5px clear of the band's bottom. */
+.clear-window-top {
+  width: 450px;
+  height: 58px;
+  flex-shrink: 0;
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 5px var(--color-text-dim);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 5px;
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Penpot: Input Point — 450x119, flex row, space-between, align center */
+.clear-window-input-point {
+  width: 450px;
+  height: 119px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 40px 40px 30px;
+}
+
+/* Penpot: 「点数を入力」 — sourcesanspro 36px #e1e8ed, set in this app's body
+   face as every other sentence is. */
+.clear-window-label {
+  font-family: var(--font-body);
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Penpot: Input — 116x49, fill #2a2d31, radius 5, 10px/20px padding, with the
+   placeholder in Girassol 24px #657786. The field is the plate itself, so its
+   whole 116x49 takes the pointer. */
+.clear-window-input {
+  width: 116px;
+  height: 49px;
+  flex-shrink: 0;
+  background: var(--color-bg-alt);
+  border: none;
+  border-radius: 5px;
+  padding: 10px 20px;
+  text-align: right;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* The theme's accent focus ring reads as a blue box on this plate; the field
+   is the only thing in the dialog that takes typing, so nothing is lost. */
+.clear-window-input:focus,
+.clear-window-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.clear-window-input::placeholder {
+  color: var(--color-text-dim);
+}
+
+/* Penpot: Rectangle — 390x1 at x=30, #B1B2B5 */
+.clear-window-rule {
+  width: 390px;
+  height: 1px;
+  margin-left: 30px;
+  background: var(--color-border);
+}
+
+/* Penpot: OK and Cancel — 390x52 at x=30, 26px under the rule, 30px apart */
+.clear-window-actions {
+  display: flex;
+  gap: 30px;
+  margin: 26px 0 0 30px;
+}
+
+/* Penpot: Add Button — 180x52, radius 5, Girassol 28px #e1e8ed, the text
+   sitting 10px down and 8px clear of the bottom. */
+.clear-window-actions button {
+  width: 180px;
+  height: 52px;
+  border: none;
+  border-radius: 5px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10px 0 8px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+  transition: filter 0.15s ease;
+}
+
+/* Penpot: fill #1da1f2, stroke #e1e8ed 2px inner */
+.clear-window-ok {
+  background: var(--color-accent);
+  box-shadow: inset 0 0 0 2px var(--color-text);
+}
+
+/* Penpot: fill #2a2d31, stroke #657786 2px inner */
+.clear-window-cancel {
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 2px var(--color-text-dim);
+}
+
+.clear-window-actions button:hover {
+  filter: brightness(1.25);
+}

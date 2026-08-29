@@ -8,6 +8,7 @@ import type {
   GameWithStats,
   LaunchPrefs,
   NewGameInput,
+  ProgressState,
   Session
 } from '../shared/db-types'
 
@@ -83,7 +84,12 @@ export function initDb(): void {
     use_thumbnail_default: 'INTEGER NOT NULL DEFAULT 0',
     // Manual correction to the total play time, kept as an offset so sessions
     // recorded after the edit still accumulate on top of it.
-    play_time_offset: 'INTEGER NOT NULL DEFAULT 0'
+    play_time_offset: 'INTEGER NOT NULL DEFAULT 0',
+    // What the Progress triangle reads. NULL leaves it to the play history.
+    progress_state: 'TEXT',
+    clear_score: 'INTEGER',
+    cleared_at: 'TEXT',
+    clear_play_seconds: 'INTEGER'
   })
 
   /* `play_time_offset` used to be stored against the sum over every session.
@@ -126,6 +132,15 @@ function rowToGameWithStats(row: any): GameWithStats {
     )
     .get(row.id) as { total: number; last: string | null }
 
+  /* The Progress triangle's "played at all" reads the same rows the Play log
+     puts a GAME START on, which includes the ones launched with "Record Time"
+     off — so it is counted separately from the stats above. */
+  const launched = (
+    db
+      .prepare('SELECT COUNT(*) AS n FROM sessions WHERE game_id = ? AND ended_at IS NOT NULL')
+      .get(row.id) as { n: number }
+  ).n
+
   return {
     id: row.id,
     title: row.title,
@@ -137,10 +152,15 @@ function rowToGameWithStats(row: any): GameWithStats {
     useExeIcon: !!row.use_exe_icon,
     useShortName: !!row.use_short_name,
     useThumbnailAsDefault: !!row.use_thumbnail_default,
+    progressState: (row.progress_state as GameWithStats['progressState']) ?? null,
+    clearScore: row.clear_score ?? null,
+    clearedAt: row.cleared_at ?? null,
+    clearPlaySeconds: row.clear_play_seconds ?? null,
     createdAt: row.created_at,
     stats: {
       totalPlaySeconds: Math.max(0, stats.total + (row.play_time_offset ?? 0)),
-      lastPlayedAt: stats.last
+      lastPlayedAt: stats.last,
+      hasSessions: launched > 0
     }
   }
 }
@@ -231,6 +251,41 @@ export function deleteGameImage(gameId: number, imageId: number): GameImage[] {
 
 export function setThumbnail(gameId: number, filePath: string): GameWithStats {
   db.prepare('UPDATE games SET thumbnail_path = ? WHERE id = ?').run(filePath, gameId)
+  const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
+  if (!row) throw new Error(`ゲームが見つかりません (id=${gameId})`)
+  return rowToGameWithStats(row)
+}
+
+/**
+ * Sets what the Progress triangle reads. A score only belongs to a cleared
+ * game, so anything else drops it.
+ */
+export function setProgress(
+  gameId: number,
+  state: ProgressState | null,
+  score: number | null
+): GameWithStats {
+  const kept =
+    state === 'cleared' && score !== null ? Math.min(100, Math.max(0, Math.round(score))) : null
+
+  /* Clearing stamps the moment and what TOTAL PLAY stood at, which is what the
+     Play log's GAME CLEARD row reads. Setting the game back to anything else
+     takes the row away with it. Re-clearing an already cleared game keeps the
+     first stamp: the score can be corrected without moving the event. */
+  const before = getGame(gameId)
+  const clearedAt =
+    state === 'cleared' ? (before?.clearedAt ?? new Date().toISOString()) : null
+  const clearPlaySeconds =
+    state === 'cleared'
+      ? (before?.clearPlaySeconds ?? before?.stats.totalPlaySeconds ?? 0)
+      : null
+
+  db.prepare(
+    `UPDATE games
+     SET progress_state = ?, clear_score = ?, cleared_at = ?, clear_play_seconds = ?
+     WHERE id = ?`
+  ).run(state, kept, clearedAt, clearPlaySeconds, gameId)
+
   const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
   if (!row) throw new Error(`ゲームが見つかりません (id=${gameId})`)
   return rowToGameWithStats(row)
@@ -360,6 +415,32 @@ export function setLaunchPrefs(prefs: LaunchPrefs): void {
     useRecorderPanel: prefs.useRecorderPanel ? 1 : 0,
     runAsAdmin: prefs.runAsAdmin ? 1 : 0
   })
+}
+
+/**
+ * Every session the game has, newest first — the Play Log reads these. A
+ * session that is still running has no `endedAt`, so the log can leave it out.
+ */
+export function listSessions(gameId: number): Session[] {
+  const rows = db
+    .prepare('SELECT * FROM sessions WHERE game_id = ? ORDER BY started_at DESC, id DESC')
+    .all(gameId) as {
+    id: number
+    game_id: number
+    started_at: string
+    ended_at: string | null
+    duration_seconds: number
+    recorded: number
+  }[]
+
+  return rows.map((row) => ({
+    id: row.id,
+    gameId: row.game_id,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
+    durationSeconds: row.duration_seconds,
+    recorded: !!row.recorded
+  }))
 }
 
 export function startSession(gameId: number, recorded: boolean): Session {

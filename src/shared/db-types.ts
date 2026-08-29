@@ -1,3 +1,11 @@
+/**
+ * What the Progress triangle reads. `null` leaves it to the play history: a
+ * game with nothing on its log and no time on the clock is 'unplayed', anything
+ * else is 'playing'. Clearing a game is always a deliberate act, so it is only
+ * ever the stored value.
+ */
+export type ProgressState = 'unplayed' | 'playing' | 'cleared'
+
 export interface Game {
   id: number
   title: string
@@ -11,6 +19,14 @@ export interface Game {
   useShortName: boolean
   /** Reserved for the deferred ErogeScape/VNDB import. */
   useThumbnailAsDefault: boolean
+  /** Set from the Progress triangle's menu; null means read it off the log. */
+  progressState: ProgressState | null
+  /** 0-100, shown in place of the cleared mark. Only ever set with 'cleared'. */
+  clearScore: number | null
+  /** When the game was marked cleared; null unless it is. */
+  clearedAt: string | null
+  /** What TOTAL PLAY stood at then, which the log's GAME CLEARD row reads. */
+  clearPlaySeconds: number | null
   createdAt: string
 }
 
@@ -43,6 +59,8 @@ export interface GameImage {
 export interface GameStats {
   totalPlaySeconds: number
   lastPlayedAt: string | null
+  /** Whether the Play log has a GAME START on it, i.e. the game was launched. */
+  hasSessions: boolean
 }
 
 export interface GameWithStats extends Game {

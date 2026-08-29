@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import type { FooterStats, GameWithStats, NewGameInput } from '../../shared/db-types'
+import type {
+  FooterStats,
+  GameWithStats,
+  NewGameInput,
+  ProgressState
+} from '../../shared/db-types'
 import { useUiScale } from './useUiScale'
 import Header from './components/Header'
 import SidePanel from './components/SidePanel'
@@ -7,6 +12,8 @@ import GameDetail from './components/GameDetail'
 import AddThumbnail from './components/AddThumbnail'
 import FooterBar from './components/FooterBar'
 import AddGameDialog from './components/AddGameDialog'
+import Confetti from './components/Confetti'
+import Balloons from './components/Balloons'
 import './App.css'
 
 type MainView = 'game' | 'add-thumbnail'
@@ -18,6 +25,11 @@ export default function App(): React.JSX.Element {
   const [showAddGame, setShowAddGame] = useState(false)
   const [editingGame, setEditingGame] = useState<GameWithStats | null>(null)
   const [playingGameId, setPlayingGameId] = useState<number | null>(null)
+  // The finale covers the whole window — header, footer and side panel with it
+  // — so it is the shell's to run rather than the board's.
+  const [celebrating, setCelebrating] = useState(false)
+  // The confetti's last seconds, which the balloons leave on too.
+  const [finishing, setFinishing] = useState(false)
   // Which board fills the content column: Penpot's "Game" or "Add Thumbnail".
   const [mainView, setMainView] = useState<MainView>('game')
   const shellRef = useRef<HTMLDivElement | null>(null)
@@ -86,6 +98,21 @@ export default function App(): React.JSX.Element {
     await refreshFooterStats()
   }
 
+  async function handleSetProgress(
+    gameId: number,
+    state: ProgressState | null,
+    score: number | null
+  ): Promise<void> {
+    try {
+      await window.library.setProgress(gameId, state, score)
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('進行状況を保存できませんでした', err)
+      return
+    }
+    await refreshGames()
+  }
+
   async function handleReorder(orderedIds: number[]): Promise<void> {
     await window.library.reorderGames(orderedIds)
     await refreshGames()
@@ -131,6 +158,11 @@ export default function App(): React.JSX.Element {
         onLaunch={handleLaunch}
         onEditPlayTime={handleEditPlayTime}
         onOpenThumbnails={() => setMainView('add-thumbnail')}
+        onSetProgress={handleSetProgress}
+        onCelebrate={(on) => {
+          setCelebrating(on)
+          setFinishing(false)
+        }}
       />
     )
   }
@@ -164,6 +196,20 @@ export default function App(): React.JSX.Element {
       </div>
 
       <FooterBar stats={footerStats} onAddGame={() => setShowAddGame(true)} />
+
+      {celebrating && (
+        <>
+          <Confetti
+            clip="ok"
+            onFinishing={() => setFinishing(true)}
+            onEnded={() => {
+              setCelebrating(false)
+              setFinishing(false)
+            }}
+          />
+          <Balloons leaving={finishing} />
+        </>
+      )}
 
       {showAddGame && (
         <AddGameDialog onCancel={() => setShowAddGame(false)} onSubmit={handleAddGame} />

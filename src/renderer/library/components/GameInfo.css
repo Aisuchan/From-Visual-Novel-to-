@@ -1,0 +1,188 @@
+/* All values below are literal Penpot values from board "Game Info"
+   (5a9514e2-b188-8034-8008-798e00b359e8), 446x480 on the 1920x1080 canvas. */
+
+/* Penpot: 446x480, fill #14171a, 10px inner stroke #657786, 10px padding.
+   The stroke is drawn by ::before rather than as a border because Penpot's
+   padding runs from the board edge, not from inside the stroke: the children
+   start at 10px, and a real 10px border would push them to 20px. */
+.game-info {
+  position: absolute;
+  /* GameDetail anchors this on the title's circle-info mark; the design puts
+     the panel's own mark at 15,15, so the panel hangs 15px up and left of it. */
+  left: -15px;
+  top: -15px;
+  width: 446px;
+  height: 480px;
+  padding: 10px;
+  background: var(--color-bg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 5;
+}
+
+/* Anchored on the mark at the row's other end, with the Top Icon row reversed
+   so the circle-info is the one that sits there. Only the anchor moves — the
+   mark still lands on the title's.
+
+   circle-info's ink is not centred in its own advance: in a 50px box it leaves
+   5px on the left and none on the right, so flush against the right padding it
+   would sit 15px from the frame where the upright board puts it at 20. The 5px
+   margin gives it back, and the anchor follows (446 - 20 - 50 = 376). */
+.game-info.flipped {
+  left: -376px;
+}
+
+.game-info.flipped .gi-top-icon {
+  flex-direction: row-reverse;
+}
+
+.game-info.flipped .gi-mark {
+  margin-right: 5px;
+}
+
+.game-info::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 10px solid var(--color-text-dim);
+}
+
+/* ----------------------------------------------------------- Top Icon ---- */
+
+/* Penpot: Top Icon — 426x70, flex row, space-between, align center, 5px pad */
+.gi-top-icon {
+  height: 70px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 5px;
+}
+
+/* Penpot: "◯" — 50x60 text box at 15,15. Drawn as the circle-info glyph so it
+   matches the mark on the title that opens this panel, in the same box. It
+   takes the title mark's #e1e8ed rather than Penpot's #aab8c2: the two land on
+   each other exactly, so a colour of its own would read as the mark changing
+   under the pointer. */
+.gi-mark {
+  width: 50px;
+  height: 60px;
+  flex-shrink: 0;
+  /* Must render exactly as `.title-marker` does — see the note there for why
+     the glyph is 44px inside the design's 50x60 box. */
+  font-size: 44px;
+  line-height: 60px;
+  text-align: center;
+  color: var(--color-text);
+}
+
+/* Penpot: Rectangle — 2px tall, #B1B2B5, 10px margin either side */
+.gi-rule {
+  flex: 1;
+  height: 2px;
+  margin: 0 10px;
+  background: var(--color-border);
+}
+
+/* Penpot: "🔞" — 50px, 60px tall box */
+.gi-rating {
+  height: 60px;
+  flex-shrink: 0;
+  font-size: 50px;
+  line-height: 60px;
+}
+
+/* ------------------------------------------------------------ Content ---- */
+
+/* Penpot: Content — 317px tall, flex row: Left Border / Show / Right Border */
+.gi-content {
+  height: 317px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+}
+
+/* Penpot: Left/Right Border — 51px wide, centring a 2x310 rule */
+.gi-border {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.gi-border-rule {
+  width: 2px;
+  height: 310px;
+  background: var(--color-border);
+}
+
+/* Penpot: Show — flex column, align center, 30px row gap, 30px/4px padding */
+.gi-show {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  row-gap: 30px;
+  padding: 4px 30px;
+  flex-shrink: 0;
+}
+
+.gi-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Penpot: BRAND / RELEASE DATE / AVERAGE / MEDIAN — Girassol 30px, #aab8c2 */
+.gi-caption {
+  height: 36px;
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* Penpot: the values under them — Girassol 40px, #e1e8ed */
+.gi-value {
+  height: 48px;
+  max-width: 261px;
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Penpot: Average and Median — flex row, 70px column gap */
+.gi-scores {
+  display: flex;
+  column-gap: 70px;
+}
+
+/* ------------------------------------------------------------- Bottom ---- */
+
+/* Penpot: Bottom — 73px tall, flex row, space-between, align center, 5px pad */
+.gi-bottom {
+  height: 73px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px;
+}
+
+/* Penpot: the two 87x63 corner paths, fill #2a2d31 */
+.gi-wedge {
+  width: 87px;
+  height: 63px;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* Penpot: Rectangle — 242x2, #B1B2B5 */
+.gi-bottom-rule {
+  flex: 1;
+  height: 2px;
+  background: var(--color-border);
+}

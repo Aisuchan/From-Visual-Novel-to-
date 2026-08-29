@@ -262,37 +262,6 @@
 
 /* Right-click menu on a game row. Not in the Penpot design, so it borrows the
    dialog's surface colours. Positioned in the panel's design-pixel space. */
-.game-context-menu {
-  position: absolute;
-  z-index: 40;
-  min-width: 190px;
-  background: var(--color-bg-alt);
-  border: 3px solid var(--color-text-dim);
-  display: flex;
-  flex-direction: column;
-}
-
-.game-context-menu button {
-  background: transparent;
-  border: none;
-  text-align: left;
-  padding: 8px 20px;
-  color: var(--color-text);
-  font-family: var(--font-body);
-  font-size: 24px;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
-.game-context-menu button:hover {
-  background: var(--color-accent);
-  color: var(--color-text-bright);
-}
-
-.game-context-menu button.danger:hover {
-  background: #c42b1c;
-}
-
 /* Penpot: Game LIst — 335 wide, stroke #657786 5px inner, 5px top padding, 10px below search */
 .game-list {
   list-style: none;

@@ -58,12 +58,25 @@
   min-width: 0;
 }
 
-/* Penpot places a "◯" run here at 50px; rendered as Font Awesome circle-info. */
+/* Penpot places a "◯" run here at 50px; rendered as Font Awesome circle-info.
+   The Game Info board carries the same mark in a 50x60 text box 15px in from
+   its top-left, so the glyph here gets that same box and the panel is
+   positioned against it — see GameInfo.css. */
 .title-marker {
-  font-size: 50px;
-  line-height: 1;
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 60px;
+  margin-left: 25px;
+  /* Penpot's "◯" is an outline at 50px; circle-info is a filled disc, which at
+     50px reads heavier than the 🔞 opposite it and rides up onto the board's
+     10px stroke. 44px is where the two marks measure the same by eye, centred
+     in the design's own 50x60 box so nothing around it moves. Kept in step
+     with `.gi-mark`, which has to render identically for the two to coincide. */
+  font-size: 44px;
+  line-height: 60px;
+  text-align: center;
   color: var(--color-text);
-  padding-left: 25px;
   flex-shrink: 0;
   transition: color 0.15s ease;
 }
@@ -94,12 +107,60 @@
   display: block;
 }
 
-/* Penpot: Progress — 265x246 triangle overhanging the Top board */
+/* Penpot: Progress — 265x246 triangle overhanging the Top board. Clipped to
+   the triangle itself so the hover and the right-click land on the blue and
+   nowhere else, and so the path's 6px centred stroke shows as the design's 3px
+   inner one. */
 .game-progress {
+  position: relative;
   width: 265px;
   height: 246px;
   flex-shrink: 0;
+  clip-path: polygon(0 0, 100% 100%, 100% 0);
+}
+
+.game-progress-shape {
+  width: 100%;
+  height: 100%;
   display: block;
+  transition: filter 0.15s ease;
+}
+
+/* Not in the design: the triangle lights up under the pointer, since it is
+   what the progress menu opens on. */
+.game-progress:hover .game-progress-shape {
+  filter: brightness(1.22);
+}
+
+/* Not in the design: the mark, set on the triangle's incentre and turned 40°
+   clockwise so it runs with the hypotenuse. */
+.progress-mark {
+  position: absolute;
+  transform: translate(-50%, -50%) rotate(40deg);
+  font-family: var(--font-display);
+  /* The largest that keeps every mark clear of all three edges once turned:
+     the turned 104px box only just fits, so this leaves a little air. */
+  font-size: 96px;
+  line-height: 1;
+  color: var(--color-text-bright);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* A score is set in the app's numeric face, as numbers are everywhere else.
+   That face carries far less ink per em than a CJK glyph — measured, digits at
+   96px stand 58 tall against 未/途/完's 85 — so it is set larger to read as the
+   same size. 141px puts its cap height on 85 as well, and even "100" turned 40°
+   still clears all three edges (measured: nothing clipped). */
+.progress-mark.scored {
+  font-family: var(--font-numeric);
+  font-size: 141px;
+}
+
+/* Only one score runs to three digits, and off the incentre 100 reaches the
+   triangle's top edge at the full size; 128px puts the air back under it. */
+.progress-mark.wide {
+  font-size: 128px;
 }
 
 /* ------------------------------------------------------------- Middle ---- */
@@ -409,19 +470,49 @@
   white-space: nowrap;
 }
 
-/* Penpot: Play Log Button — 77x76, 40px top / 15px right padding, 🧾 at 50px */
+/* Penpot: Play Log Button — the 🧾 sits 40px down and 15px in from the right of
+   a 77x76 board, but the region the design fences off for it is the wedge the
+   Under decoration closes at that end: the rule rises from (1419,126) to
+   (1585,0) in the 1585x126 band it draws, so the wedge is that diagonal, the
+   column's right edge and the band's bottom. The whole wedge is the button —
+   `clip-path` gives it the shape. */
 .play-log-button {
   position: absolute;
   right: 0;
-  top: 75px;
-  width: 77px;
-  height: 76px;
-  padding: 40px 15px 0 0;
+  top: 50px;
+  width: 166px;
+  height: 126px;
+  /* 15px in from the right, as the design has it. Vertically the design's
+     literal 40px places the 🧾's own 36px box; fa-file-lines is a taller glyph
+     and its 50px of ink hung 13px below the wedge's centre, all but touching
+     the bottom edge, so the padding puts it back on that centre. Laid out as a
+     flex row rather than left to the button's own content box, which Chromium
+     centres vertically and which therefore only ever applied half of any
+     padding change. The glyph's own box is 1em tall and starts at the content
+     top, so 50 + 58 puts its 50px of ink at 108-158 — centred on 133, which is
+     both the 🧾's own centre and the wedge's centroid. */
+  padding: 58px 15px 0 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  border: none;
+  background: transparent;
+  clip-path: polygon(0 100%, 100% 0, 100% 100%);
   font-family: var(--font-display);
   font-size: 50px;
   line-height: 0.7;
   color: var(--color-text);
-  z-index: 1;
+  /* Above the Play log board, so the button that opened it also closes it. */
+  z-index: 5;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+/* Not in the design: the wedge itself lights up under the pointer, and stays
+   lit while the board it opened is out. */
+.play-log-button:hover,
+.play-log-button.open {
+  background: rgba(225, 232, 237, 0.14);
+  color: var(--color-text-bright);
 }
 
 .playing-badge {

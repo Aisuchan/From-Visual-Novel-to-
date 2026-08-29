@@ -1,4 +1,12 @@
-import type { FooterStats, GameImage, GameWithStats, LaunchPrefs, NewGameInput } from './db-types'
+import type {
+  FooterStats,
+  GameImage,
+  GameWithStats,
+  LaunchPrefs,
+  NewGameInput,
+  ProgressState,
+  Session
+} from './db-types'
 
 export const IpcChannels = {
   GamesList: 'games:list',
@@ -11,12 +19,14 @@ export const IpcChannels = {
   GamesExtractExeIcon: 'games:extract-exe-icon',
   GamesSetPlayTime: 'games:set-play-time',
   GamesSetThumbnail: 'games:set-thumbnail',
+  GamesSetProgress: 'games:set-progress',
   GameImagesList: 'game-images:list',
   GameImagesAdd: 'game-images:add',
   GameImagesDelete: 'game-images:delete',
   GamesFooterStats: 'games:footer-stats',
   LaunchPrefsGet: 'launch-prefs:get',
   LaunchPrefsSet: 'launch-prefs:set',
+  SessionsList: 'sessions:list',
   SessionStart: 'session:start',
   SessionEnded: 'session:ended',
   SessionScreenshot: 'session:screenshot',
@@ -130,10 +140,22 @@ export interface LibraryApi {
   setTotalPlaySeconds(gameId: number, seconds: number): Promise<void>
   /** Applies one of the game's registered images as its main thumbnail. */
   setThumbnail(gameId: number, filePath: string): Promise<GameWithStats>
+  /**
+   * Sets what the Progress triangle reads. `state` null hands it back to the
+   * play history; `score` is only kept for 'cleared', and null there means the
+   * game was cleared without one.
+   */
+  setProgress(
+    gameId: number,
+    state: ProgressState | null,
+    score: number | null
+  ): Promise<GameWithStats>
   listGameImages(gameId: number): Promise<GameImage[]>
   /** Opens the picker, copies the chosen files in, and returns the new list. */
   addGameImages(gameId: number): Promise<GameImage[]>
   deleteGameImage(gameId: number, imageId: number): Promise<GameImage[]>
+  /** The game's sessions, newest first — the Play Log board's source. */
+  listSessions(gameId: number): Promise<Session[]>
   getFooterStats(): Promise<FooterStats>
   getLaunchPrefs(gameId: number): Promise<LaunchPrefs>
   setLaunchPrefs(prefs: LaunchPrefs): Promise<void>

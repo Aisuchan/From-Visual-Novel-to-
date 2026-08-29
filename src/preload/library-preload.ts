@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannels } from '../shared/ipc-types'
-import type { LaunchPrefs, NewGameInput } from '../shared/db-types'
+import type { LaunchPrefs, NewGameInput, ProgressState } from '../shared/db-types'
 import type { LibraryApi, SessionEndedPayload, StartSessionRequest } from '../shared/ipc-types'
 
 const libraryApi: LibraryApi = {
@@ -18,10 +18,13 @@ const libraryApi: LibraryApi = {
     ipcRenderer.invoke(IpcChannels.GamesSetPlayTime, gameId, seconds),
   setThumbnail: (gameId: number, filePath: string) =>
     ipcRenderer.invoke(IpcChannels.GamesSetThumbnail, gameId, filePath),
+  setProgress: (gameId: number, state: ProgressState | null, score: number | null) =>
+    ipcRenderer.invoke(IpcChannels.GamesSetProgress, gameId, state, score),
   listGameImages: (gameId: number) => ipcRenderer.invoke(IpcChannels.GameImagesList, gameId),
   addGameImages: (gameId: number) => ipcRenderer.invoke(IpcChannels.GameImagesAdd, gameId),
   deleteGameImage: (gameId: number, imageId: number) =>
     ipcRenderer.invoke(IpcChannels.GameImagesDelete, gameId, imageId),
+  listSessions: (gameId: number) => ipcRenderer.invoke(IpcChannels.SessionsList, gameId),
   getFooterStats: () => ipcRenderer.invoke(IpcChannels.GamesFooterStats),
   getLaunchPrefs: (gameId: number) => ipcRenderer.invoke(IpcChannels.LaunchPrefsGet, gameId),
   setLaunchPrefs: (prefs: LaunchPrefs) => ipcRenderer.invoke(IpcChannels.LaunchPrefsSet, prefs),

@@ -3,6 +3,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import * as db from './db'
+import type { ProgressState } from '../shared/db-types'
 import { launchGame } from './launcher'
 import * as capture from './capture'
 import {
@@ -93,7 +94,15 @@ export function registerIpcHandlers(): void {
     db.setThumbnail(gameId, filePath)
   )
 
+  ipcMain.handle(
+    IpcChannels.GamesSetProgress,
+    (_event, gameId: number, state: ProgressState | null, score: number | null) =>
+      db.setProgress(gameId, state, score)
+  )
+
   ipcMain.handle(IpcChannels.GameImagesList, (_event, gameId: number) => db.listGameImages(gameId))
+
+  ipcMain.handle(IpcChannels.SessionsList, (_event, gameId: number) => db.listSessions(gameId))
 
   // "ADD IMAGE" in the Add Thumbnail screen. The files are copied under
   // userData so the grid keeps working if the originals move or are deleted.

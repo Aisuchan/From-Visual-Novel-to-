@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GameImage, GameWithStats } from '../../../shared/db-types'
 import { mediaUrl } from '../../../shared/media-url'
+import { WHEEL_NOTCH, useWheelStepper } from '../useWheelStepper'
 import ConfirmDialog from './ConfirmDialog'
 import './AddThumbnail.css'
 
@@ -18,9 +19,6 @@ interface Props {
 const COLUMNS = 5
 const ROWS = 5
 const PAGE_SIZE = COLUMNS * ROWS
-
-/** One page per wheel notch: Chromium reports 100-120px for one of those. */
-const WHEEL_NOTCH = 100
 
 /** Delay between the diagonals the pictures flip in along, in milliseconds. */
 const FLIP_STAGGER = 55
@@ -198,6 +196,8 @@ export default function AddThumbnail({
     [images.length]
   )
 
+  const onViewerWheel = useWheelStepper(stepViewer)
+
   useEffect(() => {
     if (viewing === null) return
     const onKey = (event: KeyboardEvent): void => {
@@ -331,6 +331,7 @@ export default function AddThumbnail({
       {viewing !== null && images.length > 0 && (
         <div
           className="image-viewer"
+          onWheel={onViewerWheel}
           onClick={(e) => {
             // Anywhere but the picture itself and the controls closes it.
             const target = e.target as HTMLElement
