@@ -3,7 +3,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import * as db from './db'
-import type { ProgressState } from '../shared/db-types'
+import type { NewRouteInput, ProgressState, RoutePatch } from '../shared/db-types'
 import { launchGame } from './launcher'
 import * as capture from './capture'
 import {
@@ -67,6 +67,10 @@ function finishActiveSession(): void {
   // The Recorder Panel's own elapsed time is what gets banked, so any span the
   // player paused is left out of the game's total play time.
   const session = db.endSession(finished.sessionId, elapsedSeconds(finished))
+  // Time on a game is time on whichever route was active while it ran. Banked
+  // here rather than in the renderer so it lands whether or not the Route board
+  // is open — or the library window is even up.
+  db.addRoutePlaySeconds(session.gameId, session.durationSeconds)
   // Whatever was still recording is flushed to disk before the worker goes.
   void capture.shutdownCapture()
   closeOverlayWindow()
@@ -101,6 +105,24 @@ export function registerIpcHandlers(): void {
   )
 
   ipcMain.handle(IpcChannels.GameImagesList, (_event, gameId: number) => db.listGameImages(gameId))
+
+  ipcMain.handle(IpcChannels.RoutesList, (_event, gameId: number) => db.listRoutes(gameId))
+
+  ipcMain.handle(IpcChannels.RoutesAdd, (_event, input: NewRouteInput) => db.addRoute(input))
+
+  ipcMain.handle(
+    IpcChannels.RoutesUpdate,
+    (_event, gameId: number, routeId: number, patch: RoutePatch) =>
+      db.updateRoute(gameId, routeId, patch)
+  )
+
+  ipcMain.handle(IpcChannels.RoutesDelete, (_event, gameId: number, routeId: number) =>
+    db.deleteRoute(gameId, routeId)
+  )
+
+  ipcMain.handle(IpcChannels.RoutesSetActive, (_event, gameId: number, routeId: number | null) =>
+    db.setActiveRoute(gameId, routeId)
+  )
 
   ipcMain.handle(IpcChannels.SessionsList, (_event, gameId: number) => db.listSessions(gameId))
 

@@ -19,6 +19,22 @@
   display: flex;
   flex-direction: column;
   z-index: 5;
+  /* Not in the design: it arrives the way the Route board does, but the other
+     way up — the board rises off the frame it hangs over, this one comes down
+     from the mark it hangs under. Mounted on hover and dropped again, so it is
+     an animation rather than the board's transition. */
+  animation: game-info-in 0.15s ease;
+}
+
+@keyframes game-info-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Anchored on the mark at the row's other end, with the Top Icon row reversed

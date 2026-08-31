@@ -1,0 +1,921 @@
+/* Every value below is a literal from Penpot's board "Route"
+   (0fa3147b-f76a-80c2-8008-7acfd8885584), 416x612 on the 1920x1080 canvas. */
+
+/* Penpot: Route — fill #000000 at 80%, 5px stroke #aab8c2, overflow hidden,
+   flex column. `left`/`bottom` come from GameDetail: the panel hangs off the
+   top edge of the ROUTE frame, centred on that frame at its widest. The fill
+   is carried at 90% rather than the design's 80%. */
+.route-panel {
+  position: absolute;
+  width: 416px;
+  height: 612px;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  overflow: hidden;
+  z-index: 6;
+  opacity: 0;
+  pointer-events: none;
+  /* Opens upward: it rises the last few px into place against the frame. */
+  transform: translateY(8px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.route-panel.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+/* The design's stroke is an *inner* one, so it lies over the children rather
+   than insetting them — every child is the board's full 416 wide. A CSS border
+   would take those 5px out of the content box, so the stroke is drawn on top. */
+.route-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 5px solid var(--color-text-muted);
+  pointer-events: none;
+}
+
+/* Penpot: Pie Chart — 416x387, flex column, centred */
+.rp-pie {
+  position: relative;
+  width: 100%;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* Penpot: Decolation — 416x77, space-between, 12px padding but for the bottom */
+.rp-decoration {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 12px 12px 0;
+}
+
+/* Penpot: Path — 98x65 wedges, #2a2d31. The design draws them as absolute
+   paths; their own boxes carry the two triangles. */
+.rp-wing {
+  width: 98px;
+  height: 65px;
+  flex-shrink: 0;
+  display: block;
+  fill: var(--color-bg-alt);
+}
+
+/* Penpot: Rectangle — 164x2 #B1B2B5, 10px below the wedges' top */
+.rp-rule {
+  width: 164px;
+  height: 2px;
+  margin-top: 10px;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+/* Penpot: Circle — 350x350 #B1B2B5, pulled 40px up under the decoration. The
+   plate the chart is drawn on: the routes' play time rings its rim and the
+   plate keeps the middle, which is where the design's label sits. */
+.rp-circle {
+  position: relative;
+  width: 350px;
+  height: 350px;
+  margin-top: -40px;
+  border-radius: 175px;
+  background: var(--color-border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Not in the design, which draws the plate alone. One dashed circle per route,
+   so the ring's arcs need no path arithmetic and the 100% case is not special.
+   `pointer-events: stroke` follows the dash pattern, so a segment answers the
+   pointer over its own arc and nowhere else. */
+/* Once a route has time on it the plate goes: the ring is the whole chart and
+   the middle is the board showing through. The plate is only what stands in
+   while every route is still on 00:00. */
+.rp-circle.charted {
+  background: transparent;
+}
+
+.rp-chart {
+  position: absolute;
+  inset: 0;
+  display: block;
+  /* The ring's stroked corners reach the very edge of the 350. */
+  overflow: visible;
+}
+
+.rp-chart path {
+  transition: filter 0.15s ease;
+}
+
+/* The sweep that draws the ring on. The stroke starts wholly in the dash's gap
+   and the gap runs off clockwise, uncovering the wedges and their shares in
+   the order they are set out from twelve o'clock. */
+.rp-chart-wipe {
+  stroke-dashoffset: 942.48;
+  animation: rp-chart-wipe 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes rp-chart-wipe {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* The reference sets each share on its own arc in a light, plain face.
+   Numbers are set in the app's numeric face wherever they carry a value. */
+/* The ring's band is 80px across, and the widest share ("25.2%") is written
+   straight across it where a route sits at three or nine o'clock, so the face
+   has to leave that band a margin either side. */
+.rp-chart-share {
+  font-family: var(--font-numeric);
+  font-size: 26px;
+  /* Each share sets its own ink inline - whichever of the two reads on its own
+     route's colour - because a class rule beats a presentation attribute. This
+     is only the fallback. */
+  fill: var(--color-text);
+  pointer-events: none;
+}
+
+.rp-chart path:hover {
+  filter: brightness(1.2);
+}
+
+/* Penpot: "TIME\nRECORD" — Girassol 42px, #000000, centred, line-height 1.2 */
+.rp-circle-label {
+  height: 101px;
+  font-family: var(--font-display);
+  font-size: 42px;
+  line-height: 1.2;
+  color: #000000;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* What the ring adds up to, in the app's own text colour rather than the black
+   the design sets on the plate - there is no plate behind it any more. One
+   line, so the box is the line, and the ink is nudged the way the Active
+   Route's name is (see `.rp-name span`). */
+.rp-circle-label.total {
+  position: relative;
+  top: 2px;
+  height: 50px;
+  line-height: 50px;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Penpot board "Hover Pie Route" — 260x118, #14171a under a 2px #657786 inner
+   stroke and a 10px radius, 15px of padding above and below the two 44px lines.
+   The stroke is inner and the padding runs from the board edge, so it is drawn
+   on top rather than as a border — 15 + 44 + 44 + 15 is the whole 118. */
+.rp-hover-pie {
+  position: absolute;
+  width: 260px;
+  height: 118px;
+  background: var(--color-bg);
+  border-radius: 10px;
+  padding: 15px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  /* Above the board it belongs to, which sits at 6. */
+  z-index: 7;
+}
+
+.rp-hover-pie::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--color-text-dim);
+  border-radius: 10px;
+}
+
+/* Penpot: "HEROINE1" Girassol 36px #da5e5e over "999:99" Girassol 36px #e1e8ed.
+   A route carries its own colour, so the name's arrives inline. */
+.rp-hover-name,
+.rp-hover-time {
+  height: 44px;
+  max-width: 230px;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 44px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.rp-hover-name {
+  color: #da5e5e;
+}
+
+.rp-hover-time {
+  color: var(--color-text);
+}
+
+/* Penpot: Route Maneger — 416x225, flex column */
+.rp-manager {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* Penpot: Active Route — 416x123; 25px in either side, 20px down, 10px gap */
+.rp-active {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  row-gap: 10px;
+  padding: 20px 25px 0;
+}
+
+/* Penpot: "Active Route" — Girassol 32px, #e1e8ed, line-height 1.2 */
+.rp-active-label {
+  height: 39px;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Penpot: Heroine Container — 366x54 on #14171a. The design gives the three
+   children a 1px inner stroke each and no stroke of its own, so the strip's
+   outline is the buttons' and the name field's own edges meeting. */
+.rp-heroine {
+  width: 100%;
+  height: 54px;
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: center;
+}
+
+/* Penpot: Go Left / Go Right Button — 42x54, 1px #e1e8ed, 7px either side,
+   5px radius on the two corners that fall on the strip's own ends. */
+.rp-step {
+  width: 42px;
+  flex-shrink: 0;
+  padding: 0 7px;
+  border: 1px solid var(--color-text);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+/* Not in the design: the steppers are controls, so they light under the
+   pointer, and go quiet when there is nothing to step to. */
+.rp-step:hover:not(:disabled) {
+  background: rgba(225, 232, 237, 0.14);
+  color: var(--color-text-bright);
+}
+
+.rp-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.rp-step.left {
+  border-radius: 5px 0 0 5px;
+}
+
+.rp-step.right {
+  border-radius: 0 5px 5px 0;
+}
+
+/* Penpot: Name — fills the strip between the two buttons, 1px #e1e8ed. The
+   design sets the name 7px down and 3px clear of the bottom, but its own 1px
+   strokes take 2 of the strip's 54 and the name's box is 44, so 7 + 44 + 3
+   overruns the 52 that are left and the last 2px are clipped away — which is
+   what read as the name sitting high. Centred in those 52 instead. */
+.rp-name {
+  flex: 1;
+  border: 1px solid var(--color-text);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Penpot: "HEROINE 1" — Girassol 36px, line-height 1.2. The design sets it in
+   #da6a67; a route carries its own colour now, so that arrives inline and this
+   is the fallback for one that somehow has none. */
+.rp-name span {
+  height: 44px;
+  font-family: var(--font-display);
+  font-size: 36px;
+  /* The design's 1.2 leaves the 43.2px line box top-aligned in the 44px one;
+     matching the two centres the line box in the box that is centred in the
+     strip. The ink inside it still is not: a face's ascent runs taller than its
+     descent, so the glyphs sit above the line box's own middle — measured at
+     1.5px on this one, which is what `top` gives back. */
+  line-height: 44px;
+  position: relative;
+  top: 1.5px;
+  color: #da6a67;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Not in the design: the slot past the end of the list, where no route is
+   active and a session's time is not recorded onto one. This is where a game
+   starts, so it is a plain grey rather than one of the palette's blues. */
+.rp-name span.off {
+  color: #828282;
+}
+
+/* Penpot: Add Route Button — 416x102, 25px padding all round. It carries
+   either the one Default Button or the CANCEL / OK pair, which the design sets
+   30px apart (25 + 168 + 30 + 168 + 25 = 416). */
+.rp-button-row {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  column-gap: 30px;
+  padding: 25px;
+}
+
+/* Penpot: Default Button — #1da1f2, 2px #e1e8ed, 5px radius, 10px above the
+   label and 8px below it. The design's OK button is the same box. */
+.rp-button {
+  flex: 1;
+  background: var(--color-accent);
+  border: 2px solid var(--color-text);
+  border-radius: 5px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10px 0 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+/* Penpot: the CANCEL half of Add Route Menu Buttons — #2a2d31, 2px #657786 */
+.rp-button.cancel {
+  background: var(--color-bg-alt);
+  border-color: var(--color-text-dim);
+}
+
+/* Not in the design: every one of these is a control, so it lifts under the
+   pointer. OK goes quiet until the route it would add has a name. */
+.rp-button:hover:not(:disabled) {
+  filter: brightness(1.18);
+}
+
+.rp-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Penpot: "MANEGE ROUTE" — Girassol 28px, #e1e8ed, line-height 1.2. CANCEL and
+   OK are set the same. */
+.rp-button span {
+  height: 34px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ------------------------------------------------- Add Route Menu face ---- */
+
+/* Penpot: Add Route Menu — 416x510, flex column, 15px down and 30px in either
+   side, 5px between children. That leaves every child 356 wide, which is what
+   the design gives them. */
+.rp-menu {
+  position: relative;
+  width: 100%;
+  height: 510px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  row-gap: 5px;
+  padding: 15px 30px 0;
+}
+
+/* Penpot: Tab Name — 356x47; two 176.5 halves either side of a 3px rule. */
+.rp-tabs {
+  height: 47px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+/* Penpot: Add / Change — 176.5x47 each. The design draws the selected one with
+   a 166.5 pill inside 5px of side padding; the other is the bare label, which
+   centres on the same line, so both halves are built the same way here. */
+.rp-tab {
+  flex: 1;
+  height: 47px;
+  min-width: 0;
+  padding: 0 5px;
+  background: transparent;
+  border: 0;
+  display: flex;
+  cursor: pointer;
+}
+
+/* Penpot: Selected — #1da1f2, 1px #e1e8ed, 10px radius, label 3px down. The
+   border is transparent rather than absent on the unselected half so the label
+   does not shift by a pixel when the tabs are switched. */
+.rp-tab-pill {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding-top: 3px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: hidden;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.rp-tab.selected .rp-tab-pill {
+  background: var(--color-accent);
+  border-color: var(--color-text);
+}
+
+/* Not in the design: the tab that is not selected shows it can be, and the
+   selected one lifts the same way the other buttons do. */
+.rp-tab:hover:not(.selected) .rp-tab-pill {
+  background: rgba(225, 232, 237, 0.14);
+}
+
+.rp-tab.selected:hover .rp-tab-pill {
+  filter: brightness(1.18);
+}
+
+/* Penpot: "ADD" / "CHANGE" — Girassol 36px, #e1e8ed selected, #aab8c2 not. */
+.rp-tab-label {
+  height: 44px;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.rp-tab.selected .rp-tab-label,
+.rp-tab:hover .rp-tab-label {
+  color: var(--color-text);
+}
+
+.rp-tab:hover .rp-tab-label {
+  color: var(--color-text-bright);
+}
+
+/* Penpot: Rectangle — the 3x47 divider between the tabs */
+.rp-tab-divider {
+  width: 3px;
+  align-self: stretch;
+  flex-shrink: 0;
+  background: var(--color-border);
+}
+
+/* Penpot: Border — 356x2, above and below the form */
+.rp-menu-rule {
+  height: 2px;
+  flex-shrink: 0;
+  background: var(--color-border);
+}
+
+/* Penpot: Add / Change — 356x429, the room between the two rules */
+.rp-add,
+.rp-change {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Not in the design, which draws four routes and stops: past about eight the
+   list would run out under the rule and the buttons, so it scrolls inside its
+   own 429 instead. */
+.rp-change {
+  overflow-y: auto;
+}
+
+/* Penpot: Add — 5px between its four sections */
+.rp-add {
+  row-gap: 5px;
+}
+
+/* Penpot: Route Name / Color — a label over its control, 10px apart, with 10px
+   of air above and below the pair. */
+.rp-field {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  row-gap: 10px;
+  padding: 10px 0;
+}
+
+/* Penpot: Default PlayTime / Is Cleared — label and control on one line */
+.rp-row {
+  flex-shrink: 0;
+  height: 54px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+
+/* Penpot: "Route Name" / "Color" / "Default Playtime" / "Cleard" — Girassol
+   28px, #e1e8ed, line-height 1.2 */
+.rp-label {
+  height: 34px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+/* Penpot: Name Input / Color Code Input — 44 tall on #2a2d31, a 1px black
+   inner stroke, 5px radius, the text 15px in and 5px down. */
+.rp-input {
+  height: 44px;
+  flex-shrink: 0;
+  background: var(--color-bg-alt);
+  border: 1px solid #000000;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  padding: 5px 15px;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+/* Not in the design: the field being typed into takes the accent edge. The
+   app's own focus ring is an inset 2px accent line (theme.css), which inside
+   these fields lands a second ring in from the frame — the frame is the whole
+   field's edge here, so that inner one is dropped and only it shows. */
+.rp-input:focus-within {
+  border-color: var(--color-accent);
+}
+
+.rp-input input:focus-visible,
+.rp-time-input:focus-visible {
+  box-shadow: none;
+}
+
+/* Penpot sets the placeholder in Girassol 28px #657786; a typed value is the
+   same face in the panel's own #e1e8ed. */
+.rp-input input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  outline: none;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.rp-input input::placeholder {
+  color: var(--color-text-dim);
+}
+
+/* Penpot: Color Setting — 356x132; the 211 column of controls and the 130
+   preview plate, 15px apart. */
+.rp-color-setting {
+  height: 132px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  column-gap: 15px;
+}
+
+/* Penpot: Color Option — 211x132, the code field over the swatches */
+.rp-color-option {
+  width: 211px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  row-gap: 10px;
+}
+
+/* Penpot: Template Color — 211x78: five 36.6x36.5 swatches across, two down,
+   7px apart across and 5px down (5*36.6 + 4*7 = 211, 2*36.5 + 5 = 78). */
+.rp-swatches {
+  display: grid;
+  grid-template-columns: repeat(5, 36.6px);
+  grid-auto-rows: 36.5px;
+  column-gap: 7px;
+  row-gap: 5px;
+}
+
+/* Penpot: each swatch — 3px radius under a 2px inner #e1e8ed stroke. The
+   stroke is drawn with an inset shadow so the swatch keeps its exact 36.6. */
+.rp-swatch {
+  border: 0;
+  padding: 0;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 2px var(--color-text);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+/* Penpot: Red Selected — 2px #1da1f2 over a 4px #ffffff, both inner, so the
+   blue reads as the outer 2px and the white as the 2px inside it. It follows
+   the colour the form holds rather than sitting on red. */
+.rp-swatch.selected {
+  box-shadow: inset 0 0 0 2px var(--color-accent), inset 0 0 0 4px #ffffff;
+}
+
+/* Not in the design: the swatch under the pointer brightens. */
+.rp-swatch:hover {
+  filter: brightness(1.25);
+}
+
+/* Penpot draws a 130x132 plate here. It is the colour picker: the hue strip
+   over the square, which is where saturation and brightness are set. The two
+   and the 4px between them come to the plate's own 132. */
+.rp-picker {
+  width: 130px;
+  height: 132px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  row-gap: 4px;
+}
+
+/* The hue strip — every pure hue across 130px. A range input, so it also takes
+   the arrow keys. */
+.rp-hue {
+  width: 100%;
+  height: 14px;
+  flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    #ff0000 0%,
+    #ffff00 17%,
+    #00ff00 33%,
+    #00ffff 50%,
+    #0000ff 67%,
+    #ff00ff 83%,
+    #ff0000 100%
+  );
+  cursor: pointer;
+}
+
+.rp-hue::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 6px;
+  height: 14px;
+  border: 1px solid var(--color-bg);
+  border-radius: 2px;
+  background: var(--color-text-bright);
+  cursor: pointer;
+}
+
+/* The square: the hue washes out to white across it and down to black under
+   it, so a point in it is one saturation and one brightness of that hue. */
+.rp-sv {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  background-image: linear-gradient(to top, #000000, rgba(0, 0, 0, 0)),
+    linear-gradient(to right, #ffffff, rgba(255, 255, 255, 0));
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* Where in the square the colour is. Rides on both fills, so it is ringed in
+   white over black to stay visible on either. */
+.rp-sv-marker {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* The colour the route will carry, shown on the inside end of the field that
+   spells it: a 34px disc, the height the input's own padding leaves. */
+.rp-color-dot {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  margin: 3px 0 0 6px;
+  border: 1px solid var(--color-text-dim);
+  border-radius: 50%;
+}
+
+/* Penpot: Play time — 116x34, the two fields either side of the colon */
+.rp-playtime {
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  column-gap: 5px;
+  padding: 3px 0;
+}
+
+/* Penpot: Left / Right Input — 50x28 on #2a2d31 with a 1px #e1e8ed stroke.
+   The design leaves them empty; they hold the hours and the minutes. */
+.rp-time-input {
+  width: 50px;
+  height: 28px;
+  flex-shrink: 0;
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-text);
+  padding: 0 4px;
+  outline: none;
+  font-family: var(--font-display);
+  font-size: 21px;
+  line-height: 1.2;
+  color: var(--color-text);
+  text-align: right;
+  transition: border-color 0.15s ease;
+}
+
+.rp-time-input:focus {
+  border-color: var(--color-accent);
+}
+
+/* Penpot: ":" — a 6x28 box carrying Girassol 21px #e1e8ed */
+.rp-time-colon {
+  width: 6px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.rp-time-colon span {
+  height: 26px;
+  font-family: var(--font-display);
+  font-size: 21px;
+  line-height: 1.2;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
+/* Penpot draws a "□" glyph in a 28x34 box; it is a checkbox, so it is one
+   here — 28 square, centred in the design's 34, in the app's accent the way
+   the Play Button Extend panel's boxes are. */
+.rp-check {
+  width: 28px;
+  height: 28px;
+  margin: 3px 0;
+  flex-shrink: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+/* The whole Is Cleared line is the checkbox's label, so it takes the pointer
+   and the label brightens with it. */
+label.rp-row {
+  cursor: pointer;
+}
+
+label.rp-row:hover .rp-label {
+  color: var(--color-text-bright);
+}
+
+/* Penpot: Column1..3 — 356x49, 3px of margin above and below each (so 6px
+   between rows), the name 10px in and 5px down. */
+.rp-column {
+  height: 49px;
+  flex-shrink: 0;
+  margin: 3px 0;
+  padding: 5px 10px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+/* Penpot: Column1 Hoverd — the row under the pointer takes a #2a2d31 plate and
+   puts its Delete button out. */
+.rp-column:hover {
+  background: var(--color-bg-alt);
+}
+
+/* Penpot: "HEROINE1" — Girassol 32px, #de6969, line-height 1.2 */
+.rp-column-name {
+  height: 39px;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1.2;
+  color: #de6969;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Penpot: Delete — 39x39, #b04b4b at 75%, 10px radius, the ✕ 6px in either
+   side. It only exists on the hovered row, so it is hidden rather than absent
+   and the name keeps its position. */
+/* The design draws a "✕" on a #b04b4b plate. It is the same act as deleting a
+   picture in Add Thumbnail, so it is drawn the same way: the Font Awesome
+   trash in #cc1b1b, with no plate under it. The design's 39x39 box is kept, so
+   the row's layout is untouched. */
+.rp-column-delete {
+  width: 39px;
+  height: 39px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--color-danger);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+  visibility: hidden;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.rp-column:hover .rp-column-delete {
+  visibility: visible;
+}
+
+/* Not in the design: the delete button itself brightens under the pointer, so
+   it is clear which of the two the click will land on. */
+.rp-column-delete:hover {
+  color: var(--color-danger-bright);
+}
+
+/* Penpot's "Delete Image Confilm" is a 450x278 board meant to stand over the
+   whole window; here it asks after a route, in the middle of this 416-wide
+   one. Scaling it is what keeps every literal value in ConfirmDialog.css
+   intact — 450 * 0.79 = 355.5, the same 30px inset the menu's own rows have.
+   `.dialog-backdrop` is already `position: absolute; inset: 0`, so it covers
+   the board and nothing outside it. */
+.route-panel .delete-confirm {
+  transform: scale(0.79);
+}

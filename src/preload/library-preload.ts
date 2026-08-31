@@ -1,6 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannels } from '../shared/ipc-types'
-import type { LaunchPrefs, NewGameInput, ProgressState } from '../shared/db-types'
+import type {
+  LaunchPrefs,
+  NewGameInput,
+  NewRouteInput,
+  ProgressState,
+  RoutePatch
+} from '../shared/db-types'
 import type { LibraryApi, SessionEndedPayload, StartSessionRequest } from '../shared/ipc-types'
 
 const libraryApi: LibraryApi = {
@@ -12,8 +18,7 @@ const libraryApi: LibraryApi = {
   reorderGames: (orderedIds: number[]) => ipcRenderer.invoke(IpcChannels.GamesReorder, orderedIds),
   pickExecutable: () => ipcRenderer.invoke(IpcChannels.GamesPickExe),
   pickImage: () => ipcRenderer.invoke(IpcChannels.GamesPickImage),
-  extractExeIcon: (exePath: string) =>
-    ipcRenderer.invoke(IpcChannels.GamesExtractExeIcon, exePath),
+  extractExeIcon: (exePath: string) => ipcRenderer.invoke(IpcChannels.GamesExtractExeIcon, exePath),
   setTotalPlaySeconds: (gameId: number, seconds: number) =>
     ipcRenderer.invoke(IpcChannels.GamesSetPlayTime, gameId, seconds),
   setThumbnail: (gameId: number, filePath: string) =>
@@ -24,6 +29,15 @@ const libraryApi: LibraryApi = {
   addGameImages: (gameId: number) => ipcRenderer.invoke(IpcChannels.GameImagesAdd, gameId),
   deleteGameImage: (gameId: number, imageId: number) =>
     ipcRenderer.invoke(IpcChannels.GameImagesDelete, gameId, imageId),
+
+  listRoutes: (gameId: number) => ipcRenderer.invoke(IpcChannels.RoutesList, gameId),
+  addRoute: (input: NewRouteInput) => ipcRenderer.invoke(IpcChannels.RoutesAdd, input),
+  updateRoute: (gameId: number, routeId: number, patch: RoutePatch) =>
+    ipcRenderer.invoke(IpcChannels.RoutesUpdate, gameId, routeId, patch),
+  deleteRoute: (gameId: number, routeId: number) =>
+    ipcRenderer.invoke(IpcChannels.RoutesDelete, gameId, routeId),
+  setActiveRoute: (gameId: number, routeId: number | null) =>
+    ipcRenderer.invoke(IpcChannels.RoutesSetActive, gameId, routeId),
   listSessions: (gameId: number) => ipcRenderer.invoke(IpcChannels.SessionsList, gameId),
   getFooterStats: () => ipcRenderer.invoke(IpcChannels.GamesFooterStats),
   getLaunchPrefs: (gameId: number) => ipcRenderer.invoke(IpcChannels.LaunchPrefsGet, gameId),

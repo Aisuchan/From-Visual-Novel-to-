@@ -8,10 +8,10 @@
   "private": true,
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "tsc --noEmit -p tsconfig.json && electron-vite build",
+    "build": "npm run typecheck && electron-vite build",
     "start": "electron-vite preview",
     "dist": "npm run build && electron-builder --win",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
   },
   "dependencies": {
     "@breezystack/lamejs": "^1.2.7",

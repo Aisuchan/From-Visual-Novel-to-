@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { GameWithStats, Session } from '../../../shared/db-types'
+import type { GameWithStats, Route, Session } from '../../../shared/db-types'
 import './PlayLog.css'
 
 interface Props {
@@ -24,6 +24,8 @@ interface LogEntry {
   date: string
   runs: LogRun[]
   tone: LogTone
+  /** Milliseconds, for the rows the timeline orders among themselves. */
+  at?: number
 }
 
 /**
@@ -44,9 +46,7 @@ function formatDate(stamp: string): string {
 /** Penpot writes durations "99 : 99", i.e. hours and minutes, both padded. */
 function formatSpan(totalSeconds: number): string {
   const pad = (n: number): string => String(n).padStart(2, '0')
-  return `${pad(Math.floor(totalSeconds / 3600))} : ${pad(
-    Math.floor((totalSeconds % 3600) / 60)
-  )}`
+  return `${pad(Math.floor(totalSeconds / 3600))} : ${pad(Math.floor((totalSeconds % 3600) / 60))}`
 }
 
 /**
@@ -54,17 +54,22 @@ function formatSpan(totalSeconds: number): string {
  * the same height as the Game board, so it covers the content column's right
  * edge while it is open.
  *
- * The design also draws `♡ CLEARED "HEROINE1"` rows. Those are route-level
- * events, which is deferred, so nothing produces them yet; what the library
- * records is the clear, every session, the first launch and the registration.
+ * What the library records: the game's own clear, every session, each route
+ * marked cleared, the first launch and the registration. The design's
+ * `PLAYED "HEROINE1"` row — a session attributed to a route — is not produced;
+ * a session is banked on the active route but not filed under it.
  */
 export default function PlayLog({ game, open, onClosed }: Props): React.JSX.Element {
   const [sessions, setSessions] = useState<Session[] | null>(null)
+  const [routes, setRoutes] = useState<Route[]>([])
 
   useEffect(() => {
     let cancelled = false
     window.library.listSessions(game.id).then((list) => {
       if (!cancelled) setSessions(list)
+    })
+    window.library.listRoutes(game.id).then((list) => {
+      if (!cancelled) setRoutes(list)
     })
     return () => {
       cancelled = true
@@ -87,21 +92,44 @@ export default function PlayLog({ game, open, onClosed }: Props): React.JSX.Elem
     })
   }
 
+  /* The sessions and the routes' own clears share one stretch of the timeline,
+     newest first. Everything else is pinned: the game's clear above them, the
+     first launch and the registration below. */
   const played = (sessions ?? []).filter((session) => session.endedAt !== null)
-  for (const session of played) {
-    entries.push({
-      key: `session-${session.id}`,
-      date: formatDate(session.startedAt),
+  const timeline: LogEntry[] = played.map((session) => ({
+    key: `session-${session.id}`,
+    date: formatDate(session.startedAt),
+    at: toDate(session.startedAt).getTime(),
+    runs: [
+      {
+        text: `PLAYED  for  ${formatSpan(session.durationSeconds)}${
+          session.recorded ? '' : ' (not recorded)'
+        }`
+      }
+    ],
+    tone: null
+  }))
+
+  /* Penpot: `♡ CLEARED "HEROINE1"  in   99 : 99` on a #3a2a2a band, the route's
+     own name in #e35c5c — the design's spacing, doubled before "in" and tripled
+     after it, is kept verbatim. */
+  for (const route of routes) {
+    if (!route.clearedAt) continue
+    timeline.push({
+      key: `route-cleared-${route.id}`,
+      date: formatDate(route.clearedAt),
+      at: toDate(route.clearedAt).getTime(),
       runs: [
-        {
-          text: `PLAYED  for  ${formatSpan(session.durationSeconds)}${
-            session.recorded ? '' : ' (not recorded)'
-          }`
-        }
+        { text: '♡ CLEARED "' },
+        { text: route.name, accent: 'route' },
+        { text: `"  in   ${formatSpan(route.clearPlaySeconds ?? 0)}` }
       ],
-      tone: null
+      tone: 'route-cleared'
     })
   }
+
+  timeline.sort((a, b) => (b.at ?? 0) - (a.at ?? 0))
+  entries.push(...timeline)
 
   const firstSession = played[played.length - 1]
   if (firstSession) {

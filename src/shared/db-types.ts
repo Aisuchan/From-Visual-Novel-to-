@@ -56,6 +56,37 @@ export interface GameImage {
   createdAt: string
 }
 
+/**
+ * A route through a game. Every game has at least the common line it opens on
+ * (created on the first read of its list), and exactly one route is active at a
+ * time — the one a finished session's play time is banked on.
+ */
+export interface Route {
+  id: number
+  gameId: number
+  name: string
+  /** #rrggbb; what the name is set in wherever the route is shown. */
+  color: string
+  playSeconds: number
+  cleared: boolean
+  /** When the route was marked cleared, and what it had on the clock then —
+      the Play log's `♡ CLEARED "..."  in  hh : mm` row. Both null until it is. */
+  clearedAt: string | null
+  clearPlaySeconds: number | null
+  isActive: boolean
+  createdAt: string
+}
+
+export interface NewRouteInput {
+  gameId: number
+  name: string
+  color: string
+  playSeconds: number
+  cleared: boolean
+}
+
+export type RoutePatch = Omit<NewRouteInput, 'gameId'>
+
 export interface GameStats {
   totalPlaySeconds: number
   lastPlayedAt: string | null

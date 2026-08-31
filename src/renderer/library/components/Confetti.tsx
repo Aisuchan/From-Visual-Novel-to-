@@ -2,8 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { playSound } from '../../playSound'
 import './Confetti.css'
 
-/** Which celebration is running: the one under the score field, or the finale. */
-export type ConfettiClip = 'input' | 'ok'
+/**
+ * Which celebration is running: the one under the score field, the finale, or
+ * the finale's clip swapped for the score field's — what a route being marked
+ * cleared runs, in the finale's place and with its crackers.
+ */
+export type ConfettiClip = 'input' | 'ok' | 'clear'
 
 interface Props {
   clip: ConfettiClip
@@ -36,6 +40,7 @@ const GREEN_EDGE = 70
  */
 const CUES: Record<ConfettiClip, number[]> = {
   input: [0.1, 3.56, 7.16],
+  clear: [0.1, 3.56, 7.16],
   ok: [0.05]
 }
 
@@ -66,7 +71,9 @@ export default function Confetti({ clip, onFinishing, onEnded }: Props): React.J
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [ending, setEnding] = useState(false)
-  const green = clip === 'input'
+  // confetti1 is the green-screen clip; only the score field's run of it loops.
+  const green = clip !== 'ok'
+  const looping = clip === 'input'
 
   useEffect(() => {
     const video = videoRef.current
@@ -177,16 +184,16 @@ export default function Confetti({ clip, onFinishing, onEnded }: Props): React.J
         autoPlay
         muted
         playsInline
-        loop={green}
+        loop={looping}
         onTimeUpdate={() => {
           const video = videoRef.current
-          if (green || ending || !video?.duration) return
+          if (looping || ending || !video?.duration) return
           if (video.currentTime > video.duration - FADE_SECONDS) {
             setEnding(true)
             onFinishing?.()
           }
         }}
-        onEnded={green ? undefined : onEnded}
+        onEnded={looping ? undefined : onEnded}
       />
       <canvas ref={canvasRef} className="confetti-layer" />
     </div>

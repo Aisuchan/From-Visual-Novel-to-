@@ -488,12 +488,85 @@
   top: 56px;
   height: 94px;
   border: 3px solid var(--color-text-dim);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-bottom: 10px;
+  padding: 0 0 10px;
   overflow: hidden;
+  cursor: pointer;
   z-index: 1;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+/* Not in the design: the frame is the control that opens the Route board, so
+   it lights up under the pointer and stays lit while the board is out — the
+   same wash the Play Log wedge uses. */
+.route-button:hover,
+.route-button.open {
+  background: rgba(225, 232, 237, 0.14);
+  border-color: var(--color-text-muted);
+}
+
+.route-button:hover span,
+.route-button.open span {
+  color: var(--color-text-bright);
+}
+
+/* Not in the design: once a route has time the frame is the graph - the bar
+   takes the whole of it and the lettering gives way, since the colours say
+   what the frame is better than the word does. */
+.route-button.charted {
+  padding: 0;
+}
+
+.route-button .route-bar {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: row;
+}
+
+/* Each route's length is set inline as flex-grow against a zero basis, so the
+   rules between them come out of the frame rather than out of the lengths. The
+   floor is what the ring does with a wedge too thin to draw: a route no one
+   could see keeps enough to be seen, and the rest give it up in proportion.
+   Held back until it is pointed at - the frame is a strip of the window's own
+   furniture, not something to be shouted at from across it. Held back only a
+   little, so a route still reads as its own colour and merely comes up to full
+   under the pointer. Dimming the whole length rather than only its colour
+   takes the share down with it, which is what keeps the share readable on it
+   either way. */
+.route-button .route-bar-part {
+  flex-basis: 0;
+  flex-shrink: 1;
+  min-width: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  filter: saturate(0.9) brightness(0.85);
+  transition: filter 0.15s ease;
+}
+
+/* One rule between neighbours, in the frame's own stroke and at its weight. */
+.route-button .route-bar-part + .route-bar-part {
+  border-left: 3px solid var(--color-text-dim);
+}
+
+/* The frame is one control, so it lights as one: the pointer anywhere on it
+   brings every route up to its own colour, not only the one under it. */
+.route-button:hover .route-bar-part {
+  filter: none;
+}
+
+/* The share, set on the route's own colour the way the ring sets it, and only
+   where the length has room for the whole figure - see ROUTE_BAR_SHARE_MIN. */
+.route-button .route-bar-share {
+  font-family: var(--font-numeric);
+  font-size: 26px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 /* Penpot: "route" — Girassol 70px, #aab8c2, line-height 0.7 */
@@ -503,6 +576,7 @@
   line-height: 0.7;
   color: var(--color-text-muted);
   white-space: nowrap;
+  transition: color 0.15s ease;
 }
 
 /* Penpot: Play Log Button — the 🧾 sits 40px down and 15px in from the right of
@@ -524,9 +598,11 @@
      flex row rather than left to the button's own content box, which Chromium
      centres vertically and which therefore only ever applied half of any
      padding change. The glyph's own box is 1em tall and starts at the content
-     top, so 50 + 58 puts its 50px of ink at 108-158 — centred on 133, which is
-     both the 🧾's own centre and the wedge's centroid. */
-  padding: 58px 15px 0 0;
+     top, so 50 + 58 put its 50px of ink at 108-158 — centred on 133, the 🧾's
+     own centre and the wedge's centroid — leaving 18px between the ink and the
+     wedge's bottom edge at 176. That gap is cut to two thirds, 12px, so the
+     padding carries the glyph 6px further down: ink at 114-164. */
+  padding: 64px 15px 0 0;
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;

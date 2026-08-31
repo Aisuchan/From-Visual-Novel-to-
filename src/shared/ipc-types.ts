@@ -4,7 +4,10 @@ import type {
   GameWithStats,
   LaunchPrefs,
   NewGameInput,
+  NewRouteInput,
   ProgressState,
+  Route,
+  RoutePatch,
   Session
 } from './db-types'
 
@@ -23,6 +26,11 @@ export const IpcChannels = {
   GameImagesList: 'game-images:list',
   GameImagesAdd: 'game-images:add',
   GameImagesDelete: 'game-images:delete',
+  RoutesList: 'routes:list',
+  RoutesAdd: 'routes:add',
+  RoutesUpdate: 'routes:update',
+  RoutesDelete: 'routes:delete',
+  RoutesSetActive: 'routes:set-active',
   GamesFooterStats: 'games:footer-stats',
   LaunchPrefsGet: 'launch-prefs:get',
   LaunchPrefsSet: 'launch-prefs:set',
@@ -154,6 +162,14 @@ export interface LibraryApi {
   /** Opens the picker, copies the chosen files in, and returns the new list. */
   addGameImages(gameId: number): Promise<GameImage[]>
   deleteGameImage(gameId: number, imageId: number): Promise<GameImage[]>
+
+  /** Every call returns the game's whole list, the way the images API does. */
+  listRoutes(gameId: number): Promise<Route[]>
+  addRoute(input: NewRouteInput): Promise<Route[]>
+  updateRoute(gameId: number, routeId: number, patch: RoutePatch): Promise<Route[]>
+  deleteRoute(gameId: number, routeId: number): Promise<Route[]>
+  /** `null` for the Active Route stepper's "記録しない": nothing is recorded. */
+  setActiveRoute(gameId: number, routeId: number | null): Promise<Route[]>
   /** The game's sessions, newest first — the Play Log board's source. */
   listSessions(gameId: number): Promise<Session[]>
   getFooterStats(): Promise<FooterStats>

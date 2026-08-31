@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { GameWithStats, ProgressState } from '../../../shared/db-types'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { GameWithStats, ProgressState, Route } from '../../../shared/db-types'
 import { mediaUrl } from '../../../shared/media-url'
 import { formatLastPlayed, formatPlaytime, splitPlaytime } from '../format'
+import { formatShare, shareInk } from '../route-share'
 import { useWheelStepper } from '../useWheelStepper'
 import PlayButtonExtend from './PlayButtonExtend'
 import ContextMenu from './ContextMenu'
@@ -9,6 +10,7 @@ import ClearDialog from './ClearDialog'
 import Confetti from './Confetti'
 import GameInfo from './GameInfo'
 import PlayLog from './PlayLog'
+import RoutePanel from './RoutePanel'
 import './GameDetail.css'
 
 interface Props {
@@ -22,6 +24,8 @@ interface Props {
   onSetProgress: (gameId: number, state: ProgressState | null, score: number | null) => void
   /** Runs the finale — confetti and balloons — over the whole window. */
   onCelebrate: (celebrating: boolean) => void
+  /** Runs confetti1 in the finale's place, for a route marked cleared. */
+  onCelebrateRoute: () => void
 }
 
 /* Penpot "Under decoration" geometry, in the 1585px content space: the rule
@@ -35,6 +39,17 @@ const UNDER_DEPTH = 126
 const INFO_LEFT_MARGIN = 30
 const ROUTE_MAX_WIDTH = 416
 const ROUTE_SIDE_GAP = 30
+/* The ROUTE frame's own box inside "Under" — see `.route-button`. The Route
+   board hangs off its top edge, so the panel's bottom is measured from the
+   row's bottom rather than its top. */
+const UNDER_HEIGHT = 177
+const ROUTE_TOP = 56
+/** The rule drawn between two neighbouring routes. */
+const ROUTE_BAR_RULE = 3
+/** The narrowest length that can hold its own share - the widest figure the
+    bar writes, "25.2%", set in the board's own 26px, with a margin either
+    side. Anything under it carries its colour alone. */
+const ROUTE_BAR_SHARE_MIN = 66
 const MIN_RECESS = ROUTE_MAX_WIDTH * 0.5 + ROUTE_SIDE_GAP
 
 /* Penpot "Game Info" is 446 wide and carries its circle-info mark 15px in from
@@ -97,7 +112,8 @@ export default function GameDetail({
   onEditPlayTime,
   onOpenThumbnails,
   onSetProgress,
-  onCelebrate
+  onCelebrate,
+  onCelebrateRoute
 }: Props): React.JSX.Element {
   const lastPlayed = formatLastPlayed(game.stats.lastPlayedAt)
   const detailRef = useRef<HTMLElement | null>(null)
@@ -117,6 +133,17 @@ export default function GameDetail({
   // by one transition.
   const [playLogMounted, setPlayLogMounted] = useState(false)
   const [playLogOpen, setPlayLogOpen] = useState(false)
+  const [routeOpen, setRouteOpen] = useState(false)
+  // The board's own list, reported back up so the frame can graph it. It
+  // carries the game it was read for, because this component outlives a switch
+  // between games and the next game's list is a round trip away.
+  const [routeList, setRouteList] = useState<{ gameId: number; routes: Route[] }>({
+    gameId: -1,
+    routes: []
+  })
+  const handleRoutes = useCallback((gameId: number, list: Route[]) => {
+    setRouteList({ gameId, routes: list })
+  }, [])
   const [progressMenu, setProgressMenu] = useState<{ x: number; y: number } | null>(null)
   const [scoring, setScoring] = useState<string | null>(null)
   const [draft, setDraft] = useState({ hours: '0', minutes: '0' })
@@ -230,6 +257,20 @@ export default function GameDetail({
     return () => document.removeEventListener('pointerdown', onPointerDown)
   }, [playLogOpen])
 
+  // The Route board is opened by the ROUTE frame, so it closes the same way the
+  // Play log does: a `pointerdown` outside both of them, ahead of the frame's
+  // own click so a press on the frame toggles instead of closing and reopening.
+  useEffect(() => {
+    if (!routeOpen) return
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('.route-panel, .route-button')) return
+      setRouteOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [routeOpen])
+
   // Any click or Escape puts the Progress menu away, the way the side panel's
   // own menu behaves.
   useEffect(() => {
@@ -284,6 +325,17 @@ export default function GameDetail({
   const recessWidth = recessEnd - recessStart
   const routeWidth = Math.min(ROUTE_MAX_WIDTH, recessWidth - ROUTE_SIDE_GAP)
   const routeLeft = recessStart + (recessWidth - routeWidth) / 2
+  // The frame narrows with the recess, which the play time and last-played
+  // values drive; the Route board is always the full 416 and is placed on the
+  // frame at its widest, i.e. centred on the recess like the frame itself.
+  const routeMaxLeft = recessStart + (recessWidth - ROUTE_MAX_WIDTH) / 2
+  const timedRoutes =
+    routeList.gameId === game.id ? routeList.routes.filter((route) => route.playSeconds > 0) : []
+  const routeTotal = timedRoutes.reduce((sum, route) => sum + route.playSeconds, 0)
+  /* What is left of the frame once its border and the rules between the routes
+     are out of it, so a length can be asked whether it has room for its own
+     figure before it is written. */
+  const routeBarWidth = routeWidth - 6 - ROUTE_BAR_RULE * Math.max(timedRoutes.length - 1, 0)
 
   const mark = progressMark(game)
   const imageCount = carousel.length
@@ -360,7 +412,7 @@ export default function GameDetail({
           </div>
         </div>
 
-          {/* Penpot: Progress — 265x246 triangle, fill #1da1f2, stroke #e1e8ed 3px
+        {/* Penpot: Progress — 265x246 triangle, fill #1da1f2, stroke #e1e8ed 3px
             inner. Not in the design: the mark it carries and the menu that
             sets it. The board is clipped to the triangle, which is what makes
             the hover and the right-click land on the blue and nowhere else —
@@ -541,13 +593,59 @@ export default function GameDetail({
         </div>
 
         {/* Penpot: Route Manegement — centred in the recess the rule draws */}
-        <div
-          className="route-button"
+        <button
+          type="button"
+          className={`route-button ${routeOpen ? 'open' : ''} ${
+            timedRoutes.length > 0 ? 'charted' : ''
+          }`}
           style={{ left: `${routeLeft}px`, width: `${routeWidth}px` }}
-          title="Route 管理（未実装）"
+          title="Route"
+          aria-label="Route"
+          aria-expanded={routeOpen}
+          onClick={() => setRouteOpen((open) => !open)}
         >
-          <span>route</span>
-        </div>
+          {/* Not in the design: what the Route board's own chart says, laid out
+              flat over the whole frame. One length per route with time on it,
+              in the board's order and its colours, so the two read as the same
+              figure. The lengths are flex-grow rather than widths, which leaves
+              the seams their own space, and a route too short to see keeps a
+              floor the way the wedges do. The design's lettering is what the
+              frame says while no route has time yet. */}
+          {timedRoutes.length > 0 ? (
+            <span className="route-bar">
+              {timedRoutes.map((route) => {
+                const share = route.playSeconds / routeTotal
+                return (
+                  <span
+                    key={route.id}
+                    className="route-bar-part"
+                    style={{ flexGrow: route.playSeconds, backgroundColor: route.color }}
+                    title={`${route.name}  ${formatPlaytime(route.playSeconds)}`}
+                  >
+                    {share * routeBarWidth >= ROUTE_BAR_SHARE_MIN ? (
+                      <span className="route-bar-share" style={{ color: shareInk(route.color) }}>
+                        {formatShare(share)}
+                      </span>
+                    ) : null}
+                  </span>
+                )
+              })}
+            </span>
+          ) : (
+            <span>route</span>
+          )}
+        </button>
+
+        {/* Penpot: Route — stands on the ROUTE frame's top edge while the frame
+            is pressed. Kept mounted so it can fade rather than appear. */}
+        <RoutePanel
+          gameId={game.id}
+          left={routeMaxLeft}
+          bottom={UNDER_HEIGHT - ROUTE_TOP}
+          open={routeOpen}
+          onCelebrate={onCelebrateRoute}
+          onRoutes={handleRoutes}
+        />
 
         {/* Penpot: Play Log Button — 77x76; opens the Play log board */}
         <button
@@ -591,11 +689,7 @@ export default function GameDetail({
       )}
 
       {playLogMounted && (
-        <PlayLog
-          game={game}
-          open={playLogOpen}
-          onClosed={() => setPlayLogMounted(false)}
-        />
+        <PlayLog game={game} open={playLogOpen} onClosed={() => setPlayLogMounted(false)} />
       )}
 
       {isPlaying && <div className="playing-badge">プレイ中…</div>}

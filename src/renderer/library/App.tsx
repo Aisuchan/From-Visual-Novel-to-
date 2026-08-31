@@ -1,10 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type {
-  FooterStats,
-  GameWithStats,
-  NewGameInput,
-  ProgressState
-} from '../../shared/db-types'
+import type { FooterStats, GameWithStats, NewGameInput, ProgressState } from '../../shared/db-types'
 import { useUiScale } from './useUiScale'
 import Header from './components/Header'
 import SidePanel from './components/SidePanel'
@@ -12,7 +7,7 @@ import GameDetail from './components/GameDetail'
 import AddThumbnail from './components/AddThumbnail'
 import FooterBar from './components/FooterBar'
 import AddGameDialog from './components/AddGameDialog'
-import Confetti from './components/Confetti'
+import Confetti, { type ConfettiClip } from './components/Confetti'
 import Balloons from './components/Balloons'
 import './App.css'
 
@@ -27,7 +22,7 @@ export default function App(): React.JSX.Element {
   const [playingGameId, setPlayingGameId] = useState<number | null>(null)
   // The finale covers the whole window — header, footer and side panel with it
   // — so it is the shell's to run rather than the board's.
-  const [celebrating, setCelebrating] = useState(false)
+  const [celebration, setCelebration] = useState<ConfettiClip | null>(null)
   // The confetti's last seconds, which the balloons leave on too.
   const [finishing, setFinishing] = useState(false)
   // Which board fills the content column: Penpot's "Game" or "Add Thumbnail".
@@ -43,9 +38,7 @@ export default function App(): React.JSX.Element {
     // subscription, whose closure would otherwise still see the selection as
     // it was when the subscription was set up and jump back to the first game.
     setSelectedGameId((current) =>
-      current !== null && list.some((game) => game.id === current)
-        ? current
-        : (list[0]?.id ?? null)
+      current !== null && list.some((game) => game.id === current) ? current : (list[0]?.id ?? null)
     )
   }
 
@@ -160,7 +153,11 @@ export default function App(): React.JSX.Element {
         onOpenThumbnails={() => setMainView('add-thumbnail')}
         onSetProgress={handleSetProgress}
         onCelebrate={(on) => {
-          setCelebrating(on)
+          setCelebration(on ? 'ok' : null)
+          setFinishing(false)
+        }}
+        onCelebrateRoute={() => {
+          setCelebration('clear')
           setFinishing(false)
         }}
       />
@@ -197,17 +194,18 @@ export default function App(): React.JSX.Element {
 
       <FooterBar stats={footerStats} onAddGame={() => setShowAddGame(true)} />
 
-      {celebrating && (
+      {celebration && (
         <>
           <Confetti
-            clip="ok"
+            clip={celebration}
             onFinishing={() => setFinishing(true)}
             onEnded={() => {
-              setCelebrating(false)
+              setCelebration(null)
               setFinishing(false)
             }}
           />
-          <Balloons leaving={finishing} />
+          {/* The balloons belong to the game's own finale. */}
+          {celebration === 'ok' && <Balloons leaving={finishing} />}
         </>
       )}
 

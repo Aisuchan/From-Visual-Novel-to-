@@ -8,7 +8,10 @@ import type {
   GameWithStats,
   LaunchPrefs,
   NewGameInput,
+  NewRouteInput,
   ProgressState,
+  Route,
+  RoutePatch,
   Session
 } from '../shared/db-types'
 
@@ -54,6 +57,20 @@ export function initDb(): void {
 
     CREATE INDEX IF NOT EXISTS idx_game_images_game ON game_images(game_id);
 
+    CREATE TABLE IF NOT EXISTS routes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL,
+      play_seconds INTEGER NOT NULL DEFAULT 0,
+      cleared INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_routes_game ON routes(game_id);
+
     CREATE TABLE IF NOT EXISTS launch_prefs (
       game_id INTEGER PRIMARY KEY REFERENCES games(id) ON DELETE CASCADE,
       use_recorder_panel INTEGER NOT NULL DEFAULT 1,
@@ -77,6 +94,12 @@ export function initDb(): void {
 
   addMissingColumns('launch_prefs', {
     record_time: 'INTEGER NOT NULL DEFAULT 1'
+  })
+
+  addMissingColumns('routes', {
+    // Set when a route is marked cleared, for the Play log's own row.
+    cleared_at: 'TEXT',
+    clear_play_seconds: 'INTEGER'
   })
 
   addMissingColumns('games', {
@@ -107,6 +130,17 @@ export function initDb(): void {
       WHERE play_time_offset <> 0
     `)
     db.pragma('user_version = 1')
+  }
+
+  /* The common route used to be seeded in the slate the app sets dim text in.
+     Only the ones still holding that exact value are moved to the new colour,
+     so a route recoloured by hand keeps what it was given. */
+  if (db.pragma('user_version', { simple: true }) === 1) {
+    db.prepare("UPDATE routes SET color = ? WHERE name = ? AND color = '#6f8193'").run(
+      COMMON_ROUTE_COLOR,
+      COMMON_ROUTE_NAME
+    )
+    db.pragma('user_version = 2')
   }
 }
 
@@ -222,9 +256,7 @@ export function addGameImages(
   filePaths: string[],
   source: GameImage['source'] = 'manual'
 ): GameImage[] {
-  const insert = db.prepare(
-    'INSERT INTO game_images (game_id, file_path, source) VALUES (?, ?, ?)'
-  )
+  const insert = db.prepare('INSERT INTO game_images (game_id, file_path, source) VALUES (?, ?, ?)')
   const tx = db.transaction((paths: string[]) => {
     for (const filePath of paths) insert.run(gameId, filePath, source)
   })
@@ -247,6 +279,168 @@ export function deleteGameImage(gameId: number, imageId: number): GameImage[] {
     )
   }
   return listGameImages(gameId)
+}
+
+/* ------------------------------------------------------------- routes ---- */
+
+/* Every game has at least the line it opens on, before it forks. A game
+   registered before routes existed has none, so the first read of its list is
+   what gives it one — the same colour, no play time and not cleared. */
+const COMMON_ROUTE_NAME = '共通'
+const COMMON_ROUTE_COLOR = '#73bbc9'
+
+function rowToRoute(row: {
+  id: number
+  game_id: number
+  name: string
+  color: string
+  play_seconds: number
+  cleared: number
+  cleared_at: string | null
+  clear_play_seconds: number | null
+  is_active: number
+  sort_order: number
+  created_at: string
+}): Route {
+  return {
+    id: row.id,
+    gameId: row.game_id,
+    name: row.name,
+    color: row.color,
+    playSeconds: row.play_seconds,
+    cleared: row.cleared === 1,
+    clearedAt: row.cleared_at,
+    clearPlaySeconds: row.clear_play_seconds,
+    isActive: row.is_active === 1,
+    createdAt: row.created_at
+  }
+}
+
+/** Oldest first, so the common route stays at the head of the list. */
+export function listRoutes(gameId: number): Route[] {
+  const read = (): Route[] =>
+    (
+      db
+        .prepare('SELECT * FROM routes WHERE game_id = ? ORDER BY sort_order ASC, id ASC')
+        .all(gameId) as Parameters<typeof rowToRoute>[0][]
+    ).map(rowToRoute)
+
+  let routes = read()
+  if (routes.length === 0) {
+    // Nothing is active to begin with: a game opens on the stepper's
+    // "記録しない", and the common route is there to be stepped onto.
+    db.prepare(
+      `INSERT INTO routes (game_id, name, color, is_active, sort_order)
+       VALUES (?, ?, ?, 0, 0)`
+    ).run(gameId, COMMON_ROUTE_NAME, COMMON_ROUTE_COLOR)
+    routes = read()
+  }
+  // Nothing active is a state of its own — the Active Route stepper's "記録し
+  // ない" — so it is left alone rather than repaired.
+  return routes
+}
+
+export function addRoute(input: NewRouteInput): Route[] {
+  const next = db
+    .prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM routes WHERE game_id = ?')
+    .get(input.gameId) as { m: number }
+  const info = db
+    .prepare(
+      `INSERT INTO routes
+         (game_id, name, color, play_seconds, cleared, cleared_at, clear_play_seconds, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      input.gameId,
+      input.name,
+      input.color,
+      input.playSeconds,
+      input.cleared ? 1 : 0,
+      // A route registered as already cleared is cleared as of now.
+      input.cleared ? new Date().toISOString() : null,
+      input.cleared ? input.playSeconds : null,
+      next.m + 1
+    )
+  // A route just added is the one being played from here on.
+  setActiveRoute(input.gameId, Number(info.lastInsertRowid))
+  return listRoutes(input.gameId)
+}
+
+export function updateRoute(gameId: number, routeId: number, patch: RoutePatch): Route[] {
+  const before = listRoutes(gameId).find((route) => route.id === routeId)
+  // The Play log dates the clear, so the stamp is written on the crossing and
+  // taken away again if the box is unticked. An already-cleared route keeps the
+  // day it was cleared on.
+  let clearedAt = before?.clearedAt ?? null
+  let clearPlaySeconds = before?.clearPlaySeconds ?? null
+  if (patch.cleared && !before?.cleared) {
+    clearedAt = new Date().toISOString()
+    clearPlaySeconds = patch.playSeconds
+  } else if (!patch.cleared) {
+    clearedAt = null
+    clearPlaySeconds = null
+  }
+  db.prepare(
+    `UPDATE routes SET name = ?, color = ?, play_seconds = ?, cleared = ?,
+                       cleared_at = ?, clear_play_seconds = ?
+     WHERE id = ? AND game_id = ?`
+  ).run(
+    patch.name,
+    patch.color,
+    patch.playSeconds,
+    patch.cleared ? 1 : 0,
+    clearedAt,
+    clearPlaySeconds,
+    routeId,
+    gameId
+  )
+  return listRoutes(gameId)
+}
+
+/** The list never comes back empty: deleting the last one seeds a fresh common
+    route, the way a game that never had one gets its first. */
+export function deleteRoute(gameId: number, routeId: number): Route[] {
+  const wasActive = listRoutes(gameId).some((route) => route.id === routeId && route.isActive)
+  db.prepare('DELETE FROM routes WHERE id = ? AND game_id = ?').run(routeId, gameId)
+  const remaining = listRoutes(gameId)
+  // Deleting the route being played falls to the head of the list rather than
+  // silently turning recording off.
+  if (wasActive && remaining.length > 0 && !remaining.some((route) => route.isActive)) {
+    return setActiveRoute(gameId, remaining[0].id)
+  }
+  return remaining
+}
+
+/** `null` leaves the game with no active route: nothing is recorded onto one. */
+export function setActiveRoute(gameId: number, routeId: number | null): Route[] {
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE routes SET is_active = 0 WHERE game_id = ?').run(gameId)
+    if (routeId !== null) {
+      db.prepare('UPDATE routes SET is_active = 1 WHERE id = ? AND game_id = ?').run(
+        routeId,
+        gameId
+      )
+    }
+  })
+  tx()
+  return listRoutes(gameId)
+}
+
+/**
+ * Banks a finished session on whichever route was active while it ran. Called
+ * from the main process as the session ends, so the time lands whether or not
+ * the Route board happens to be open.
+ */
+export function addRoutePlaySeconds(gameId: number, seconds: number): void {
+  if (seconds <= 0) return
+  // Seeds the common route if this game has never had one. Nothing active is
+  // the stepper's "記録しない", so the session's time is simply not banked.
+  const active = listRoutes(gameId).find((route) => route.isActive)
+  if (!active) return
+  db.prepare('UPDATE routes SET play_seconds = play_seconds + ? WHERE id = ?').run(
+    seconds,
+    active.id
+  )
 }
 
 export function setThumbnail(gameId: number, filePath: string): GameWithStats {
@@ -273,12 +467,9 @@ export function setProgress(
      takes the row away with it. Re-clearing an already cleared game keeps the
      first stamp: the score can be corrected without moving the event. */
   const before = getGame(gameId)
-  const clearedAt =
-    state === 'cleared' ? (before?.clearedAt ?? new Date().toISOString()) : null
+  const clearedAt = state === 'cleared' ? (before?.clearedAt ?? new Date().toISOString()) : null
   const clearPlaySeconds =
-    state === 'cleared'
-      ? (before?.clearPlaySeconds ?? before?.stats.totalPlaySeconds ?? 0)
-      : null
+    state === 'cleared' ? (before?.clearPlaySeconds ?? before?.stats.totalPlaySeconds ?? 0) : null
 
   db.prepare(
     `UPDATE games
@@ -387,7 +578,13 @@ export function getLaunchPrefs(gameId: number): LaunchPrefs {
     | undefined
 
   if (!row) {
-    return { gameId, recordTime: true, useRecorderPanel: true, runAsAdmin: false, keepSetting: false }
+    return {
+      gameId,
+      recordTime: true,
+      useRecorderPanel: true,
+      runAsAdmin: false,
+      keepSetting: false
+    }
   }
   return {
     gameId: row.game_id,
