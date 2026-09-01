@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Route } from '../../../shared/db-types'
 import { formatPlaytime, splitPlaytime } from '../format'
 import { formatShare, shareInk } from '../route-share'
+import { clamp01, hexToHsv, hsvToHex, HEX, SWATCHES } from '../color'
 import ConfirmDialog from './ConfirmDialog'
 import './RoutePanel.css'
 
@@ -35,59 +36,6 @@ const BLANK_FORM = {
   hours: '0',
   minutes: '0',
   cleared: false
-}
-
-/* Penpot: Template Color — a 5x2 grid read row by row. Named in the design
-   Red Selected / Blue / Green / Yellow / Pink, then Orange / Skyblue /
-   Dark Green / Dark Yellow / Purple. */
-const SWATCHES = [
-  '#e01f1f',
-  '#1e46e0',
-  '#10b40b',
-  '#d5c912',
-  '#dc1dd6',
-  '#f45c14',
-  '#13c5f4',
-  '#2d8e0f',
-  '#a07329',
-  '#9734e5'
-]
-
-const HEX = /^#[0-9a-f]{6}$/i
-
-function clamp01(n: number): number {
-  return n < 0 ? 0 : n > 1 ? 1 : n
-}
-
-/** h in degrees, s and v in 0..1, out as #rrggbb. */
-function hsvToHex(h: number, s: number, v: number): string {
-  const channel = (n: number): string => {
-    const k = (n + h / 60) % 6
-    const x = v - v * s * Math.max(0, Math.min(k, 4 - k, 1))
-    return Math.round(x * 255)
-      .toString(16)
-      .padStart(2, '0')
-  }
-  return `#${channel(5)}${channel(3)}${channel(1)}`
-}
-
-/** The inverse, for a colour that arrived from the code field or a swatch. */
-function hexToHsv(hex: string): { h: number; s: number; v: number } | null {
-  if (!HEX.test(hex)) return null
-  const n = parseInt(hex.slice(1), 16)
-  const r = ((n >> 16) & 255) / 255
-  const g = ((n >> 8) & 255) / 255
-  const b = (n & 255) / 255
-  const max = Math.max(r, g, b)
-  const span = max - Math.min(r, g, b)
-  let h = 0
-  if (span !== 0) {
-    if (max === r) h = ((g - b) / span) % 6
-    else if (max === g) h = (b - r) / span + 2
-    else h = (r - g) / span + 4
-    h = (h * 60 + 360) % 360
-  }
-  return { h, s: max === 0 ? 0 : span / max, v: max }
 }
 
 /** Digits only, `max` of them, no leading zeros, never past `cap`. */
@@ -131,7 +79,16 @@ const PIE_LABEL_MIN = 0.03
 /* Not in the design. The radius of the circle the reveal is stroked on, wide
    enough that its stroke covers the whole board once it has gone round. */
 const PIE_WIPE_R = 150
-const PIE_WIPE_C = 2 * Math.PI * PIE_WIPE_R
+/* How far a wedge comes off the stop, in degrees: every wedge gets the first
+   figure, its share of the second, and the square of its share of the third.
+   The squared term is what tells the big routes apart — it is next to nothing
+   at a tenth of the ring and doubles the swing at the whole of it, so the more
+   of the ring a route holds the harder it comes back, without the small ones
+   moving at all. Never more than half the wedge, so the shortest cannot
+   rebound past their own start. */
+const REBOUND_BASE_DEG = 8
+const REBOUND_SHARE_DEG = 24
+const REBOUND_SHARE_SQ_DEG = 30
 
 function polar(radius: number, angle: number): string {
   return `${(PIE_CENTRE + radius * Math.cos(angle)).toFixed(2)},${(
@@ -335,6 +292,10 @@ export default function RoutePanel({
     return {
       route,
       share,
+      /* Where the wedge starts and how far round it goes, which is what its
+         own mask arc is cut to. */
+      from,
+      sweep: sweeps[index],
       d:
         timed.length === 1
           ? ringPath(outerR, innerR)
@@ -344,6 +305,31 @@ export default function RoutePanel({
       labelInk: shareInk(route.color)
     }
   })
+
+  /* The sweep is only started once the chart it uncovers has been laid out and
+     painted. Mounting a few dozen wedges, their rounded edges and their shares
+     and starting an animation on the same frame left the first quarter-turn
+     dropping frames; two `requestAnimationFrame`s put the start on a frame
+     after that work is done and off the main thread's way.
+
+     `chartKey` is what identifies one drawing of the chart. Comparing it
+     against the armed one rather than holding a boolean is what keeps the
+     sweep from ever running a frame it was not armed for: the moment there is
+     a different chart to draw, the class is already off in the same render. */
+  const chartKey = `${reveal}:${segments.length}`
+  const [sweptKey, setSweptKey] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (segments.length === 0) return
+    let second = 0
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setSweptKey(chartKey))
+    })
+    return () => {
+      cancelAnimationFrame(first)
+      cancelAnimationFrame(second)
+    }
+  }, [chartKey, segments.length])
 
   /** `.rp-pie` is 416 design px wide, which is what recovers the shell's own
       scale — see the note on `designTopWithin` in SidePanel. */
@@ -486,10 +472,16 @@ export default function RoutePanel({
               drawn as a ring on it. */}
             <div key={reveal} className={`rp-circle ${segments.length > 0 ? 'charted' : ''}`}>
               {segments.length > 0 ? (
-                <svg className="rp-chart" viewBox="0 0 350 350">
-                  {/* The chart is swept on clockwise from twelve o'clock: one
-                    circle, stroked wide enough to cover the board, with its
-                    dash running the gap round the rim. */}
+                <svg
+                  className={`rp-chart ${sweptKey === chartKey ? 'sweeping' : ''}`}
+                  viewBox="0 0 350 350"
+                >
+                  {/* Every wedge is drawn on clockwise from its own start, all
+                    of them at once. One arc per wedge does it: a circle stroked
+                    wide enough to cover the board, turned to where that wedge
+                    begins, and dashed to exactly the length the wedge runs — so
+                    the dash sliding in from behind the start uncovers that
+                    wedge and no other. */}
                   <mask
                     id="rp-chart-reveal"
                     maskUnits="userSpaceOnUse"
@@ -498,17 +490,46 @@ export default function RoutePanel({
                     width="600"
                     height="600"
                   >
-                    <circle
-                      className="rp-chart-wipe"
-                      cx={PIE_CENTRE}
-                      cy={PIE_CENTRE}
-                      r={PIE_WIPE_R}
-                      fill="none"
-                      stroke="#ffffff"
-                      strokeWidth={PIE_WIPE_R * 2}
-                      strokeDasharray={PIE_WIPE_C.toFixed(2)}
-                      transform={`rotate(-90 ${PIE_CENTRE} ${PIE_CENTRE})`}
-                    />
+                    {segments.map((segment) => {
+                      const reboundDeg =
+                        REBOUND_BASE_DEG +
+                        REBOUND_SHARE_DEG * segment.share +
+                        REBOUND_SHARE_SQ_DEG * segment.share * segment.share
+                      /* Never past half the wedge, so the shortest cannot
+                         rebound back beyond their own start. */
+                      const rebound = Math.min(
+                        (reboundDeg * Math.PI) / 180,
+                        segment.sweep / 2
+                      )
+                      /* The dash is measured in `pathLength` units rather than
+                         in the drawing's own, and the unit chosen is this
+                         wedge's rebound over a hundred. That is what lets the
+                         keyframes be plain numbers: the rebound is 100 to every
+                         wedge, whatever it comes to in degrees. */
+                      const unit = rebound / 100
+                      const circleUnits = (Math.PI * 2) / unit
+                      const arcUnits = segment.sweep / unit
+                      return (
+                        <circle
+                          key={`wipe-${segment.route.id}`}
+                          className={`rp-wedge-wipe ${sweptKey === chartKey ? 'sweeping' : ''}`}
+                          cx={PIE_CENTRE}
+                          cy={PIE_CENTRE}
+                          r={PIE_WIPE_R}
+                          fill="none"
+                          stroke="#ffffff"
+                          strokeWidth={PIE_WIPE_R * 2}
+                          pathLength={circleUnits.toFixed(3)}
+                          /* The gap is the whole circle, so the one dash is the
+                             only thing on the path. The offset starts at the
+                             wedge's whole length, which is where the keyframes
+                             below pick it up. */
+                          strokeDasharray={`${arcUnits.toFixed(3)} ${circleUnits.toFixed(3)}`}
+                          strokeDashoffset={arcUnits.toFixed(3)}
+                          transform={`rotate(${((segment.from * 180) / Math.PI).toFixed(3)} ${PIE_CENTRE} ${PIE_CENTRE})`}
+                        />
+                      )
+                    })}
                   </mask>
                   <g mask="url(#rp-chart-reveal)">
                     {segments.map((segment) => (

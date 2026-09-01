@@ -23,6 +23,17 @@ export interface Game {
   progressState: ProgressState | null
   /** 0-100, shown in place of the cleared mark. Only ever set with 'cleared'. */
   clearScore: number | null
+  /** YYYY-MM-DD, and ErogeScape's median for the game. Both come from the
+      deferred ErogeScape/VNDB import, so nothing writes them yet — the Sort
+      field's 発売日順 and 中央値順 read them, and a game without one is filed
+      below every game that has one. */
+  releaseDate: string | null
+  medianScore: number | null
+  /** The tags filed against this game (`game_tags`). Nothing writes them yet —
+      the screen that would put a tag on a game is not built — but the side
+      panel's tag row already reads them: a game that is not under every tag on
+      that row is left out of the list. */
+  tagIds: number[]
   /** When the game was marked cleared; null unless it is. */
   clearedAt: string | null
   /** What TOTAL PLAY stood at then, which the log's GAME CLEARD row reads. */
@@ -86,6 +97,36 @@ export interface NewRouteInput {
 }
 
 export type RoutePatch = Omit<NewRouteInput, 'gameId'>
+
+/**
+ * A group a game can be filed under. Games carry the group's *name* in
+ * `Game.groupName` — the field was free text before groups were a thing, and
+ * still is — so this table is the list the Select Group menu offers and the
+ * place a group's colour lives.
+ */
+export interface Group {
+  id: number
+  name: string
+  /** #rrggbb; what the name is set in wherever the group is listed. */
+  color: string
+  createdAt: string
+}
+
+export interface NewGroupInput {
+  name: string
+  color: string
+}
+
+/**
+ * A tag, as the side panel's Add Tag row makes them. A tag is created blank and
+ * named in place, so a row can stand with an empty name for as long as one is
+ * being typed; leaving it empty is what removes it.
+ */
+export interface Tag {
+  id: number
+  name: string
+  createdAt: string
+}
 
 export interface GameStats {
   totalPlaySeconds: number

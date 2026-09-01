@@ -2,13 +2,16 @@ import type {
   FooterStats,
   GameImage,
   GameWithStats,
+  Group,
   LaunchPrefs,
   NewGameInput,
+  NewGroupInput,
   NewRouteInput,
   ProgressState,
   Route,
   RoutePatch,
-  Session
+  Session,
+  Tag
 } from './db-types'
 
 export const IpcChannels = {
@@ -31,6 +34,12 @@ export const IpcChannels = {
   RoutesUpdate: 'routes:update',
   RoutesDelete: 'routes:delete',
   RoutesSetActive: 'routes:set-active',
+  GroupsList: 'groups:list',
+  GroupsAdd: 'groups:add',
+  TagsList: 'tags:list',
+  TagsAdd: 'tags:add',
+  TagsRename: 'tags:rename',
+  TagsDelete: 'tags:delete',
   GamesFooterStats: 'games:footer-stats',
   LaunchPrefsGet: 'launch-prefs:get',
   LaunchPrefsSet: 'launch-prefs:set',
@@ -170,6 +179,16 @@ export interface LibraryApi {
   deleteRoute(gameId: number, routeId: number): Promise<Route[]>
   /** `null` for the Active Route stepper's "記録しない": nothing is recorded. */
   setActiveRoute(gameId: number, routeId: number | null): Promise<Route[]>
+
+  /** The whole group list, as the routes API does — the Menu's own source. */
+  listGroups(): Promise<Group[]>
+  addGroup(input: NewGroupInput): Promise<Group[]>
+
+  /** The same for tags. `addTag` makes the blank one Add Tag puts out. */
+  listTags(): Promise<Tag[]>
+  addTag(): Promise<Tag[]>
+  renameTag(tagId: number, name: string): Promise<Tag[]>
+  deleteTag(tagId: number): Promise<Tag[]>
   /** The game's sessions, newest first — the Play Log board's source. */
   listSessions(gameId: number): Promise<Session[]>
   getFooterStats(): Promise<FooterStats>

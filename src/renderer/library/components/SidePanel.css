@@ -81,6 +81,7 @@
    Sized to the panel's 333px content box rather than the literal 335 so the
    select rows inside cannot overhang and paint out the panel's side border. */
 .search-option-container {
+  position: relative;
   width: 100%;
   margin-top: 10px;
   flex-shrink: 0;
@@ -99,6 +100,14 @@
 }
 
 /* Penpot: Search Box field — h40, fill #090e17, stroke #aab8c2 2px, r10, 10px side padding, 15px from panel edge */
+/* Chromium centres a single-line input's *line box* in its content box, and
+   the glyphs then sit wherever the font's own ascent and descent put them
+   inside that line. The faces these fields end up in — Girassol for the
+   placeholders, the Japanese fallback for a group's name or an order's — all
+   carry a deep descent, which lifts the baseline and left the text reading
+   high in the 40px box. The 4px of top padding is the optical correction: it
+   takes 4 off the content box and starts it 4 lower, which moves the centred
+   line down by 2. */
 .search-input {
   flex: 1;
   height: 40px;
@@ -107,7 +116,7 @@
   border: 2px solid var(--color-text-muted);
   border-radius: 10px;
   color: var(--color-text-muted);
-  padding: 0 10px;
+  padding: 4px 10px 0;
   font-family: var(--font-display);
   font-size: 24px;
   line-height: 1.2;
@@ -141,6 +150,44 @@
   filter: brightness(1.18);
 }
 
+/* The select rows fold out of the Search Box row rather than arriving all at
+   once: the block grows from nothing to what its rows take, clipping them until
+   there is room, and everything below — the Strech bar and the game list — is
+   carried down by the same move. Closing plays it backwards, on the caret's own
+   clock.
+
+   The grow is a grid row going from 0fr to 1fr rather than a height going to a
+   number: the block also carries the tags, and there is no telling in CSS how
+   many lines of those there are. The inner box is what clips. */
+.search-options {
+  width: 100%;
+  flex-shrink: 0;
+  display: grid;
+  grid-template-rows: 1fr;
+  animation: search-options-grow 0.14s ease-out;
+}
+
+.search-options.closing {
+  animation: search-options-shrink 0.14s ease-in forwards;
+}
+
+.search-options-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@keyframes search-options-grow {
+  from {
+    grid-template-rows: 0fr;
+  }
+}
+
+@keyframes search-options-shrink {
+  to {
+    grid-template-rows: 0fr;
+  }
+}
+
 /* Penpot: Select Group / Select Tag and Choose Way To Sort — 55px tall,
    #14171a. Penpot draws these 335 wide, but the side panel's own 1px stroke
    leaves only 333: at 335 the row painted over that stroke and the panel's
@@ -157,6 +204,49 @@
   justify-content: center;
 }
 
+/* Not in the design: the Select Group field carries a ✕ inside its own right
+   edge, so a filter can be let go of in one click. The box is the field's own
+   265x40 and the field fills it; the button is laid over the end of it, and
+   the field's right padding is what keeps the text out from under it. */
+.select-field-box {
+  position: relative;
+  width: 265px;
+  height: 40px;
+  margin-left: 14px;
+  flex-shrink: 0;
+  display: flex;
+}
+
+.select-field-box .select-field {
+  width: 100%;
+  margin-left: 0;
+  padding-right: 34px;
+}
+
+.select-clear {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 34px;
+  height: 100%;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* The Font Awesome ✕, as every other glyph-button in the app uses. */
+  font-size: 20px;
+  line-height: 1;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.select-clear:hover {
+  color: var(--color-text);
+}
+
 /* Penpot: Search Box (265x40) / Way of Sort (144x40) — fill #090e17,
    stroke #aab8c2 2px, 10px side padding, 15px from the panel edge. The field
    and its caret button are rounded on opposite sides so the pair reads as one
@@ -166,7 +256,9 @@
   height: 40px;
   margin-left: 14px;
   flex-shrink: 0;
-  padding: 0 10px;
+  /* The same optical correction the Search Box field carries; see the note
+     above it. */
+  padding: 4px 10px 0;
   background: var(--color-bg-deep);
   border: 2px solid var(--color-text-muted);
   border-radius: 10px 0 0 10px;
@@ -180,8 +272,12 @@
   color: var(--color-text-dim);
 }
 
+/* The sort field says which order is on rather than taking anything typed, so
+   it is the menu's other half and answers to the pointer the same way. Its
+   size is set inline where the order's name is longer than the field. */
 .select-field.sort {
   width: 144px;
+  cursor: pointer;
 }
 
 /* Penpot: Show List of Group / Show Way of Sort — 40x40, fill #1da1f2,
@@ -195,7 +291,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 0 0 1px;
+  /* Penpot nudges the caret 1px to the right; against the glyph's own side
+     bearings that reads as off-centre, so only the design's 2px drop is kept
+     and the flex centring is left to place it across. */
+  padding: 2px 0 0;
   background: var(--color-accent);
   border: 2px solid var(--color-text-muted);
   border-radius: 0 10px 10px 0;
@@ -203,7 +302,13 @@
   font-family: var(--font-display);
   font-size: 24px;
   line-height: 1.2;
-  cursor: not-allowed;
+  transition: filter 0.15s ease;
+}
+
+/* Not in the design: both buttons lift under the pointer, as every other
+   control does. */
+.select-caret:hover {
+  filter: brightness(1.18);
 }
 
 .select-caret.sort {
@@ -228,14 +333,126 @@
   font-family: var(--font-display);
   font-size: 24px;
   line-height: 1.2;
-  cursor: not-allowed;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.add-tag:hover {
+  filter: brightness(1.18);
+}
+
+/* Not in the design: the tags Add Tag makes, in the space under the Sort row.
+   They line up with the fields above them — 14px in from either edge — and wrap
+   onto another line rather than running out of the panel.
+
+   Every gap around them is 10px — two thirds of the 15 the Search Box and
+   Select Group fields have between them. The Sort row already leaves 7.5 under
+   its own box and the Strech bar below brings its own 10, so the padding here
+   is only what those two are short of it; a second line of chips takes the 10
+   whole. */
+.tag-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 10px;
+  padding: 2.5px 14px 0;
+}
+
+/* A chip is 34 tall for the 20px it is set in — the proportion the 40px fields
+   have at 24 — rounded right off, and as wide as what is in it: the name, and
+   the ✕ that takes the tag away. */
+.tag-chip {
+  height: 34px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  column-gap: 8px;
+  padding: 0 10px 0 14px;
+  background: var(--color-strip);
+  border-radius: 17px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--color-text-dim);
+}
+
+/* The same optical correction the search fields carry — 4px of top padding on
+   a box the chip centres, which moves the line down by 2 — so the name sits in
+   the middle of the chip rather than high in it. */
+.tag-chip-name {
+  padding-top: 4px;
+  white-space: pre;
+}
+
+/* While the chip is being written in, the sizer lays the text out and the
+   input is stretched over it — the two must be set in exactly the same face.
+   An empty chip still has to be wide enough to aim at. */
+.tag-chip-edit {
+  position: relative;
+  min-width: 60px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.tag-chip-sizer {
+  white-space: pre;
+  visibility: hidden;
+}
+
+.tag-chip-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  padding: 4px 0 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+/* The chip carries no ring of its own while it is written in: the caret is
+   what says where the typing is going. */
+.tag-chip-input:focus-visible {
+  box-shadow: none;
+}
+
+/* Penpot has no chip, so its ✕ is the app's own — the Font Awesome mark the
+   Select Group field clears with, quiet until the pointer is on it. */
+.tag-chip-remove {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.tag-chip-remove:hover {
+  color: var(--color-danger-bright);
 }
 
 /* Penpot: Strech / Shrink Search Option — 305x15 button, fill #222326,
-   stroke #aab8c2 1px *inner*, 3px top padding, caret 10px sourcesanspro,
-   10px below the row above. Rounded on the bottom corners only, so it reads
-   as a tab hanging off the row above. The stroke is an inset shadow rather
-   than a border: a border would eat 2 of the bar's 15px and squash the caret. */
+   stroke #aab8c2 1px *inner*, caret 10px sourcesanspro, 10px below the row
+   above. Rounded on the bottom corners only, so it reads as a tab hanging off
+   the row above. The stroke is an inset shadow rather than a border: a border
+   would eat 2 of the bar's 15px and squash the caret. Penpot's 3px top padding
+   is dropped: it belonged to the design's two separate carets, and against the
+   one glyph that now turns over it only pushed the caret 3px low in a 15px
+   bar. Flex centring and a 1.0 line box put it in the middle instead. */
 .search-strech {
   width: 305px;
   height: 15px;
@@ -248,16 +465,27 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 3px 0 0;
+  padding: 0;
   color: var(--color-text);
   font-family: 'Segoe UI Symbol', sans-serif;
   font-size: 10px;
-  line-height: 1.2;
+  line-height: 1;
   transition: filter 0.15s ease;
 }
 
 .search-strech:hover {
   filter: brightness(1.6);
+}
+
+/* One caret turned over as the options fold, rather than two swapped at the
+   click — the same move the play button's own caret makes. */
+.search-strech-glyph {
+  display: inline-block;
+  transition: transform 0.14s ease-out;
+}
+
+.search-strech-glyph.flipped {
+  transform: rotate(180deg);
 }
 
 /* Right-click menu on a game row. Not in the Penpot design, so it borrows the

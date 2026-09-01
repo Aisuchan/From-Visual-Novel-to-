@@ -6,13 +6,16 @@ import type {
   FooterStats,
   GameImage,
   GameWithStats,
+  Group,
   LaunchPrefs,
   NewGameInput,
+  NewGroupInput,
   NewRouteInput,
   ProgressState,
   Route,
   RoutePatch,
-  Session
+  Session,
+  Tag
 } from '../shared/db-types'
 
 let db: Database.Database
@@ -71,6 +74,25 @@ export function initDb(): void {
 
     CREATE INDEX IF NOT EXISTS idx_routes_game ON routes(game_id);
 
+    CREATE TABLE IF NOT EXISTS groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      color TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS game_tags (
+      game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+      tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+      PRIMARY KEY (game_id, tag_id)
+    );
+
     CREATE TABLE IF NOT EXISTS launch_prefs (
       game_id INTEGER PRIMARY KEY REFERENCES games(id) ON DELETE CASCADE,
       use_recorder_panel INTEGER NOT NULL DEFAULT 1,
@@ -110,6 +132,10 @@ export function initDb(): void {
     play_time_offset: 'INTEGER NOT NULL DEFAULT 0',
     // What the Progress triangle reads. NULL leaves it to the play history.
     progress_state: 'TEXT',
+    // Game Info's RELEASE DATE and MEDIAN, which the Sort field also orders by.
+    // The ErogeScape/VNDB import that would fill them is deferred.
+    release_date: 'TEXT',
+    median_score: 'REAL',
     clear_score: 'INTEGER',
     cleared_at: 'TEXT',
     clear_play_seconds: 'INTEGER'
@@ -175,6 +201,12 @@ function rowToGameWithStats(row: any): GameWithStats {
       .get(row.id) as { n: number }
   ).n
 
+  const tagIds = (
+    db.prepare('SELECT tag_id FROM game_tags WHERE game_id = ? ORDER BY tag_id').all(row.id) as {
+      tag_id: number
+    }[]
+  ).map((tag) => tag.tag_id)
+
   return {
     id: row.id,
     title: row.title,
@@ -187,7 +219,10 @@ function rowToGameWithStats(row: any): GameWithStats {
     useShortName: !!row.use_short_name,
     useThumbnailAsDefault: !!row.use_thumbnail_default,
     progressState: (row.progress_state as GameWithStats['progressState']) ?? null,
+    releaseDate: row.release_date ?? null,
+    medianScore: row.median_score ?? null,
     clearScore: row.clear_score ?? null,
+    tagIds,
     clearedAt: row.cleared_at ?? null,
     clearPlaySeconds: row.clear_play_seconds ?? null,
     createdAt: row.created_at,
@@ -441,6 +476,74 @@ export function addRoutePlaySeconds(gameId: number, seconds: number): void {
     seconds,
     active.id
   )
+}
+
+/* ------------------------------------------------------------- groups ---- */
+
+/* A game's group has always been free text in `games.group_name`; the group
+   list is new. Anything already typed into that field is therefore adopted on
+   the first read, in the app's own quiet slate — a group made through New Group
+   Setting carries whatever colour was picked for it there. */
+const ADOPTED_GROUP_COLOR = '#aab8c2'
+
+function rowToGroup(row: { id: number; name: string; color: string; created_at: string }): Group {
+  return { id: row.id, name: row.name, color: row.color, createdAt: row.created_at }
+}
+
+/** Oldest first, so a list keeps the order the groups were made in. */
+export function listGroups(): Group[] {
+  db.exec(`
+    INSERT INTO groups (name, color)
+    SELECT DISTINCT TRIM(group_name), '${ADOPTED_GROUP_COLOR}' FROM games
+    WHERE TRIM(COALESCE(group_name, '')) <> ''
+      AND NOT EXISTS (SELECT 1 FROM groups WHERE groups.name = TRIM(games.group_name))
+  `)
+  return (
+    db.prepare('SELECT * FROM groups ORDER BY id ASC').all() as Parameters<typeof rowToGroup>[0][]
+  ).map(rowToGroup)
+}
+
+/** A name already on the list keeps its place and takes the new colour. */
+export function addGroup(input: NewGroupInput): Group[] {
+  db.prepare(
+    `INSERT INTO groups (name, color) VALUES (?, ?)
+     ON CONFLICT(name) DO UPDATE SET color = excluded.color`
+  ).run(input.name.trim(), input.color)
+  return listGroups()
+}
+
+/* --------------------------------------------------------------- tags ---- */
+
+/* Add Tag puts out a blank row and the name is typed into it, so a tag with no
+   name is a tag being written rather than a broken one. What no name survives
+   is the end of the edit: `renameTag` with nothing in it deletes the row. */
+
+function rowToTag(row: { id: number; name: string; created_at: string }): Tag {
+  return { id: row.id, name: row.name, createdAt: row.created_at }
+}
+
+/** Oldest first, so the row stays where it was put. */
+export function listTags(): Tag[] {
+  return (
+    db.prepare('SELECT * FROM tags ORDER BY id ASC').all() as Parameters<typeof rowToTag>[0][]
+  ).map(rowToTag)
+}
+
+export function addTag(): Tag[] {
+  db.prepare("INSERT INTO tags (name) VALUES ('')").run()
+  return listTags()
+}
+
+export function renameTag(tagId: number, name: string): Tag[] {
+  const trimmed = name.trim()
+  if (trimmed === '') return deleteTag(tagId)
+  db.prepare('UPDATE tags SET name = ? WHERE id = ?').run(trimmed, tagId)
+  return listTags()
+}
+
+export function deleteTag(tagId: number): Tag[] {
+  db.prepare('DELETE FROM tags WHERE id = ?').run(tagId)
+  return listTags()
 }
 
 export function setThumbnail(gameId: number, filePath: string): GameWithStats {

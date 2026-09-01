@@ -50,9 +50,14 @@
   color: var(--color-text);
   white-space: nowrap;
   /* The row's highlight runs out to the plate's right edge rather than
-     stopping at the text, which is what makes it read as a row. */
+     stopping at the text, which is what makes it read as a row — and 10 of the
+     15px the design leaves between border2 and the first letter are given back
+     to it on the left, so it starts before the label rather than flush
+     against it. */
   margin-right: -32px;
   padding-right: 32px;
+  margin-left: -10px;
+  padding-left: 10px;
   transition: background 0.15s ease, color 0.15s ease;
 }
 

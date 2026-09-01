@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import type { FooterStats, GameWithStats, NewGameInput, ProgressState } from '../../shared/db-types'
+import type {
+  FooterStats,
+  GameWithStats,
+  Group,
+  NewGameInput,
+  NewGroupInput,
+  ProgressState
+} from '../../shared/db-types'
 import { useUiScale } from './useUiScale'
 import Header from './components/Header'
 import SidePanel from './components/SidePanel'
@@ -7,6 +14,7 @@ import GameDetail from './components/GameDetail'
 import AddThumbnail from './components/AddThumbnail'
 import FooterBar from './components/FooterBar'
 import AddGameDialog from './components/AddGameDialog'
+import NewGroupSetting from './components/NewGroupSetting'
 import Confetti, { type ConfettiClip } from './components/Confetti'
 import Balloons from './components/Balloons'
 import './App.css'
@@ -18,6 +26,11 @@ export default function App(): React.JSX.Element {
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null)
   const [footerStats, setFooterStats] = useState<FooterStats | null>(null)
   const [showAddGame, setShowAddGame] = useState(false)
+  // The Select Group menu's list, and the New Group Setting board that adds
+  // to it. The board is the shell's rather than the side panel's: it is 416
+  // wide and stands over the whole window, as every other dialog does.
+  const [groups, setGroups] = useState<Group[]>([])
+  const [showNewGroup, setShowNewGroup] = useState(false)
   const [editingGame, setEditingGame] = useState<GameWithStats | null>(null)
   const [playingGameId, setPlayingGameId] = useState<number | null>(null)
   // The finale covers the whole window — header, footer and side panel with it
@@ -42,12 +55,17 @@ export default function App(): React.JSX.Element {
     )
   }
 
+  async function refreshGroups(): Promise<void> {
+    setGroups(await window.library.listGroups())
+  }
+
   async function refreshFooterStats(): Promise<void> {
     setFooterStats(await window.library.getFooterStats())
   }
 
   useEffect(() => {
     refreshGames()
+    refreshGroups()
     refreshFooterStats()
 
     const unsubscribe = window.library.onSessionEnded(() => {
@@ -70,7 +88,15 @@ export default function App(): React.JSX.Element {
     const created = await window.library.addGame(input)
     setShowAddGame(false)
     await refreshGames()
+    // The Group field is free text, so registering a game can name a group the
+    // menu has never heard of; the list adopts it on the next read.
+    await refreshGroups()
     setSelectedGameId(created.id)
+  }
+
+  async function handleAddGroup(input: NewGroupInput): Promise<void> {
+    setGroups(await window.library.addGroup(input))
+    setShowNewGroup(false)
   }
 
   async function handleUpdateGame(input: NewGameInput): Promise<void> {
@@ -78,6 +104,7 @@ export default function App(): React.JSX.Element {
     await window.library.updateGame(editingGame.id, input)
     setEditingGame(null)
     await refreshGames()
+    await refreshGroups()
   }
 
   async function handleDeleteGame(gameId: number): Promise<void> {
@@ -171,11 +198,13 @@ export default function App(): React.JSX.Element {
       <div className="app-body">
         <SidePanel
           games={games}
+          groups={groups}
           selectedGameId={selectedGameId}
           onSelect={setSelectedGameId}
           onReorder={handleReorder}
           onEditGame={setEditingGame}
           onDeleteGame={handleDeleteGame}
+          onAddGroup={() => setShowNewGroup(true)}
         />
 
         <div className="main-column">
@@ -220,6 +249,10 @@ export default function App(): React.JSX.Element {
           onCancel={() => setEditingGame(null)}
           onSubmit={handleUpdateGame}
         />
+      )}
+
+      {showNewGroup && (
+        <NewGroupSetting onCancel={() => setShowNewGroup(false)} onSubmit={handleAddGroup} />
       )}
     </div>
   )

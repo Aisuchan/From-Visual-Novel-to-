@@ -3,7 +3,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import * as db from './db'
-import type { NewRouteInput, ProgressState, RoutePatch } from '../shared/db-types'
+import type { NewGroupInput, NewRouteInput, ProgressState, RoutePatch } from '../shared/db-types'
 import { launchGame } from './launcher'
 import * as capture from './capture'
 import {
@@ -123,6 +123,20 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannels.RoutesSetActive, (_event, gameId: number, routeId: number | null) =>
     db.setActiveRoute(gameId, routeId)
   )
+
+  ipcMain.handle(IpcChannels.GroupsList, () => db.listGroups())
+
+  ipcMain.handle(IpcChannels.GroupsAdd, (_event, input: NewGroupInput) => db.addGroup(input))
+
+  ipcMain.handle(IpcChannels.TagsList, () => db.listTags())
+
+  ipcMain.handle(IpcChannels.TagsAdd, () => db.addTag())
+
+  ipcMain.handle(IpcChannels.TagsRename, (_event, tagId: number, name: string) =>
+    db.renameTag(tagId, name)
+  )
+
+  ipcMain.handle(IpcChannels.TagsDelete, (_event, tagId: number) => db.deleteTag(tagId))
 
   ipcMain.handle(IpcChannels.SessionsList, (_event, gameId: number) => db.listSessions(gameId))
 

@@ -1,17 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { GameWithStats } from '../../../shared/db-types'
+import type { GameWithStats, Group, Tag } from '../../../shared/db-types'
 import { mediaUrl } from '../../../shared/media-url'
 import { formatClock } from '../format'
 import ContextMenu from './ContextMenu'
+import OptionMenu from './OptionMenu'
+import TagChip from './TagChip'
+import {
+  DEFAULT_SORT,
+  displayName,
+  MANUAL_SORT,
+  sortGames,
+  sortLabel,
+  SORTS,
+  type SortKey
+} from '../sort'
 import './SidePanel.css'
 
 interface Props {
   games: GameWithStats[]
+  /** The groups the Select Group menu offers. */
+  groups: Group[]
   selectedGameId: number | null
   onSelect: (gameId: number) => void
   onReorder: (orderedIds: number[]) => void
   onEditGame: (game: GameWithStats) => void
   onDeleteGame: (gameId: number) => void
+  /** The menu's top row: puts Penpot's New Group Setting up. */
+  onAddGroup: () => void
 }
 
 interface ContextMenu {
@@ -25,13 +40,24 @@ const SIDE_PANEL_WIDTH = 335
 const GAME_LIST_PADDING_TOP = 5
 const GAME_COLUMN_HEIGHT = 60
 
+/* The design's rows are all 55 tall, so a menu's top is the rows above it: the
+   Search Box row, then the Select Group row the Sort row follows. */
+const GROUP_MENU_TOP = 110
+const SORT_MENU_TOP = 165
+/** The add row and the five groups the design draws, before the list scrolls. */
+const GROUP_MENU_ROWS = 6
+/** The key the add row answers to, which is no group's id. */
+const ADD_GROUP_KEY = 'add-group'
+
 export default function SidePanel({
   games,
+  groups,
   selectedGameId,
   onSelect,
   onReorder,
   onEditGame,
-  onDeleteGame
+  onDeleteGame,
+  onAddGroup
 }: Props): React.JSX.Element {
   const [now, setNow] = useState(new Date())
   /** What is typed in the box, and the term actually applied to the list. */
@@ -40,12 +66,27 @@ export default function SidePanel({
   const [dragId, setDragId] = useState<number | null>(null)
   const [dragOrder, setDragOrder] = useState<number[] | null>(null)
   const [searchOptionsOpen, setSearchOptionsOpen] = useState(false)
+  // Kept mounted through the closing fold, which is the opening one run backwards.
+  const [searchOptionsClosing, setSearchOptionsClosing] = useState(false)
   const [groupQuery, setGroupQuery] = useState('')
-  const [sortQuery, setSortQuery] = useState('')
+  /* Which of Penpot's "Menu" boards is out, at most one at a time. The Select
+     Group button drops the whole list out of its row; typing in that field puts
+     the same board up as the field's own suggestions, which is the list
+     narrowed to what has been typed and without the row that adds to it. */
+  const [openMenu, setOpenMenu] = useState<'none' | 'group' | 'group-suggest' | 'sort'>('none')
+  const [sortKey, setSortKey] = useState<SortKey>(DEFAULT_SORT)
+  /* The tags Add Tag puts out. They are the side panel's own — nothing else
+     reads them yet — so the list is read and written from here. `newTagId` is
+     the chip that has just appeared, which is the one that takes the caret. */
+  const [tags, setTags] = useState<Tag[]>([])
+  const [newTagId, setNewTagId] = useState<number | null>(null)
   const [menu, setMenu] = useState<ContextMenu | null>(null)
   const panelRef = useRef<HTMLElement | null>(null)
   const listRef = useRef<HTMLUListElement | null>(null)
   const dateRef = useRef<HTMLSpanElement | null>(null)
+  const groupRowRef = useRef<HTMLDivElement | null>(null)
+  const sortRowRef = useRef<HTMLDivElement | null>(null)
+  const sortFieldRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000)
@@ -65,6 +106,40 @@ export default function SidePanel({
     if (width > available) el.style.fontSize = `${Math.floor(60 * (available / width))}px`
   }, [dateLabel])
 
+  /* Penpot draws Way of Sort 144 wide, which is the room "Sort..." needs. The
+     orders it names are sentences, so the label steps down just far enough to
+     fit, the way the date above it does. The field is only there while the
+     search options are out, so its mounting is one of the triggers. */
+  useEffect(() => {
+    const el = sortFieldRef.current
+    if (!el) return
+    el.style.fontSize = '24px'
+    if (el.scrollWidth > el.clientWidth) {
+      el.style.fontSize = `${Math.floor(24 * (el.clientWidth / el.scrollWidth))}px`
+    }
+  }, [sortKey, searchOptionsOpen])
+
+  useEffect(() => {
+    window.library.listTags().then(setTags)
+  }, [])
+
+  async function addTag(): Promise<void> {
+    const list = await window.library.addTag()
+    setTags(list)
+    setNewTagId(list[list.length - 1]?.id ?? null)
+  }
+
+  /** The name a chip was left holding. Nothing in it takes the chip away. */
+  async function commitTag(tagId: number, name: string): Promise<void> {
+    setNewTagId((id) => (id === tagId ? null : id))
+    setTags(await window.library.renameTag(tagId, name))
+  }
+
+  async function deleteTag(tagId: number): Promise<void> {
+    setNewTagId((id) => (id === tagId ? null : id))
+    setTags(await window.library.deleteTag(tagId))
+  }
+
   // Any click or Escape dismisses the context menu.
   useEffect(() => {
     if (!menu) return
@@ -83,21 +158,33 @@ export default function SidePanel({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     const group = groupQuery.trim().toLowerCase()
+    /* Every tag on the row is a condition, so a game has to be under all of
+       them to stay in the list. A chip still being named is not one yet. */
+    const required = tags.filter((tag) => tag.name.trim() !== '').map((tag) => tag.id)
     return games.filter((g) => {
       const matchesQuery =
         !q || g.title.toLowerCase().includes(q) || (g.shortName ?? '').toLowerCase().includes(q)
       const matchesGroup = !group || (g.groupName ?? '').toLowerCase().includes(group)
-      return matchesQuery && matchesGroup
+      const matchesTags = required.every((tagId) => g.tagIds.includes(tagId))
+      return matchesQuery && matchesGroup && matchesTags
     })
-  }, [games, query, groupQuery])
+  }, [games, query, groupQuery, tags])
+
+  /* What the Sort field asks for. "手動並び順" is the list's own stored order —
+     `sort_order`, which starts as the order the games were registered in and is
+     only ever changed by the drag handle — so it is the one face of the list
+     that can be dragged; every other one is a view over it, and the handle is
+     not drawn at all under those. */
+  const ordered = useMemo(() => sortGames(filtered, sortKey), [filtered, sortKey])
+  const canReorder = sortKey === MANUAL_SORT
 
   // While dragging, the list renders `dragOrder` so rows swap under the cursor;
   // the real reorder is only committed on release.
   const rows = useMemo(() => {
-    if (!dragOrder) return filtered
-    const byId = new Map(filtered.map((g) => [g.id, g]))
+    if (!dragOrder) return ordered
+    const byId = new Map(ordered.map((g) => [g.id, g]))
     return dragOrder.map((id) => byId.get(id)).filter((g): g is GameWithStats => !!g)
-  }, [filtered, dragOrder])
+  }, [ordered, dragOrder])
 
   /** Row index under the pointer, in the list's own design-pixel space. */
   function rowIndexAt(clientY: number, count: number): number {
@@ -114,7 +201,7 @@ export default function SidePanel({
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
     setDragId(gameId)
-    setDragOrder(filtered.map((g) => g.id))
+    setDragOrder(ordered.map((g) => g.id))
   }
 
   function moveDrag(e: React.PointerEvent<HTMLElement>): void {
@@ -130,7 +217,7 @@ export default function SidePanel({
 
   function endDrag(): void {
     if (dragId !== null && dragOrder) {
-      const before = filtered.map((g) => g.id)
+      const before = ordered.map((g) => g.id)
       if (dragOrder.some((id, i) => id !== before[i])) {
         // A search may be narrowing the list, so only the slots the filtered
         // games occupy are rewritten; everything else keeps its position.
@@ -141,6 +228,40 @@ export default function SidePanel({
     }
     setDragId(null)
     setDragOrder(null)
+  }
+
+  /* The group menu's rows: the groups, each in its own colour, under the row
+     that adds one — which belongs to the whole list rather than to a search, so
+     the suggestions leave it off and narrow the list to what has been typed.
+
+     This is the only thing that decides whether the board is up: no rows, no
+     menu. Reading `openMenu` here rather than at the render is what keeps a
+     closed menu closed — the list is not empty just because nothing opened it,
+     and a condition that only looked at the rows put it back on screen. */
+  const groupOptions = useMemo(() => {
+    if (openMenu !== 'group' && openMenu !== 'group-suggest') return []
+    const typed = groupQuery.trim().toLowerCase()
+    const rows = groups
+      .filter((group) => openMenu === 'group' || group.name.toLowerCase().includes(typed))
+      .map((group) => ({ key: String(group.id), label: group.name, color: group.color }))
+    return openMenu === 'group' ? [{ key: ADD_GROUP_KEY, label: 'グループを追加 ＋' }, ...rows] : rows
+  }, [groups, openMenu, groupQuery])
+
+  const searchOptionsExpanded = searchOptionsOpen && !searchOptionsClosing
+
+  /** Folds the two select rows out and back, one open at a time. */
+  function toggleSearchOptions(): void {
+    if (!searchOptionsOpen) {
+      setSearchOptionsClosing(false)
+      setSearchOptionsOpen(true)
+    } else if (searchOptionsClosing) {
+      // Clicking again mid-close takes it straight back to open.
+      setSearchOptionsClosing(false)
+    } else {
+      // The menus hang off the rows that are folding away, so they go too.
+      setOpenMenu('none')
+      setSearchOptionsClosing(true)
+    }
   }
 
   /** Cursor position in the panel's design-pixel space (cancels the shell zoom). */
@@ -194,46 +315,162 @@ export default function SidePanel({
             the design until the search options are stretched open. Group, tag
             and sort management are deferred, so these are inert placeholders. */}
         {searchOptionsOpen && (
-          <>
-            <div className="select-row">
-              <input
-                className="select-field"
-                placeholder="Select Group..."
-                value={groupQuery}
-                onChange={(e) => setGroupQuery(e.target.value)}
-              />
-              {/* Picking from a list of groups is deferred. */}
-              <div className="select-caret" title="グループ一覧（未実装）">
-                ▼
+          <div
+            className={`search-options ${searchOptionsClosing ? 'closing' : ''}`}
+            onAnimationEnd={(e) => {
+              if (e.target !== e.currentTarget) return
+              if (searchOptionsClosing) {
+                setSearchOptionsOpen(false)
+                setSearchOptionsClosing(false)
+              }
+            }}
+          >
+            <div className="search-options-inner">
+              <div className="select-row" ref={groupRowRef}>
+                {/* Not in the design: the field carries its own ✕, so a group can
+                    be let go of without deleting the name a character at a time. */}
+                <div className="select-field-box">
+                  <input
+                    className="select-field"
+                    placeholder="Select Group..."
+                    value={groupQuery}
+                    onChange={(e) => {
+                      setGroupQuery(e.target.value)
+                      setOpenMenu(e.target.value.trim() ? 'group-suggest' : 'none')
+                    }}
+                    onFocus={() => {
+                      if (groupQuery.trim()) setOpenMenu('group-suggest')
+                    }}
+                    onBlur={() =>
+                      setOpenMenu((menu) => (menu === 'group-suggest' ? 'none' : menu))
+                    }
+                  />
+                  {groupQuery && (
+                    <button
+                      className="select-clear"
+                      onClick={() => {
+                        setGroupQuery('')
+                        setOpenMenu('none')
+                      }}
+                      title="グループの絞り込みを解除"
+                      aria-label="グループの絞り込みを解除"
+                    >
+                      <i className="fa-solid fa-xmark" />
+                    </button>
+                  )}
+                </div>
+                {/* Penpot: Show List of Group — drops the Menu below the row. */}
+                <button
+                  className="select-caret"
+                  onClick={() => setOpenMenu((menu) => (menu === 'group' ? 'none' : 'group'))}
+                  title="グループ一覧"
+                  aria-label="グループ一覧"
+                  aria-expanded={openMenu.startsWith('group')}
+                >
+                  ▼
+                </button>
               </div>
-            </div>
 
-            <div className="select-row">
-              <input
-                className="select-field sort"
-                placeholder="Sort..."
-                value={sortQuery}
-                onChange={(e) => setSortQuery(e.target.value)}
-              />
-              {/* Sort order and tag management are deferred. */}
-              <div className="select-caret sort" title="並び順一覧（未実装）">
-                ▼
+              <div className="select-row" ref={sortRowRef}>
+                {/* The order is one of a fixed list, so the field says which one
+                    is on rather than taking anything typed; the menu is the only
+                    way to change it, and the field is the other half of it. */}
+                <input
+                  className="select-field sort"
+                  ref={sortFieldRef}
+                  value={sortLabel(sortKey)}
+                  readOnly
+                  onClick={() => setOpenMenu((menu) => (menu === 'sort' ? 'none' : 'sort'))}
+                  aria-label="並び順"
+                />
+                <button
+                  className="select-caret sort"
+                  onClick={() => setOpenMenu((menu) => (menu === 'sort' ? 'none' : 'sort'))}
+                  title="並び順一覧"
+                  aria-label="並び順一覧"
+                  aria-expanded={openMenu === 'sort'}
+                >
+                  ▼
+                </button>
+                {/* Penpot: Add Tag — 111x40. What it puts out is the row of
+                    chips below, which the design does not draw. */}
+                <button className="add-tag" onClick={addTag} title="タグを追加">
+                  Add Tag
+                </button>
               </div>
-              <div className="add-tag" title="タグ追加（未実装）">
-                Add Tag
-              </div>
+
+              {/* Not in the design: the tags themselves, in the space under the
+                  Sort row. A chip is named as it is made and stands after that;
+                  its own ✕ is what takes it back, and one left empty goes by
+                  itself. */}
+              {tags.length > 0 && (
+                <div className="tag-row">
+                  {tags.map((tag) => (
+                    <TagChip
+                      key={tag.id}
+                      name={tag.name}
+                      editing={tag.id === newTagId}
+                      onCommit={(name) => commitTag(tag.id, name)}
+                      onDelete={() => deleteTag(tag.id)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-          </>
+          </div>
         )}
 
-        {/* Penpot: Strech / Shrink Search Option — the same 305x15 bar, one
-            replacing the other as the options open and close. */}
+        {/* Penpot: Menu — the groups, under the row the button that opened it
+            is in. It is a sibling of the folding block rather than a child:
+            that block clips its own children while it folds. */}
+        {searchOptionsExpanded && groupOptions.length > 0 && (
+          <OptionMenu
+            options={groupOptions}
+            top={GROUP_MENU_TOP}
+            maxRows={GROUP_MENU_ROWS}
+            onPick={(key) => {
+              setOpenMenu('none')
+              if (key === ADD_GROUP_KEY) {
+                onAddGroup()
+                return
+              }
+              const picked = groups.find((group) => String(group.id) === key)
+              if (picked) setGroupQuery(picked.name)
+            }}
+            onDismiss={() => setOpenMenu('none')}
+            anchorRef={groupRowRef}
+          />
+        )}
+
+        {/* The Sort menu is the same board, dropped out of the row below. Its
+            list is fixed, so every row of it stands. */}
+        {searchOptionsExpanded && openMenu === 'sort' && (
+          <OptionMenu
+            options={SORTS.map((sort) => ({ key: sort.key, label: sort.label }))}
+            top={SORT_MENU_TOP}
+            maxRows={SORTS.length}
+            onPick={(key) => {
+              setSortKey(key as SortKey)
+              setOpenMenu('none')
+            }}
+            onDismiss={() => setOpenMenu('none')}
+            anchorRef={sortRowRef}
+          />
+        )}
+
+        {/* Penpot: Strech / Shrink Search Option — the same 305x15 bar in both
+            states, its caret turning over as the options fold out and back. */}
         <button
           className="search-strech"
-          onClick={() => setSearchOptionsOpen((v) => !v)}
-          title={searchOptionsOpen ? '検索オプションを閉じる' : '検索オプションを開く'}
+          onClick={toggleSearchOptions}
+          title={searchOptionsExpanded ? '検索オプションを閉じる' : '検索オプションを開く'}
+          aria-expanded={searchOptionsExpanded}
         >
-          {searchOptionsOpen ? '▲' : '▼'}
+          {/* One glyph turned over on the fold's own clock, rather than two
+              swapped at the moment of the click. */}
+          <span className={`search-strech-glyph ${searchOptionsExpanded ? 'flipped' : ''}`}>
+            ▼
+          </span>
         </button>
       </div>
 
@@ -253,22 +490,24 @@ export default function SidePanel({
                 {game.iconPath ? <img src={mediaUrl(game.iconPath)} alt="" /> : null}
               </span>
               {/* The short name stands in only when the game opts into it. */}
-              <span className="game-name">
-                {game.useShortName && game.shortName ? game.shortName : game.title}
-              </span>
+              <span className="game-name">{displayName(game)}</span>
               {/* Reordering starts here and nowhere else: press the handle and
-                  drag, and the rows swap under the pointer as you move. */}
-              <span
-                className="drag-handle"
-                title="ドラッグして並び替え"
-                onPointerDown={(e) => startDrag(e, game.id)}
-                onPointerMove={moveDrag}
-                onPointerUp={endDrag}
-                onPointerCancel={endDrag}
-                onClick={(e) => e.stopPropagation()}
-              >
-                ⋮⋮
-              </span>
+                  drag, and the rows swap under the pointer as you move. What it
+                  writes is the stored order, so it is only on the row while
+                  that is the order on show. */}
+              {canReorder && (
+                <span
+                  className="drag-handle"
+                  title="ドラッグして並び替え"
+                  onPointerDown={(e) => startDrag(e, game.id)}
+                  onPointerMove={moveDrag}
+                  onPointerUp={endDrag}
+                  onPointerCancel={endDrag}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  ⋮⋮
+                </span>
+              )}
             </div>
             <div className="game-column-border" />
           </li>

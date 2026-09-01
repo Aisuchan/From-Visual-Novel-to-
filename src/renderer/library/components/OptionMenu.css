@@ -1,0 +1,96 @@
+/* Every value below is a literal from Penpot's board "Menu"
+   (859aefd8-f4ae-804d-8008-8e1ff363764a), 201x295 on the 1920x1080 canvas.
+   The one thing that is not the design's is the width: the menu drops out of a
+   select row, so it is as wide as the Select Group field and its button
+   together (265 + 40 = 305) rather than the design's 201 — the Sort menu takes
+   the same width, since its own field is only 144 and its labels are sentences.
+   The rules, the paddings and the gaps keep their own values and the option
+   column takes the difference. */
+
+/* Penpot: Menu — fill #2a2d31, overflow hidden, flex row. It hangs off the
+   bottom of the row that opened it (`top` comes from the component) and starts
+   14px in from the panel edge, which is where the fields start. */
+.option-menu {
+  position: absolute;
+  left: 14px;
+  width: 305px;
+  background: var(--color-bg-alt);
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  z-index: 30;
+}
+
+/* Penpot: border1 / border2 — 2px wide, #B1B2B5, 10px clear of the top and
+   bottom. The first sits 10px in from the left edge, the second 5px after it. */
+.option-menu-rule {
+  width: 2px;
+  flex-shrink: 0;
+  margin: 10px 0;
+  background: var(--color-border);
+}
+
+.option-menu-rule.first {
+  margin-left: 10px;
+}
+
+.option-menu-rule.second {
+  margin-left: 5px;
+  /* Penpot leaves 15px between the rules and the options. Ten of them are
+     carried by the rows instead (below), so the plate under the pointer starts
+     before the label does rather than flush against it. */
+  margin-right: 5px;
+}
+
+/* Penpot: Options — 10px above and below, rows 5px apart. The design's grid is
+   one fixed 137px column; this one fills the menu. The design's air either side
+   of the rows is carried by the rows themselves rather than by this box, so a
+   row's plate runs the width of the menu while its label still starts 34px in
+   and stops 30px short of the far edge.
+
+   The design draws five options and stops; a list here is as long as it is, so
+   the box is capped at a row count the component passes in and scrolls past
+   it rather than running down the panel. */
+.option-menu-options {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  row-gap: 5px;
+  padding: 10px 0;
+}
+
+/* Penpot: Option1..5 — 135x51, the label at the left; 34 tall here, for the
+   28px the label is set at. The design draws no hover state; a row is a
+   control here, so it takes a plate under the pointer — and the plate is the
+   whole row, out to the menu's own edge. */
+.option-menu-option {
+  min-height: 34px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  padding: 0 30px 0 10px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  overflow: hidden;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.option-menu-option:hover {
+  background: rgba(225, 232, 237, 0.14);
+}
+
+/* Penpot: "Option1" — Girassol #e1e8ed, line-height 1.2, at 42px in the
+   design and 28 here. A label too long for the column has its size set inline
+   instead. */
+.option-menu-label {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}

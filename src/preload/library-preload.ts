@@ -3,6 +3,7 @@ import { IpcChannels } from '../shared/ipc-types'
 import type {
   LaunchPrefs,
   NewGameInput,
+  NewGroupInput,
   NewRouteInput,
   ProgressState,
   RoutePatch
@@ -38,6 +39,13 @@ const libraryApi: LibraryApi = {
     ipcRenderer.invoke(IpcChannels.RoutesDelete, gameId, routeId),
   setActiveRoute: (gameId: number, routeId: number | null) =>
     ipcRenderer.invoke(IpcChannels.RoutesSetActive, gameId, routeId),
+  listGroups: () => ipcRenderer.invoke(IpcChannels.GroupsList),
+  addGroup: (input: NewGroupInput) => ipcRenderer.invoke(IpcChannels.GroupsAdd, input),
+  listTags: () => ipcRenderer.invoke(IpcChannels.TagsList),
+  addTag: () => ipcRenderer.invoke(IpcChannels.TagsAdd),
+  renameTag: (tagId: number, name: string) =>
+    ipcRenderer.invoke(IpcChannels.TagsRename, tagId, name),
+  deleteTag: (tagId: number) => ipcRenderer.invoke(IpcChannels.TagsDelete, tagId),
   listSessions: (gameId: number) => ipcRenderer.invoke(IpcChannels.SessionsList, gameId),
   getFooterStats: () => ipcRenderer.invoke(IpcChannels.GamesFooterStats),
   getLaunchPrefs: (gameId: number) => ipcRenderer.invoke(IpcChannels.LaunchPrefsGet, gameId),

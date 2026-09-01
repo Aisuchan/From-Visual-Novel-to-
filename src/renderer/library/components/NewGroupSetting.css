@@ -1,0 +1,318 @@
+/* Every value below is a literal from Penpot's board "New Group Setting"
+   (8dc20177-e0ad-80ef-8008-7eb9835f9faf), 416x479 on the 1920x1080 canvas.
+   `.dialog-backdrop` comes from AddGameDialog.css.
+
+   The board's sub-boards are the same ones the Add Route Menu carries — both
+   are 416 wide with 30px of side padding, so both leave their children 356 —
+   which is why these rules read like RoutePanel's. The palette and the colour
+   maths the two share come from `color.ts`. */
+
+/* Penpot: New Group Setting — fill #14171a, stroke #657786 5px, 20px top and
+   bottom, 30px either side. The stroke is an *inner* one, so it lies over the
+   children rather than insetting them: 416 = 30 + 356 + 30 exactly. A CSS
+   border would take those 5px out of the content box, so it is drawn on top
+   the way the Route board's is. */
+.new-group {
+  position: relative;
+  width: 416px;
+  min-height: 479px;
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 20px 30px;
+  font-family: var(--font-display);
+}
+
+.new-group::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 5px solid var(--color-text-dim);
+  pointer-events: none;
+}
+
+/* Penpot: "New Group" — Girassol 36px, #e1e8ed, line-height 1.2 */
+.ng-title {
+  height: 44px;
+  flex-shrink: 0;
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Penpot: Rectangle — 356x2 #B1B2B5, 5px of air above and below */
+.ng-rule {
+  height: 2px;
+  flex-shrink: 0;
+  margin: 5px 0;
+  background: var(--color-border);
+}
+
+/* Penpot: Setting — the Group Name and Color boards, 5px apart */
+.ng-setting {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  row-gap: 5px;
+}
+
+/* Penpot: Group Name / Color — a label over its control, 10px apart, with 10px
+   of air above and below the pair. */
+.ng-field {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  row-gap: 10px;
+  padding: 10px 0;
+}
+
+/* Penpot: "Group Name" / "Color" — Girassol 28px, #e1e8ed, line-height 1.2 */
+.ng-label {
+  height: 34px;
+  flex-shrink: 0;
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Penpot: Name Input / Color Code Input — 44 tall on #2a2d31, a 1px black
+   inner stroke, 5px radius, the text 15px in and 5px down. */
+.ng-input {
+  height: 44px;
+  flex-shrink: 0;
+  background: var(--color-bg-alt);
+  border: 1px solid #000000;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  padding: 5px 15px;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+/* Not in the design: the field being typed into takes the accent edge. The
+   app's own focus ring is an inset 2px accent line (theme.css), which inside
+   these fields lands a second ring in from the frame — the frame is the whole
+   field's edge here, so that inner one is dropped and only it shows. */
+.ng-input:focus-within {
+  border-color: var(--color-accent);
+}
+
+.ng-input input:focus-visible {
+  box-shadow: none;
+}
+
+/* Penpot sets the placeholder in Girassol 28px #657786; a typed value is the
+   same face in the board's own #e1e8ed. */
+.ng-input input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  outline: none;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.ng-input input::placeholder {
+  color: var(--color-text-dim);
+}
+
+/* Penpot: Color Setting — 356x132; the 211 column of controls and the 130
+   preview plate, 15px apart. */
+.ng-color-setting {
+  height: 132px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  column-gap: 15px;
+}
+
+/* Penpot: Color Option — 211x132, the code field over the swatches */
+.ng-color-option {
+  width: 211px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  row-gap: 10px;
+}
+
+/* Penpot: Template Color — 211x78: five 36.6x36.5 swatches across, two down,
+   7px apart across and 5px down (5*36.6 + 4*7 = 211, 2*36.5 + 5 = 78). */
+.ng-swatches {
+  display: grid;
+  grid-template-columns: repeat(5, 36.6px);
+  grid-auto-rows: 36.5px;
+  column-gap: 7px;
+  row-gap: 5px;
+}
+
+/* Penpot: each swatch — 3px radius under a 2px inner #e1e8ed stroke. The
+   stroke is drawn with an inset shadow so the swatch keeps its exact 36.6. */
+.ng-swatch {
+  border: 0;
+  padding: 0;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 2px var(--color-text);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+/* Penpot: Red Selected — 2px #1da1f2 over a 4px #ffffff, both inner, so the
+   blue reads as the outer 2px and the white as the 2px inside it. It follows
+   the colour the form holds rather than sitting on red. */
+.ng-swatch.selected {
+  box-shadow: inset 0 0 0 2px var(--color-accent), inset 0 0 0 4px #ffffff;
+}
+
+/* Not in the design: the swatch under the pointer brightens. */
+.ng-swatch:hover {
+  filter: brightness(1.25);
+}
+
+/* Penpot draws a 130x132 plate here. It is the colour picker: the hue strip
+   over the square, which is where saturation and brightness are set. The two
+   and the 4px between them come to the plate's own 132. */
+.ng-picker {
+  width: 130px;
+  height: 132px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  row-gap: 4px;
+}
+
+/* The hue strip — every pure hue across 130px. A range input, so it also takes
+   the arrow keys. */
+.ng-hue {
+  width: 100%;
+  height: 14px;
+  flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    #ff0000 0%,
+    #ffff00 17%,
+    #00ff00 33%,
+    #00ffff 50%,
+    #0000ff 67%,
+    #ff00ff 83%,
+    #ff0000 100%
+  );
+  cursor: pointer;
+}
+
+.ng-hue::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 6px;
+  height: 14px;
+  border: 1px solid var(--color-bg);
+  border-radius: 2px;
+  background: var(--color-text-bright);
+  cursor: pointer;
+}
+
+/* The square: the hue washes out to white across it and down to black under
+   it, so a point in it is one saturation and one brightness of that hue. */
+.ng-sv {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  background-image: linear-gradient(to top, #000000, rgba(0, 0, 0, 0)),
+    linear-gradient(to right, #ffffff, rgba(255, 255, 255, 0));
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* Where in the square the colour is. Rides on both fills, so it is ringed in
+   white over black to stay visible on either. */
+.ng-sv-marker {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* The colour the group will carry, shown on the inside end of the field that
+   spells it: a 28px disc, the height the input's own padding leaves. */
+.ng-color-dot {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  margin: 3px 0 0 6px;
+  border: 1px solid var(--color-text-dim);
+  border-radius: 50%;
+}
+
+/* Penpot: Add Route Menu Buttons — 356x52, the pair 30px apart, 10px below the
+   rule above them. */
+.ng-buttons {
+  flex-shrink: 0;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  column-gap: 30px;
+}
+
+/* Penpot: the OK half — #1da1f2, 2px #e1e8ed, 5px radius, 10px above the label
+   and 8px below it. */
+.ng-button {
+  flex: 1;
+  background: var(--color-accent);
+  border: 2px solid var(--color-text);
+  border-radius: 5px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10px 0 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+/* Penpot: the CANCEL half — #2a2d31, 2px #657786 */
+.ng-button.cancel {
+  background: var(--color-bg-alt);
+  border-color: var(--color-text-dim);
+}
+
+/* Not in the design: both are controls, so they lift under the pointer. OK
+   goes quiet until the group it would make has a name. */
+.ng-button:hover:not(:disabled) {
+  filter: brightness(1.18);
+}
+
+.ng-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Penpot: "CANCEL" / "OK" — Girassol 28px, #e1e8ed, line-height 1.2 */
+.ng-button span {
+  height: 34px;
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+}

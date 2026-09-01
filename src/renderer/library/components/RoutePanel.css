@@ -114,7 +114,44 @@
   display: block;
   /* The ring's stroked corners reach the very edge of the 350. */
   overflow: visible;
+  /* An SVG root takes its transform origin from the fill box, so the arrival
+     below is told to grow about the middle of the plate rather than its
+     top-left corner. */
+  transform-origin: 50% 50%;
 }
+
+/* The chart arrives a little under size and grows past itself before settling,
+   so the ring reads as coming forward rather than being switched on. It peaks
+   where the wedges below run into their stops, which is what makes the two
+   read as one movement. Scale only: the ring's position is what the wedges
+   mean, so nothing here turns it. */
+.rp-chart.sweeping {
+  animation: rp-chart-appear 0.6s forwards;
+}
+
+@keyframes rp-chart-appear {
+  0% {
+    transform: scale(0.9);
+    animation-timing-function: ease-out;
+  }
+  /* Past full size, on the frame the wedges hit their ends. */
+  37.5% {
+    transform: scale(1.045);
+    animation-timing-function: ease-in-out;
+  }
+  62% {
+    transform: scale(0.995);
+    animation-timing-function: ease-in-out;
+  }
+  82% {
+    transform: scale(1.004);
+    animation-timing-function: ease-in-out;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 
 .rp-chart path {
   transition: filter 0.15s ease;
@@ -122,14 +159,61 @@
 
 /* The sweep that draws the ring on. The stroke starts wholly in the dash's gap
    and the gap runs off clockwise, uncovering the wedges and their shares in
-   the order they are set out from twelve o'clock. */
-.rp-chart-wipe {
-  stroke-dashoffset: 942.48;
-  animation: rp-chart-wipe 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+   the order they are set out from twelve o'clock. Covered until the component
+   arms it, which it does a couple of frames after the chart is drawn — see the
+   note on `chartKey` in RoutePanel. */
+/* Each wedge is drawn on clockwise from its own start, and they all set off
+   together, so a route's share grows in place rather than arriving when a sweep
+   reaches it. One mask arc per wedge does the drawing (see the render): the
+   arc's dash is exactly as long as the wedge, and its offset carries the dash
+   from wholly behind the wedge's start to wholly over it.
+
+   The front runs into the end of the wedge with something left over: it comes
+   off the stop, falls back into the wedge, and swings into place. Only the
+   falling back can be seen — going the other way, past the end, uncovers ground
+   the next wedge's own arc has already uncovered, and the mask, being a union,
+   shows nothing for it — so the rebound is the whole of the collision, and it
+   stays inside the wedge's own slot the way a real one would. How far it comes
+   back is the wedge's own, worked out per wedge in the render: the bigger the
+   route's share, the harder it comes off the stop.
+
+   The numbers below are plain because the arc is dashed in `pathLength` units
+   whose size is that wedge's own rebound over a hundred — so "100" is one
+   rebound to every wedge, whatever it comes to in degrees, and nothing here has
+   to reach for a custom property.
+
+   Covered until the component arms the class, which it does a couple of frames
+   after the chart is drawn — see the note on `chartKey` in RoutePanel. */
+.rp-wedge-wipe.sweeping {
+  animation: rp-wedge-wipe 0.6s forwards;
 }
 
-@keyframes rp-chart-wipe {
-  to {
+@keyframes rp-wedge-wipe {
+  /* Out at a constant rate, all the way into the stop. It is 0.225s of the
+     0.6s: the run at the wall is the quick part, and what is left is the
+     collision, which needs the room to be seen at all — at 4 degrees over 135ms
+     an earlier one was there and unwatchable. */
+  0% {
+    animation-timing-function: linear;
+  }
+  37.5% {
+    stroke-dashoffset: 0;
+    animation-timing-function: ease-out;
+  }
+  /* Off the stop and back into the wedge, twice, dying away. */
+  53% {
+    stroke-dashoffset: 100;
+    animation-timing-function: ease-in;
+  }
+  70% {
+    stroke-dashoffset: 0;
+    animation-timing-function: ease-out;
+  }
+  83% {
+    stroke-dashoffset: 28;
+    animation-timing-function: ease-in;
+  }
+  100% {
     stroke-dashoffset: 0;
   }
 }
