@@ -31,9 +31,13 @@
   opacity: 0;
 }
 
-/* Under the dialog it is playing behind, so the score can still be typed. */
+/* This one plays inside the Clear Window's own backdrop (see ClearDialog), so
+   it is already over the black that darkens the board — what it must not do is
+   cover the window it is playing behind, which the window's own z-index below
+   settles. A positioned child would otherwise paint over an in-flow one
+   whatever its order in the markup. */
 .confetti-input {
-  z-index: 45;
+  z-index: 0;
 }
 
 /* The finale runs after the dialog has gone, and sits over everything. A

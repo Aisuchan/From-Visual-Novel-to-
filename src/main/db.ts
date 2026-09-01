@@ -514,9 +514,12 @@ export function addGroup(input: NewGroupInput): Group[] {
 
 /* --------------------------------------------------------------- tags ---- */
 
-/* Add Tag puts out a blank row and the name is typed into it, so a tag with no
-   name is a tag being written rather than a broken one. What no name survives
-   is the end of the edit: `renameTag` with nothing in it deletes the row. */
+/* One flat vocabulary of names. Nothing outside this file writes it: a tag
+   comes into being when a game is filed under it and goes when the last game
+   stops being (`setGameTags` below). The side panel's Add Tag chips are a
+   filter over the list rather than rows here, so taking one off the row cannot
+   take a tag off a game — which is what an `addTag`/`deleteTag` pair reachable
+   from that row did, `game_tags` being ON DELETE CASCADE. */
 
 function rowToTag(row: { id: number; name: string; created_at: string }): Tag {
   return { id: row.id, name: row.name, createdAt: row.created_at }
@@ -529,21 +532,33 @@ export function listTags(): Tag[] {
   ).map(rowToTag)
 }
 
-export function addTag(): Tag[] {
-  db.prepare("INSERT INTO tags (name) VALUES ('')").run()
-  return listTags()
-}
-
-export function renameTag(tagId: number, name: string): Tag[] {
-  const trimmed = name.trim()
-  if (trimmed === '') return deleteTag(tagId)
-  db.prepare('UPDATE tags SET name = ? WHERE id = ?').run(trimmed, tagId)
-  return listTags()
-}
-
-export function deleteTag(tagId: number): Tag[] {
-  db.prepare('DELETE FROM tags WHERE id = ?').run(tagId)
-  return listTags()
+/**
+ * What the Add Game dialog's Tag row writes: the game's tags, by name.
+ *
+ * A tag is one name in a vocabulary the whole library shares — the side
+ * panel's row reads the same table — so a name already in it is reused and
+ * only a new one puts out a row. The list replaces whatever the game had, and
+ * a blank name is a chip still being written rather than a tag.
+ */
+export function setGameTags(gameId: number, names: string[]): void {
+  const find = db.prepare('SELECT id FROM tags WHERE name = ? ORDER BY id ASC LIMIT 1')
+  const insert = db.prepare('INSERT INTO tags (name) VALUES (?)')
+  const link = db.prepare('INSERT OR IGNORE INTO game_tags (game_id, tag_id) VALUES (?, ?)')
+  const tx = db.transaction((list: string[]) => {
+    db.prepare('DELETE FROM game_tags WHERE game_id = ?').run(gameId)
+    for (const raw of list) {
+      const name = raw.trim()
+      if (name === '') continue
+      const found = find.get(name) as { id: number } | undefined
+      const tagId = found ? found.id : (insert.run(name).lastInsertRowid as number)
+      link.run(gameId, tagId)
+    }
+    /* A name nothing is filed under any more is not part of the vocabulary,
+       and nothing else prunes it — this is the only writer. It also clears out
+       the blanks the old Add Tag row left behind. */
+    db.prepare('DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM game_tags)').run()
+  })
+  tx(names)
 }
 
 export function setThumbnail(gameId: number, filePath: string): GameWithStats {
@@ -615,6 +630,7 @@ export function addGame(input: NewGameInput): GameWithStats {
     })
 
   linkThumbnail(info.lastInsertRowid as number, input.thumbnailPath)
+  setGameTags(info.lastInsertRowid as number, input.tagNames ?? [])
 
   const row = db.prepare('SELECT * FROM games WHERE id = ?').get(info.lastInsertRowid)
   return rowToGameWithStats(row)
@@ -647,6 +663,7 @@ export function updateGame(gameId: number, input: NewGameInput): GameWithStats {
   })
 
   linkThumbnail(gameId, input.thumbnailPath)
+  setGameTags(gameId, input.tagNames ?? [])
 
   const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
   if (!row) throw new Error(`ゲームが見つかりません (id=${gameId})`)

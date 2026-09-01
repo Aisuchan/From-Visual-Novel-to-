@@ -10,8 +10,12 @@ import './OptionMenu.css'
    five of them already run past the fold. Everything else keeps its literal
    value. */
 const OPTION_FONT_SIZE = 28
-/** 305 less the 34 the label starts at and the 30 of air on the right. */
-const OPTION_WIDTH = 241
+/** Penpot's own board width, which the side panel's row comes to. */
+const OPTION_MENU_WIDTH = 305
+/** The side panel's fields start 14px in from the panel edge. */
+const OPTION_MENU_LEFT = 14
+/** A menu less the 34 the label starts at and the 30 of air on the right. */
+const OPTION_LABEL_INSET = 64
 /** The design's own row and gap, which is what a row count comes to in px. */
 const OPTION_HEIGHT = 34
 const OPTION_GAP = 5
@@ -37,6 +41,11 @@ interface Props {
       own toggle and a click in the field is what puts the suggestions up, so
       the dismissal below has to leave the whole row alone. */
   anchorRef: React.RefObject<HTMLElement>
+  /* The board is as wide as the row it drops out of, and starts where that
+     row's field starts. The side panel's is the default; the Add Game
+     dialog's Group row is 426 wide and flush with its column. */
+  left?: number
+  width?: number
 }
 
 export default function OptionMenu({
@@ -45,7 +54,9 @@ export default function OptionMenu({
   top,
   maxRows,
   onDismiss,
-  anchorRef
+  anchorRef,
+  left = OPTION_MENU_LEFT,
+  width = OPTION_MENU_WIDTH
 }: Props): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null)
 
@@ -75,7 +86,7 @@ export default function OptionMenu({
       className="option-menu"
       ref={rootRef}
       role="menu"
-      style={{ top }}
+      style={{ top, left, width }}
       /* A press in the menu must not move the caret out of the field: the
          suggestions are up only while the field holds it, and blurring here
          would put them away before the click that picked a row landed. */
@@ -96,6 +107,7 @@ export default function OptionMenu({
                colour of its own is. A group carries one, so — as a route's name
                does on the Route board — it arrives inline. */
             color={option.color}
+            maxWidth={width - OPTION_LABEL_INSET}
             onClick={() => onPick(option.key)}
           />
         ))}
@@ -111,10 +123,12 @@ export default function OptionMenu({
 function MenuRow({
   label,
   color,
+  maxWidth,
   onClick
 }: {
   label: string
   color?: string
+  maxWidth: number
   onClick: () => void
 }): React.JSX.Element {
   const textRef = useRef<HTMLSpanElement | null>(null)
@@ -124,10 +138,10 @@ function MenuRow({
     if (!el) return
     el.style.fontSize = `${OPTION_FONT_SIZE}px`
     const width = el.scrollWidth
-    if (width > OPTION_WIDTH) {
-      el.style.fontSize = `${Math.floor(OPTION_FONT_SIZE * (OPTION_WIDTH / width))}px`
+    if (width > maxWidth) {
+      el.style.fontSize = `${Math.floor(OPTION_FONT_SIZE * (maxWidth / width))}px`
     }
-  }, [label])
+  }, [label, maxWidth])
 
   return (
     <button type="button" className="option-menu-option" role="menuitem" onClick={onClick}>

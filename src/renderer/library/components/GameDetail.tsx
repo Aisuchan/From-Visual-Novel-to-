@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { GameWithStats, ProgressState, Route } from '../../../shared/db-types'
+import type { GameWithStats, ProgressState, Route, Tag } from '../../../shared/db-types'
 import { mediaUrl } from '../../../shared/media-url'
 import { formatLastPlayed, formatPlaytime, splitPlaytime } from '../format'
 import { formatShare, shareInk } from '../route-share'
@@ -7,14 +7,16 @@ import { useWheelStepper } from '../useWheelStepper'
 import PlayButtonExtend from './PlayButtonExtend'
 import ContextMenu from './ContextMenu'
 import ClearDialog from './ClearDialog'
-import Confetti from './Confetti'
 import GameInfo from './GameInfo'
 import PlayLog from './PlayLog'
 import RoutePanel from './RoutePanel'
+import TagChip from './TagChip'
 import './GameDetail.css'
 
 interface Props {
   game: GameWithStats
+  /** The vocabulary, which is what names the tags the game is filed under. */
+  tags: Tag[]
   isPlaying: boolean
   onLaunch: (opts: { recordTime: boolean; useRecorderPanel: boolean; runAsAdmin: boolean }) => void
   onEditPlayTime: (gameId: number, seconds: number) => void
@@ -51,6 +53,21 @@ const ROUTE_BAR_RULE = 3
     side. Anything under it carries its colour alone. */
 const ROUTE_BAR_SHARE_MIN = 66
 const MIN_RECESS = ROUTE_MAX_WIDTH * 0.5 + ROUTE_SIDE_GAP
+
+/* Font Awesome Free 7's solid gear, inlined as geometry (its own
+   svgs/solid/gear.svg, CC BY 4.0 — the package this app already bundles).
+   Drawn rather than set: a glyph's baseline is snapped to whole device pixels,
+   and the shell's zoom is fractional, so the same mark landed up to 1.3 design
+   px off the middle of the button's disc and the direction changed with the
+   window size (measured, by capturing the button and weighing the ink against
+   the ring: -1.32px at 0.75, +1.06 at 0.8333, -0.57 at 1). As a path it is
+   placed by geometry and lands within a fifth of a pixel at every size.
+
+   The box is the ink's own: the artwork runs from -16 to 528 in both axes of
+   its 512 viewBox — a tooth points straight up and down, so it overhangs top
+   and bottom — and `-16 -16 544 544` is that square, centred on 256, 256. */
+const GEAR_PATH =
+  'M195.1 9.5C198.1-5.3 211.2-16 226.4-16l59.8 0c15.2 0 28.3 10.7 31.3 25.5L332 79.5c14.1 6 27.3 13.7 39.3 22.8l67.8-22.5c14.4-4.8 30.2 1.2 37.8 14.4l29.9 51.8c7.6 13.2 4.9 29.8-6.5 39.9L447 233.3c.9 7.4 1.3 15 1.3 22.7s-.5 15.3-1.3 22.7l53.4 47.5c11.4 10.1 14 26.8 6.5 39.9l-29.9 51.8c-7.6 13.1-23.4 19.2-37.8 14.4l-67.8-22.5c-12.1 9.1-25.3 16.7-39.3 22.8l-14.4 69.9c-3.1 14.9-16.2 25.5-31.3 25.5l-59.8 0c-15.2 0-28.3-10.7-31.3-25.5l-14.4-69.9c-14.1-6-27.2-13.7-39.3-22.8L73.5 432.3c-14.4 4.8-30.2-1.2-37.8-14.4L5.8 366.1c-7.6-13.2-4.9-29.8 6.5-39.9l53.4-47.5c-.9-7.4-1.3-15-1.3-22.7s.5-15.3 1.3-22.7L12.3 185.8c-11.4-10.1-14-26.8-6.5-39.9L35.7 94.1c7.6-13.2 23.4-19.2 37.8-14.4l67.8 22.5c12.1-9.1 25.3-16.7 39.3-22.8L195.1 9.5zM256.3 336a80 80 0 1 0 -.6-160 80 80 0 1 0 .6 160z'
 
 /* Penpot "Game Info" is 446 wide and carries its circle-info mark 15px in from
    its left edge; GameDetail hangs it off the title's mark, so a title long
@@ -107,6 +124,7 @@ function slotTransform(offset: number): string {
 
 export default function GameDetail({
   game,
+  tags,
   isPlaying,
   onLaunch,
   onEditPlayTime,
@@ -118,6 +136,7 @@ export default function GameDetail({
   const lastPlayed = formatLastPlayed(game.stats.lastPlayedAt)
   const detailRef = useRef<HTMLElement | null>(null)
   const titleRef = useRef<HTMLHeadingElement | null>(null)
+  const tagRowRef = useRef<HTMLDivElement | null>(null)
   const markerRef = useRef<HTMLSpanElement | null>(null)
   const underRef = useRef<HTMLDivElement | null>(null)
   const infoRef = useRef<HTMLDivElement | null>(null)
@@ -151,6 +170,32 @@ export default function GameDetail({
 
   const canShorten = game.useShortName && !!game.shortName
   const displayTitle = canShorten && useShortTitle ? (game.shortName as string) : game.title
+
+  /* The game carries its tags by id; the vocabulary is what names them, and the
+     order is the row's own so the chips stand still as the list is read again. */
+  const gameTags = tags.filter((tag) => game.tagIds.includes(tag.id))
+
+  /* The row carries no scrollbar, so the wheel is the whole of how it moves.
+     A vertical wheel over a box that only scrolls across does nothing in
+     Chromium, and left alone it would take the Middle row's carousel a step
+     instead — so the delta is turned sideways here and the event stopped.
+     React's own `onWheel` is registered passive and cannot stop it, hence the
+     native listener; it is re-hung when the row appears or goes. */
+  useEffect(() => {
+    const el = tagRowRef.current
+    if (!el) return
+    const onWheel = (event: WheelEvent): void => {
+      if (el.scrollWidth <= el.clientWidth) return
+      const delta = event.deltaY !== 0 ? event.deltaY : event.deltaX
+      if (delta === 0) return
+      event.preventDefault()
+      // Line and page deltas, which some mice report, in pixels.
+      const scale = event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? 400 : 1
+      el.scrollLeft += delta * scale
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [gameTags.length])
 
   // The Middle row is a carousel over the game's registered images, centred on
   // whichever one is currently applied as the thumbnail. A thumbnail set from
@@ -410,6 +455,17 @@ export default function GameDetail({
               <path d="M0,0 L132,0 L0,8 Z" fill="#e1e8ed" />
             </svg>
           </div>
+
+          {/* Not in the design: what the game is filed under, in the air the
+              Top board already leaves under the rule. They are the side panel's
+              own chips with nothing to take away, so no ✕. */}
+          {gameTags.length > 0 && (
+            <div className="game-tags" ref={tagRowRef}>
+              {gameTags.map((tag) => (
+                <TagChip key={tag.id} name={tag.name} />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Penpot: Progress — 265x246 triangle, fill #1da1f2, stroke #e1e8ed 3px
@@ -478,7 +534,9 @@ export default function GameDetail({
                       title="画像を追加 / サムネイルを変更"
                       aria-label="画像を追加 / サムネイルを変更"
                     >
-                      <i className="fa-solid fa-gear" />
+                      <svg viewBox="-16 -16 544 544" aria-hidden="true">
+                        <path d={GEAR_PATH} />
+                      </svg>
                     </button>
                   ) : (
                     <button
@@ -675,10 +733,6 @@ export default function GameDetail({
           ]}
         />
       )}
-
-      {/* The clip that runs under the score field stays inside the board, so it
-          leaves the header, the footer and the side panel alone. */}
-      {scoring !== null && <Confetti clip="input" />}
 
       {scoring !== null && (
         <ClearDialog

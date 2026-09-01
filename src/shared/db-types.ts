@@ -48,6 +48,10 @@ export interface NewGameInput {
   iconPath: string | null
   exePath: string
   groupName: string | null
+  /* The names on the dialog's Tag row. They are resolved against the one
+     vocabulary the library shares — a name already in `tags` is reused, a new
+     one puts out a row — and what comes back is the game's `tagIds`. */
+  tagNames: string[]
   useExeIcon: boolean
   useShortName: boolean
   useThumbnailAsDefault: boolean

@@ -11,6 +11,51 @@
   z-index: 50;
 }
 
+/* Every window that comes up over this backdrop arrives the way the Route
+   board's chart does: a little under size, past itself, and back. The four are
+   named rather than taken as the backdrop's children — the Clear Window's
+   backdrop also carries the confetti playing behind it, and that must not be
+   scaled with the window.
+
+   The stops are the chart's own (`rp-chart-appear`), so the two read as one
+   piece of movement; only the clock is shorter, a window being something the
+   pointer is already waiting on.
+
+   It animates the `scale` property rather than `transform`, and that is not a
+   detail: the Route board sizes its own delete confirmation down to fit inside
+   the board (`.route-panel .delete-confirm`, `transform: scale(0.79)`), and
+   keyframes on `transform` replace that outright — the window arrived full
+   size and snapped back to 0.79 the moment the animation let go. The two
+   properties compose instead, `scale` being applied before `transform`, so a
+   window that carries a size of its own pops from that size. */
+.add-game-dialog,
+.clear-window,
+.delete-confirm,
+.new-group {
+  /* No `forwards`: the last stop is the window's own size, so letting the
+     transform go at the end leaves the box without a stacking context or a
+     composited layer it has no further use for. */
+  animation: dialog-pop 0.34s;
+}
+
+@keyframes dialog-pop {
+  0% {
+    scale: 0.9;
+  }
+  37.5% {
+    scale: 1.045;
+  }
+  62% {
+    scale: 0.995;
+  }
+  82% {
+    scale: 1.004;
+  }
+  100% {
+    scale: 1;
+  }
+}
+
 /* Penpot: Add Game — 870x1000, fill #14171a, stroke #657786 10px inner */
 .add-game-dialog {
   width: 870px;
@@ -302,6 +347,13 @@
   background: var(--color-border);
 }
 
+/* Not in the design: the Group row's menu hangs off the row, so the row is
+   what the menu is placed against. */
+.split-anchor {
+  position: relative;
+  width: 100%;
+}
+
 /* Penpot: Group / Tag rows — field, 1px #B1B2B5 divider, trailing button */
 .split-input {
   width: 100%;
@@ -328,6 +380,59 @@
   color: var(--color-text);
 }
 
+/* The chips the ADD button puts out, 10px apart the way the side panel's row
+   spaces its own. They keep to one line and run off the right of the field
+   rather than wrapping: the row is Penpot's 39 tall and a second line would
+   take the whole column down with it, so what is past the end is scrolled to
+   instead. The chips do not shrink (`.tag-chip` is `flex-shrink: 0`), so they
+   are the row's own width whatever it comes to. */
+.tag-area {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  column-gap: 10px;
+  padding: 0 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* No bar at all: the row is 39 tall and even a thin one is drawn out of it,
+   which moves the chips off the centre of the field the moment the row runs
+   long. The wheel is what moves it instead — see the `wheel` listener in the
+   component, which is native and non-passive because it has to keep the
+   dialog behind from scrolling with it. */
+.tag-area {
+  scrollbar-width: none;
+}
+
+.tag-area::-webkit-scrollbar {
+  display: none;
+}
+
+/* Not in the design: the same ✕ the side panel's Select Group field carries.
+   It is a row of its own at the end of the field rather than something laid
+   over it, so it takes its width out of the field and nothing overlaps. */
+.split-input-clear {
+  width: 34px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.split-input-clear:hover {
+  color: var(--color-text);
+}
+
 .split-input-divider {
   width: 1px;
   flex-shrink: 0;
@@ -344,8 +449,15 @@
   font-size: 24px;
   line-height: 1.2;
   color: var(--color-text);
-  opacity: 0.5;
-  cursor: not-allowed;
+  font-family: var(--font-display);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.split-input-button:hover {
+  color: var(--color-accent);
 }
 
 .split-input-button.small-caret {

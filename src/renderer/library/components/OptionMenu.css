@@ -8,12 +8,12 @@
    column takes the difference. */
 
 /* Penpot: Menu — fill #2a2d31, overflow hidden, flex row. It hangs off the
-   bottom of the row that opened it (`top` comes from the component) and starts
-   14px in from the panel edge, which is where the fields start. */
+   bottom of the row that opened it, and its `top`, `left` and `width` all come
+   from the component: the board is as wide as that row and starts where the
+   row's own field does — 14px in from the side panel's edge, flush with the
+   Add Game dialog's column. */
 .option-menu {
   position: absolute;
-  left: 14px;
-  width: 305px;
   background: var(--color-bg-alt);
   overflow: hidden;
   display: flex;

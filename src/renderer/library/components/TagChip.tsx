@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
+import './TagChip.css'
 
 interface Props {
   name: string
   /** The chip Add Tag has just put out: the only one that can be written in. */
-  editing: boolean
+  editing?: boolean
   /** The name as it stands when the edit ends. Empty removes the chip. */
-  onCommit: (name: string) => void
-  onDelete: () => void
+  onCommit?: (name: string) => void
+  /** Left out where the chip only says what a game is filed under; the ✕ is
+      drawn only for a row that can be taken apart. */
+  onDelete?: () => void
 }
 
 /**
@@ -20,7 +23,12 @@ interface Props {
  * input cannot do by itself, so while it is being written the width comes from
  * a copy of the text laid out in the same face with the input over it.
  */
-export default function TagChip({ name, editing, onCommit, onDelete }: Props): React.JSX.Element {
+export default function TagChip({
+  name,
+  editing = false,
+  onCommit,
+  onDelete
+}: Props): React.JSX.Element {
   const [value, setValue] = useState(name)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
@@ -32,7 +40,7 @@ export default function TagChip({ name, editing, onCommit, onDelete }: Props): R
   }, [editing])
 
   return (
-    <span className="tag-chip">
+    <span className={`tag-chip ${onDelete ? '' : 'static'}`}>
       {editing ? (
         <span className="tag-chip-edit">
           {/* The sizer is what the chip measures; it is never seen. */}
@@ -45,7 +53,7 @@ export default function TagChip({ name, editing, onCommit, onDelete }: Props): R
             value={value}
             maxLength={30}
             onChange={(e) => setValue(e.target.value)}
-            onBlur={() => onCommit(value)}
+            onBlur={() => onCommit?.(value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') e.currentTarget.blur()
               if (e.key === 'Escape') {
@@ -60,18 +68,20 @@ export default function TagChip({ name, editing, onCommit, onDelete }: Props): R
         <span className="tag-chip-name">{name}</span>
       )}
 
-      <button
-        className="tag-chip-remove"
-        /* A press here must not blur the field first: that would settle the
-           name and this click would then be deleting a chip that had already
-           gone one way or another. */
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={onDelete}
-        title="タグを削除"
-        aria-label={name ? `${name} を削除` : 'タグを削除'}
-      >
-        <i className="fa-solid fa-xmark" />
-      </button>
+      {onDelete && (
+        <button
+          className="tag-chip-remove"
+          /* A press here must not blur the field first: that would settle the
+             name and this click would then be deleting a chip that had already
+             gone one way or another. */
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onDelete}
+          title="タグを削除"
+          aria-label={name ? `${name} を削除` : 'タグを削除'}
+        >
+          <i className="fa-solid fa-xmark" />
+        </button>
+      )}
     </span>
   )
 }

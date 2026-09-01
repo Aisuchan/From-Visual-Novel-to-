@@ -360,91 +360,6 @@
   padding: 2.5px 14px 0;
 }
 
-/* A chip is 34 tall for the 20px it is set in — the proportion the 40px fields
-   have at 24 — rounded right off, and as wide as what is in it: the name, and
-   the ✕ that takes the tag away. */
-.tag-chip {
-  height: 34px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  column-gap: 8px;
-  padding: 0 10px 0 14px;
-  background: var(--color-strip);
-  border-radius: 17px;
-  font-family: var(--font-display);
-  font-size: 22px;
-  line-height: 1.2;
-  color: var(--color-text-dim);
-}
-
-/* The same optical correction the search fields carry — 4px of top padding on
-   a box the chip centres, which moves the line down by 2 — so the name sits in
-   the middle of the chip rather than high in it. */
-.tag-chip-name {
-  padding-top: 4px;
-  white-space: pre;
-}
-
-/* While the chip is being written in, the sizer lays the text out and the
-   input is stretched over it — the two must be set in exactly the same face.
-   An empty chip still has to be wide enough to aim at. */
-.tag-chip-edit {
-  position: relative;
-  min-width: 60px;
-  height: 100%;
-  display: flex;
-  align-items: center;
-}
-
-.tag-chip-sizer {
-  white-space: pre;
-  visibility: hidden;
-}
-
-.tag-chip-input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  padding: 4px 0 0;
-  background: transparent;
-  border: 0;
-  outline: none;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  color: inherit;
-}
-
-/* The chip carries no ring of its own while it is written in: the caret is
-   what says where the typing is going. */
-.tag-chip-input:focus-visible {
-  box-shadow: none;
-}
-
-/* Penpot has no chip, so its ✕ is the app's own — the Font Awesome mark the
-   Select Group field clears with, quiet until the pointer is on it. */
-.tag-chip-remove {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  line-height: 1;
-  color: var(--color-text-dim);
-  cursor: pointer;
-  transition: color 0.15s ease;
-}
-
-.tag-chip-remove:hover {
-  color: var(--color-danger-bright);
-}
-
 /* Penpot: Strech / Shrink Search Option — 305x15 button, fill #222326,
    stroke #aab8c2 1px *inner*, caret 10px sourcesanspro, 10px below the row
    above. Rounded on the bottom corners only, so it reads as a tab hanging off
@@ -627,4 +542,3 @@
 .game-column.dragging .contents {
   opacity: 0.85;
 }
-

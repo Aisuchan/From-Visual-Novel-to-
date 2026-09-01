@@ -130,14 +130,6 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IpcChannels.TagsList, () => db.listTags())
 
-  ipcMain.handle(IpcChannels.TagsAdd, () => db.addTag())
-
-  ipcMain.handle(IpcChannels.TagsRename, (_event, tagId: number, name: string) =>
-    db.renameTag(tagId, name)
-  )
-
-  ipcMain.handle(IpcChannels.TagsDelete, (_event, tagId: number) => db.deleteTag(tagId))
-
   ipcMain.handle(IpcChannels.SessionsList, (_event, gameId: number) => db.listSessions(gameId))
 
   // "ADD IMAGE" in the Add Thumbnail screen. The files are copied under

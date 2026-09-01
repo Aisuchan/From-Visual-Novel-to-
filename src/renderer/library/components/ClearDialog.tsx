@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Confetti from './Confetti'
 import './ClearDialog.css'
 
 interface Props {
@@ -29,6 +30,12 @@ export default function ClearDialog({
 
   return (
     <div className="dialog-backdrop" onClick={onCancel}>
+      {/* The clip belongs inside this backdrop rather than beside it: the
+          backdrop is what darkens the board, and a sibling under it was being
+          darkened with the board. In here it paints over the 60% black and
+          under the window, which is where it was meant to be all along. */}
+      <Confetti clip="input" />
+
       <div className="clear-window" onClick={(event) => event.stopPropagation()}>
         {/* Penpot: Top — 450x58, fill #2a2d31, stroke #657786 5px inner */}
         <div className="clear-window-top">!CLEAR!</div>

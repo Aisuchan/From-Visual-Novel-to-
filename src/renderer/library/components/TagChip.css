@@ -1,0 +1,105 @@
+/* The chips the side panel's Add Tag and the Add Game dialog's ADD both put
+   out. Penpot draws neither of them — it draws the buttons and nothing they
+   make — so every value here is the app's own, taken in proportion from the
+   40px fields the chips sit under.
+
+   The row that lays them out belongs to whichever screen is using them; this
+   is the chip itself. */
+
+/* A chip is 34 tall for the 20px it is set in — the proportion the 40px fields
+   have at 24 — rounded right off, and as wide as what is in it: the name, and
+   the ✕ that takes the tag away. */
+.tag-chip {
+  height: 34px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  column-gap: 8px;
+  padding: 0 10px 0 14px;
+  background: var(--color-strip);
+  border-radius: 17px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--color-text-dim);
+}
+
+/* A chip with nothing to take away carries the same air on both sides as it
+   does on the left, the 10px being what the ✕ was sitting in. */
+.tag-chip.static {
+  padding: 0 14px;
+}
+
+/* No optical correction here, unlike the fields around it. That one is for a
+   Chromium input, which centres its own line box; a chip centres the name's box
+   itself, and the glyphs are already centred in it — a Japanese face puts its
+   ideographic em box symmetrically about the line box's middle. The 4px of top
+   padding this used to carry only pushed the name 2px low, which is also what
+   left the ✕ beside it reading high. */
+.tag-chip-name {
+  white-space: pre;
+}
+
+/* While the chip is being written in, the sizer lays the text out and the
+   input is stretched over it — the two must be set in exactly the same face.
+   An empty chip still has to be wide enough to aim at. */
+.tag-chip-edit {
+  position: relative;
+  /* Only wide enough to aim at: a blank chip is a caret waiting for a name,
+     not a field. */
+  min-width: 24px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.tag-chip-sizer {
+  white-space: pre;
+  visibility: hidden;
+}
+
+.tag-chip-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  /* Chromium centres a single-line input's line box in its content box, so an
+     unpadded box lands the caret and the name exactly where the settled chip's
+     own span sits. */
+  padding: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+/* The chip carries no ring of its own while it is written in: the caret is
+   what says where the typing is going. */
+.tag-chip-input:focus-visible {
+  box-shadow: none;
+}
+
+/* Penpot has no chip, so its ✕ is the app's own — the Font Awesome mark the
+   Select Group field clears with, quiet until the pointer is on it. */
+.tag-chip-remove {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.tag-chip-remove:hover {
+  color: var(--color-danger-bright);
+}

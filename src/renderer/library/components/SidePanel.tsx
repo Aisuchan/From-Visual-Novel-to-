@@ -20,10 +20,13 @@ interface Props {
   games: GameWithStats[]
   /** The groups the Select Group menu offers. */
   groups: Group[]
+  /** The tag vocabulary the filter chips are matched against. */
+  tags: Tag[]
   selectedGameId: number | null
   onSelect: (gameId: number) => void
   onReorder: (orderedIds: number[]) => void
   onEditGame: (game: GameWithStats) => void
+  /** Asks to delete it; the shell is what puts the confirmation up. */
   onDeleteGame: (gameId: number) => void
   /** The menu's top row: puts Penpot's New Group Setting up. */
   onAddGroup: () => void
@@ -52,6 +55,7 @@ const ADD_GROUP_KEY = 'add-group'
 export default function SidePanel({
   games,
   groups,
+  tags,
   selectedGameId,
   onSelect,
   onReorder,
@@ -75,11 +79,13 @@ export default function SidePanel({
      narrowed to what has been typed and without the row that adds to it. */
   const [openMenu, setOpenMenu] = useState<'none' | 'group' | 'group-suggest' | 'sort'>('none')
   const [sortKey, setSortKey] = useState<SortKey>(DEFAULT_SORT)
-  /* The tags Add Tag puts out. They are the side panel's own — nothing else
-     reads them yet — so the list is read and written from here. `newTagId` is
-     the chip that has just appeared, which is the one that takes the caret. */
-  const [tags, setTags] = useState<Tag[]>([])
+  /* The chips Add Tag puts out. They are a filter over the list and nothing
+     more: a chip is a piece of text, the row belongs to this panel alone, and
+     taking one off narrows nothing further — it never touches a tag on a game.
+     `newTagId` is the chip that has just appeared, which takes the caret. */
+  const [tagFilters, setTagFilters] = useState<{ id: number; text: string }[]>([])
   const [newTagId, setNewTagId] = useState<number | null>(null)
+  const nextTagFilterId = useRef(1)
   const [menu, setMenu] = useState<ContextMenu | null>(null)
   const panelRef = useRef<HTMLElement | null>(null)
   const listRef = useRef<HTMLUListElement | null>(null)
@@ -119,25 +125,26 @@ export default function SidePanel({
     }
   }, [sortKey, searchOptionsOpen])
 
-  useEffect(() => {
-    window.library.listTags().then(setTags)
-  }, [])
-
-  async function addTag(): Promise<void> {
-    const list = await window.library.addTag()
-    setTags(list)
-    setNewTagId(list[list.length - 1]?.id ?? null)
+  function addTag(): void {
+    const id = nextTagFilterId.current++
+    setTagFilters((list) => [...list, { id, text: '' }])
+    setNewTagId(id)
   }
 
-  /** The name a chip was left holding. Nothing in it takes the chip away. */
-  async function commitTag(tagId: number, name: string): Promise<void> {
-    setNewTagId((id) => (id === tagId ? null : id))
-    setTags(await window.library.renameTag(tagId, name))
+  /** What a chip was left holding. Nothing in it takes the chip away. */
+  function commitTag(id: number, text: string): void {
+    setNewTagId((current) => (current === id ? null : current))
+    setTagFilters((list) =>
+      text.trim() === ''
+        ? list.filter((chip) => chip.id !== id)
+        : list.map((chip) => (chip.id === id ? { ...chip, text: text.trim() } : chip))
+    )
   }
 
-  async function deleteTag(tagId: number): Promise<void> {
-    setNewTagId((id) => (id === tagId ? null : id))
-    setTags(await window.library.deleteTag(tagId))
+  /** Takes the chip off the row. The tag itself is the games' and stays. */
+  function deleteTag(id: number): void {
+    setNewTagId((current) => (current === id ? null : current))
+    setTagFilters((list) => list.filter((chip) => chip.id !== id))
   }
 
   // Any click or Escape dismisses the context menu.
@@ -158,17 +165,23 @@ export default function SidePanel({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     const group = groupQuery.trim().toLowerCase()
-    /* Every tag on the row is a condition, so a game has to be under all of
-       them to stay in the list. A chip still being named is not one yet. */
-    const required = tags.filter((tag) => tag.name.trim() !== '').map((tag) => tag.id)
+    /* Every chip on the row is a condition, so a game has to answer to all of
+       them to stay in the list. A chip is matched against the names the game is
+       filed under the way the Select Group field is matched against its group —
+       on what it contains — so a part of a name is enough. A chip still being
+       written is not a condition yet. */
+    const named = new Map(tags.map((tag) => [tag.id, tag.name.toLowerCase()]))
+    const terms = tagFilters.map((chip) => chip.text.trim().toLowerCase()).filter((t) => t !== '')
     return games.filter((g) => {
       const matchesQuery =
         !q || g.title.toLowerCase().includes(q) || (g.shortName ?? '').toLowerCase().includes(q)
       const matchesGroup = !group || (g.groupName ?? '').toLowerCase().includes(group)
-      const matchesTags = required.every((tagId) => g.tagIds.includes(tagId))
+      const matchesTags = terms.every((term) =>
+        g.tagIds.some((tagId) => (named.get(tagId) ?? '').includes(term))
+      )
       return matchesQuery && matchesGroup && matchesTags
     })
-  }, [games, query, groupQuery, tags])
+  }, [games, query, groupQuery, tagFilters, tags])
 
   /* What the Sort field asks for. "手動並び順" is the list's own stored order —
      `sort_order`, which starts as the order the games were registered in and is
@@ -244,7 +257,9 @@ export default function SidePanel({
     const rows = groups
       .filter((group) => openMenu === 'group' || group.name.toLowerCase().includes(typed))
       .map((group) => ({ key: String(group.id), label: group.name, color: group.color }))
-    return openMenu === 'group' ? [{ key: ADD_GROUP_KEY, label: 'グループを追加 ＋' }, ...rows] : rows
+    return openMenu === 'group'
+      ? [{ key: ADD_GROUP_KEY, label: 'グループを追加 ＋' }, ...rows]
+      : rows
   }, [groups, openMenu, groupQuery])
 
   const searchOptionsExpanded = searchOptionsOpen && !searchOptionsClosing
@@ -341,9 +356,7 @@ export default function SidePanel({
                     onFocus={() => {
                       if (groupQuery.trim()) setOpenMenu('group-suggest')
                     }}
-                    onBlur={() =>
-                      setOpenMenu((menu) => (menu === 'group-suggest' ? 'none' : menu))
-                    }
+                    onBlur={() => setOpenMenu((menu) => (menu === 'group-suggest' ? 'none' : menu))}
                   />
                   {groupQuery && (
                     <button
@@ -394,24 +407,24 @@ export default function SidePanel({
                 </button>
                 {/* Penpot: Add Tag — 111x40. What it puts out is the row of
                     chips below, which the design does not draw. */}
-                <button className="add-tag" onClick={addTag} title="タグを追加">
+                <button className="add-tag" onClick={addTag} title="タグで絞り込む">
                   Add Tag
                 </button>
               </div>
 
-              {/* Not in the design: the tags themselves, in the space under the
-                  Sort row. A chip is named as it is made and stands after that;
-                  its own ✕ is what takes it back, and one left empty goes by
-                  itself. */}
-              {tags.length > 0 && (
+              {/* Not in the design: the chips themselves, in the space under
+                  the Sort row. A chip is written as it is made and stands after
+                  that; its own ✕ is what takes it off the row, and one left
+                  empty goes by itself. */}
+              {tagFilters.length > 0 && (
                 <div className="tag-row">
-                  {tags.map((tag) => (
+                  {tagFilters.map((chip) => (
                     <TagChip
-                      key={tag.id}
-                      name={tag.name}
-                      editing={tag.id === newTagId}
-                      onCommit={(name) => commitTag(tag.id, name)}
-                      onDelete={() => deleteTag(tag.id)}
+                      key={chip.id}
+                      name={chip.text}
+                      editing={chip.id === newTagId}
+                      onCommit={(text) => commitTag(chip.id, text)}
+                      onDelete={() => deleteTag(chip.id)}
                     />
                   ))}
                 </div>
@@ -468,9 +481,7 @@ export default function SidePanel({
         >
           {/* One glyph turned over on the fold's own clock, rather than two
               swapped at the moment of the click. */}
-          <span className={`search-strech-glyph ${searchOptionsExpanded ? 'flipped' : ''}`}>
-            ▼
-          </span>
+          <span className={`search-strech-glyph ${searchOptionsExpanded ? 'flipped' : ''}`}>▼</span>
         </button>
       </div>
 

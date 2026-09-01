@@ -3,6 +3,10 @@
    `.dialog-backdrop` comes from AddGameDialog.css. */
 
 .clear-window {
+  /* Over the confetti playing behind it, which is a positioned child of the
+     same backdrop — see `.confetti-input`. */
+  position: relative;
+  z-index: 1;
   width: 450px;
   height: 280px;
   background: var(--color-bg);

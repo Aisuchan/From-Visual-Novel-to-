@@ -29,6 +29,8 @@
    ellipsize: without it the flex chain keeps its min-content width and the
    text runs under the Progress triangle. */
 .game-titles {
+  /* The tag row hangs off the bottom of this box; see `.game-tags`. */
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -105,6 +107,50 @@
   height: 8px;
   flex-shrink: 0;
   display: block;
+}
+
+/* Not in the design: the game's tags, in the air between the rule and the Main
+   Image. The rule ends at 121.2 (40 of padding, 73.2 of title, 8 of rule) and
+   the image's frame begins at 166.5 — the Middle row starts 30.5 above the
+   design's 197 and its band is centred in it — so the slot is 45.3 and a 34px
+   row leaves 5.65 to share: the same air above the chips as below them. The
+   Middle row is untouched. The chips are the side panel's own; only the row is
+   this board's.
+
+   It is taken out of the flow rather than stacked under the rule: `.game-titles`
+   is `fit-content`, so a row of chips wider than a short title would widen that
+   box — and the Under Line, which is `calc(100% + 73px)` of it, would grow with
+   it. Hanging off `top: 100%` keeps the rule the title's own length.
+
+   `left` is 40 because an absolute child is placed against the padding box, so
+   0 would be 40px left of where the title starts. The row ends where the Main
+   Image does — 223.4 + 1138.2 = 1361.6 of the 1585 column, so 1321.6 from the
+   40 it starts at — which also keeps it clear of the Progress triangle, whose
+   clipped edge has only reached x=1498 at this height.
+
+   One line only, since a second would run past the board and paint over the
+   Middle row: what is past the right edge is scrolled to instead, on no
+   scrollbar — the row has 5.65px of air above and below it and a bar would be
+   drawn out of that. The wheel is the whole of how it moves; see the `wheel`
+   listener in the component. */
+.game-tags {
+  position: absolute;
+  top: 100%;
+  left: 40px;
+  width: 1321.6px;
+  margin-top: 5.65px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  column-gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.game-tags::-webkit-scrollbar {
+  display: none;
 }
 
 /* Penpot: Progress — 265x246 triangle overhanging the Top board. Clipped to
@@ -244,7 +290,9 @@
   height: 100%;
   object-fit: contain;
   display: block;
-  transition: filter 0.4s ease, object-position 0.4s ease;
+  transition:
+    filter 0.4s ease,
+    object-position 0.4s ease;
 }
 
 /* A neighbour is seen only through the 142px Sub Image window at the row's own
@@ -283,7 +331,16 @@
 }
 
 /* Not in the design: the entry point to Add Thumbnail. Sits inside the image's
-   top-right corner and only appears — at 50% — while the image is hovered. */
+   top-right corner and only appears — at 50% — while the image is hovered.
+
+   The glyph needs no nudge of its own: measured in the renderer, the gear's ink
+   sits 0.375em above the baseline — exactly where Font Awesome centres an icon,
+   and exactly where flex centring puts the box — and a capture of this button
+   at ten times over puts the ink's middle within a tenth of a design pixel of
+   the disc's. Its bounding box is about 7% taller than it is wide, since a
+   tooth points straight up and down while the sides fall between teeth, so the
+   ring is a little closer above and below than it is either side. That is the
+   glyph's own shape, not a placement to correct. */
 .main-image-setting {
   position: absolute;
   top: 20px;
@@ -302,7 +359,19 @@
   line-height: 1;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s ease, color 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease;
+}
+
+/* The gear is a path rather than a glyph — see `GEAR_PATH` in the component.
+   1.0625em is the 544 of its viewBox against the 512 the font would have set
+   it at, so it is drawn the size it always was. */
+.main-image-setting svg {
+  width: 1.0625em;
+  height: 1.0625em;
+  display: block;
+  fill: currentColor;
 }
 
 .main-image:hover .main-image-setting:not(.centered) {
@@ -496,7 +565,9 @@
   overflow: hidden;
   cursor: pointer;
   z-index: 1;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 
 /* Not in the design: the frame is the control that opens the Route board, so
@@ -615,7 +686,9 @@
   color: var(--color-text);
   /* Above the Play log board, so the button that opened it also closes it. */
   z-index: 5;
-  transition: background 0.2s ease, color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
 }
 
 /* Not in the design: the wedge itself lights up under the pointer, and stays

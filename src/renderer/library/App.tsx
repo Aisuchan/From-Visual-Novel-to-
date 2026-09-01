@@ -3,6 +3,7 @@ import type {
   FooterStats,
   GameWithStats,
   Group,
+  Tag,
   NewGameInput,
   NewGroupInput,
   ProgressState
@@ -15,6 +16,7 @@ import AddThumbnail from './components/AddThumbnail'
 import FooterBar from './components/FooterBar'
 import AddGameDialog from './components/AddGameDialog'
 import NewGroupSetting from './components/NewGroupSetting'
+import ConfirmDialog from './components/ConfirmDialog'
 import Confetti, { type ConfettiClip } from './components/Confetti'
 import Balloons from './components/Balloons'
 import './App.css'
@@ -31,7 +33,17 @@ export default function App(): React.JSX.Element {
   // wide and stands over the whole window, as every other dialog does.
   const [groups, setGroups] = useState<Group[]>([])
   const [showNewGroup, setShowNewGroup] = useState(false)
+  /* The tag vocabulary. It is the shell's rather than either screen's: the Add
+     Game dialog names a game's tags out of it and the side panel matches its
+     filter chips against it, and both want it in hand rather than a round trip
+     away — the dialog's chips have to stand as it opens, or an OK pressed
+     before the names arrived would write the game's tags away. */
+  const [tags, setTags] = useState<Tag[]>([])
   const [editingGame, setEditingGame] = useState<GameWithStats | null>(null)
+  /* The game the side panel has asked to delete. Deleting one takes its
+     sessions, routes and images with it, so it is asked after first — the same
+     board the Route panel asks with. */
+  const [deletingGameId, setDeletingGameId] = useState<number | null>(null)
   const [playingGameId, setPlayingGameId] = useState<number | null>(null)
   // The finale covers the whole window — header, footer and side panel with it
   // — so it is the shell's to run rather than the board's.
@@ -59,6 +71,10 @@ export default function App(): React.JSX.Element {
     setGroups(await window.library.listGroups())
   }
 
+  async function refreshTags(): Promise<void> {
+    setTags(await window.library.listTags())
+  }
+
   async function refreshFooterStats(): Promise<void> {
     setFooterStats(await window.library.getFooterStats())
   }
@@ -66,6 +82,7 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     refreshGames()
     refreshGroups()
+    refreshTags()
     refreshFooterStats()
 
     const unsubscribe = window.library.onSessionEnded(() => {
@@ -89,8 +106,10 @@ export default function App(): React.JSX.Element {
     setShowAddGame(false)
     await refreshGames()
     // The Group field is free text, so registering a game can name a group the
-    // menu has never heard of; the list adopts it on the next read.
+    // menu has never heard of; the list adopts it on the next read. The Tag row
+    // is what writes the vocabulary at all, so that is read again too.
     await refreshGroups()
+    await refreshTags()
     setSelectedGameId(created.id)
   }
 
@@ -105,6 +124,7 @@ export default function App(): React.JSX.Element {
     setEditingGame(null)
     await refreshGames()
     await refreshGroups()
+    await refreshTags()
   }
 
   async function handleDeleteGame(gameId: number): Promise<void> {
@@ -174,6 +194,7 @@ export default function App(): React.JSX.Element {
     return (
       <GameDetail
         game={selectedGame}
+        tags={tags}
         isPlaying={playingGameId === selectedGame.id}
         onLaunch={handleLaunch}
         onEditPlayTime={handleEditPlayTime}
@@ -199,11 +220,12 @@ export default function App(): React.JSX.Element {
         <SidePanel
           games={games}
           groups={groups}
+          tags={tags}
           selectedGameId={selectedGameId}
           onSelect={setSelectedGameId}
           onReorder={handleReorder}
           onEditGame={setEditingGame}
-          onDeleteGame={handleDeleteGame}
+          onDeleteGame={setDeletingGameId}
           onAddGroup={() => setShowNewGroup(true)}
         />
 
@@ -239,13 +261,22 @@ export default function App(): React.JSX.Element {
       )}
 
       {showAddGame && (
-        <AddGameDialog onCancel={() => setShowAddGame(false)} onSubmit={handleAddGame} />
+        <AddGameDialog
+          groups={groups}
+          onGroupsChanged={setGroups}
+          tags={tags}
+          onCancel={() => setShowAddGame(false)}
+          onSubmit={handleAddGame}
+        />
       )}
 
       {editingGame && (
         <AddGameDialog
           key={editingGame.id}
           game={editingGame}
+          groups={groups}
+          onGroupsChanged={setGroups}
+          tags={tags}
           onCancel={() => setEditingGame(null)}
           onSubmit={handleUpdateGame}
         />
@@ -253,6 +284,19 @@ export default function App(): React.JSX.Element {
 
       {showNewGroup && (
         <NewGroupSetting onCancel={() => setShowNewGroup(false)} onSubmit={handleAddGroup} />
+      )}
+
+      {deletingGameId !== null && (
+        <ConfirmDialog
+          title="delete game"
+          message="このゲームを削除しますか？"
+          onCancel={() => setDeletingGameId(null)}
+          onConfirm={() => {
+            const gameId = deletingGameId
+            setDeletingGameId(null)
+            handleDeleteGame(gameId)
+          }}
+        />
       )}
     </div>
   )
