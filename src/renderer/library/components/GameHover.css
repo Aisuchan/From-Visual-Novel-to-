@@ -1,35 +1,54 @@
+/* Penpot: Game Hover (d7d10095-c9e9-809c-8008-7c2ce4c725ec) — 346x255, fill
+   #2a2d31 under a 6px #657786 stroke, 20px of padding and 5px between its five
+   rows. 20 + 5*39 + 4*5 + 20 comes to the board's own 255, so the height is
+   what the rows make it rather than a number.
+
+   **The stroke is an inset shadow rather than a border.** Penpot's is an inner
+   stroke, painted over the shape without taking anything from it; a CSS border
+   is taken out of the box, which added its 6px above and below the padding and
+   left the panel 267 tall against the design's 255 — the "the spacing is
+   wrong" this used to read as. */
 .game-hover {
   width: 346px;
   background: var(--color-bg-alt);
-  border: 6px solid #657786;
+  box-shadow: inset 0 0 0 6px var(--color-text-dim);
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  row-gap: 5px;
 }
 
-/* Penpot: rows are 39px tall; the name rows use a 5px gap, the value rows 10px */
+/* Penpot: each row is 39 tall, and the label's own box is 29 of it sitting at
+   the bottom (py 10) — the two runs are set on one line, not stacked. The name
+   rows put 5px between label and value, the other three 10. */
 .game-hover-row {
   height: 39px;
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  align-items: flex-end;
+  column-gap: 10px;
+  min-width: 0;
 }
 
 .game-hover-row.name {
-  gap: 5px;
+  column-gap: 5px;
 }
 
+/* Penpot: "NAME:" — Girassol 24px, #aab8c2 */
 .game-hover-label {
   font-family: var(--font-display);
   font-size: 24px;
+  line-height: 1.2;
   color: var(--color-text-muted);
   white-space: nowrap;
 }
 
+/* Penpot: "TITLE EXAMPLE" — Girassol 32px, #e1e8ed. The panel is a fixed 346
+   and a title is whatever it is, so what does not fit is cut with an ellipsis;
+   at 1.2 the line box holds its own ink, so nothing is clipped by that. */
 .game-hover-value {
   font-family: var(--font-display);
   font-size: 32px;
+  line-height: 1.2;
   color: var(--color-text);
   overflow: hidden;
   text-overflow: ellipsis;

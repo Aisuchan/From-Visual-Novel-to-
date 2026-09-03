@@ -9,6 +9,7 @@ import {
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { getSettings } from './db'
 import { getOverlayWindow, loadRenderer } from './windows'
 import { IpcChannels } from '../shared/ipc-types'
 import type {
@@ -53,7 +54,22 @@ function serialize<T>(fn: () => Promise<T>): Promise<T> {
   return run
 }
 
-const writers = new Map<CaptureTrack, { stream: fs.WriteStream; filePath: string }>()
+/**
+ * The open output files. A WAV carries its own two size fields in the header
+ * the worker wrote first, and neither is known until the recording ends, so
+ * the bytes are counted as they go by and the header is patched on close.
+ */
+interface Writer {
+  stream: fs.WriteStream
+  filePath: string
+  bytes: number
+  wav: boolean
+}
+
+const writers = new Map<CaptureTrack, Writer>()
+
+/** The header the worker writes; see `wavHeader` in the capture worker. */
+const WAV_HEADER_BYTES = 44
 const state: CaptureState = { video: false, audio: false }
 
 export function getCaptureState(): CaptureState {
@@ -216,7 +232,16 @@ function getCaptureWindow(): Promise<BrowserWindow> {
   return windowReady
 }
 
-async function send(command: Omit<CaptureCommand, 'id'>): Promise<CaptureResultPayload> {
+/* `Omit` over a union keeps only the keys every member has, which would drop
+   the `format` two of the commands carry. Distributing it keeps each member
+   whole. */
+type CaptureRequest = CaptureCommand extends infer T
+  ? T extends { id: number }
+    ? Omit<T, 'id'>
+    : never
+  : never
+
+async function send(command: CaptureRequest): Promise<CaptureResultPayload> {
   const win = await getCaptureWindow()
   const id = nextCommandId++
   const answer = new Promise<CaptureResultPayload>((resolve, reject) => {
@@ -229,7 +254,12 @@ async function send(command: Omit<CaptureCommand, 'id'>): Promise<CaptureResultP
 /** Opened up front so a chunk can never arrive before its file exists. */
 function openWriter(track: CaptureTrack, filePath: string): void {
   void closeWriter(track)
-  writers.set(track, { stream: fs.createWriteStream(filePath), filePath })
+  writers.set(track, {
+    stream: fs.createWriteStream(filePath),
+    filePath,
+    bytes: 0,
+    wav: path.extname(filePath).toLowerCase() === '.wav'
+  })
 }
 
 /** Resolves once the last chunk is on disk, so the file is safe to move. */
@@ -238,7 +268,28 @@ async function closeWriter(track: CaptureTrack): Promise<string | null> {
   if (!writer) return null
   writers.delete(track)
   await new Promise<void>((resolve) => writer.stream.end(resolve))
+  if (writer.wav) await patchWavSizes(writer.filePath, writer.bytes)
   return writer.filePath
+}
+
+/**
+ * Fills in the two lengths a RIFF header carries — everything after the field
+ * itself, and the samples on their own. A player that trusts them (Windows
+ * Media Player among them) reads a header of zeroes as an empty file.
+ */
+async function patchWavSizes(filePath: string, bytes: number): Promise<void> {
+  if (bytes <= WAV_HEADER_BYTES) return
+  const sizes = Buffer.alloc(4)
+  const handle = await fs.promises.open(filePath, 'r+').catch(() => null)
+  if (!handle) return
+  try {
+    sizes.writeUInt32LE(bytes - 8, 0)
+    await handle.write(sizes, 0, 4, 4)
+    sizes.writeUInt32LE(bytes - WAV_HEADER_BYTES, 0)
+    await handle.write(sizes, 0, 4, 40)
+  } finally {
+    await handle.close()
+  }
 }
 
 /** Everything Windows will not have in a file name. */
@@ -259,12 +310,10 @@ async function offerToSave(
 ): Promise<string | null> {
   const ext = path.extname(filePath)
   const defaultDir = app.getPath(kind === 'screenshot' ? 'pictures' : kind === 'video' ? 'videos' : 'music')
-  const filters =
-    kind === 'screenshot'
-      ? [{ name: 'PNG', extensions: ['png'] }]
-      : kind === 'video'
-        ? [{ name: 'MP4', extensions: ['mp4'] }]
-        : [{ name: 'MP3', extensions: ['mp3'] }]
+  // The dialog offers whatever the file already is: the format is the Setting
+  // board's to choose, and this is only where the finished file is named.
+  const suffix = ext.replace(/^\./, '').toLowerCase()
+  const filters = [{ name: suffix.toUpperCase(), extensions: [suffix] }]
 
   const parent = getOverlayWindow()
   const options: Electron.SaveDialogOptions = {
@@ -311,7 +360,11 @@ export function registerCaptureHandlers(): void {
   })
 
   ipcMain.on(IpcChannels.CaptureChunk, (_event, payload: CaptureChunkPayload) => {
-    writers.get(payload.track)?.stream.write(Buffer.from(payload.data))
+    const writer = writers.get(payload.track)
+    if (!writer) return
+    const chunk = Buffer.from(payload.data)
+    writer.bytes += chunk.length
+    writer.stream.write(chunk)
   })
 
   ipcMain.on(IpcChannels.CaptureResult, (_event, payload: CaptureResultPayload) => {
@@ -329,13 +382,16 @@ export function takeScreenshot(
   userDataDir: string
 ): Promise<{ filePath: string; savedTo: string | null }> {
   return serialize(async () => {
+    // Read per capture rather than held: a format changed on the Setting board
+    // takes on the next shot without the app being restarted.
+    const format = getSettings().screenshotFormat
     const source = await findSource(target)
     nextDisplayMedia = { source, audio: false }
     try {
-      const result = await send({ kind: 'screenshot' })
-      if (!result.png) throw new Error('スクリーンショットを取得できませんでした')
-      const filePath = outputPath(userDataDir, 'screenshots', gameId, 'png')
-      fs.writeFileSync(filePath, Buffer.from(result.png))
+      const result = await send({ kind: 'screenshot', format })
+      if (!result.image) throw new Error('スクリーンショットを取得できませんでした')
+      const filePath = outputPath(userDataDir, 'screenshots', gameId, format)
+      fs.writeFileSync(filePath, Buffer.from(result.image))
       const savedTo = await offerToSave(filePath, target.title, 'screenshot')
       return { filePath: savedTo ?? filePath, savedTo }
     } finally {
@@ -358,8 +414,16 @@ export function toggleVideo(
       return { state: getCaptureState(), savedTo }
     }
 
+    /*
+     * The extension is the Setting board's, the bytes are not: this runtime's
+     * MediaRecorder muxes MP4 (H.264 + AAC) and WebM and nothing else, so a
+     * .mov holds the same ISO-BMFF stream an .mp4 does. Every reader of the
+     * format sniffs the `ftyp` brand rather than the name, so the file opens
+     * as a QuickTime movie — but it is not a QuickTime mux, and making one
+     * would take a remuxer this app does not carry.
+     */
     const source = await findSource(target)
-    openWriter('video', outputPath(userDataDir, 'videos', gameId, 'mp4'))
+    openWriter('video', outputPath(userDataDir, 'videos', gameId, getSettings().videoFormat))
     nextDisplayMedia = { source, audio: true }
     try {
       await send({ kind: 'start-video' })
@@ -390,11 +454,12 @@ export function toggleAudio(
 
     // `getDisplayMedia` always hands back a video track, so the game's window
     // is named here too; the worker drops that track straight away.
+    const format = getSettings().audioFormat
     const source = await findSource(target)
-    openWriter('audio', outputPath(userDataDir, 'audio', gameId, 'mp3'))
+    openWriter('audio', outputPath(userDataDir, 'audio', gameId, format))
     nextDisplayMedia = { source, audio: true }
     try {
-      await send({ kind: 'start-audio' })
+      await send({ kind: 'start-audio', format })
       state.audio = true
     } catch (error) {
       void closeWriter('audio')

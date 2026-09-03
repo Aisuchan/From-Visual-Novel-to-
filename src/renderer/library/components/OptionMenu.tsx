@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import './OptionMenu.css'
 
 /* Penpot: Menu (859aefd8-f4ae-804d-8008-8e1ff363764a) — a 201x295 board of
@@ -59,6 +59,24 @@ export default function OptionMenu({
   width = OPTION_MENU_WIDTH
 }: Props): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const optionsRef = useRef<HTMLDivElement | null>(null)
+
+  /* Whether the list runs past the box, and which way. Penpot's 10px of air
+     above and below the rules is what a *whole* list has; a list carrying on
+     out of sight gives that air up on the side it carries on, and the rule
+     runs into the menu's own edge and is cut off by it — the rule being cut
+     off is the list being cut off. Without it a menu holding six of a dozen
+     groups looked exactly like a menu holding all six. */
+  const [more, setMore] = useState({ above: false, below: false })
+
+  const readScroll = useCallback((): void => {
+    const box = optionsRef.current
+    if (!box) return
+    // A pixel of slack: the shell's zoom is fractional and these are rounded.
+    const above = box.scrollTop > 1
+    const below = box.scrollTop + box.clientHeight < box.scrollHeight - 1
+    setMore((was) => (was.above === above && was.below === below ? was : { above, below }))
+  }, [])
 
   // Anything outside the menu dismisses it, the way the Setting popover goes.
   useEffect(() => {
@@ -81,6 +99,17 @@ export default function OptionMenu({
   const maxHeight =
     maxRows * OPTION_HEIGHT + (maxRows - 1) * OPTION_GAP + OPTIONS_PADDING * 2
 
+  // The list is read as it stands, and again whenever it changes under the box.
+  useEffect(readScroll, [readScroll, options, maxHeight])
+
+  const ruleClass = [
+    'option-menu-rule',
+    more.above ? 'more-above' : '',
+    more.below ? 'more-below' : ''
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
     <div
       className="option-menu"
@@ -94,11 +123,16 @@ export default function OptionMenu({
     >
       {/* Penpot: border1 and border2 — two 2px rules down the left, 10px in,
           then 5px apart, with 15px of air before the options. */}
-      <div className="option-menu-rule first" />
-      <div className="option-menu-rule second" />
+      <div className={`${ruleClass} first`} />
+      <div className={`${ruleClass} second`} />
 
       {/* Penpot: Options — the grid of rows, 10px above and below, 5px apart. */}
-      <div className="option-menu-options" style={{ maxHeight }}>
+      <div
+        className="option-menu-options"
+        ref={optionsRef}
+        style={{ maxHeight }}
+        onScroll={readScroll}
+      >
         {options.map((option) => (
           <MenuRow
             key={option.key}

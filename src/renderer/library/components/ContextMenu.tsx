@@ -24,9 +24,13 @@ export default function ContextMenu({ style, items }: Props): React.JSX.Element 
     <div
       className="context-menu"
       style={style}
-      /* The menus are dismissed on a window mousedown; a press inside one is
-         the press that chooses an option, so it must not reach that. */
-      onMouseDown={(event) => event.stopPropagation()}
+      /* The menus are dismissed on a window mousedown; the press that chooses
+         an option is inside the plate, so that one must not reach it. A right
+         press is not choosing anything — it is the gesture that puts the menu
+         away — so it is let through like any other. */
+      onMouseDown={(event) => {
+        if (event.button === 0) event.stopPropagation()
+      }}
     >
       {/* Penpot: border1 and border2 — 2x275 rules at x=10 and x=17 */}
       <span className="context-menu-rule" style={{ left: '10px' }} />

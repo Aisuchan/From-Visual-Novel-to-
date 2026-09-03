@@ -40,6 +40,14 @@
   white-space: pre;
 }
 
+/* A settled chip is opened again by a double-click on its name, so the name
+   reads as something to aim at — and the pair of presses does not leave the
+   word selected behind the field that replaces it. */
+.tag-chip.renamable .tag-chip-name {
+  cursor: text;
+  user-select: none;
+}
+
 /* While the chip is being written in, the sizer lays the text out and the
    input is stretched over it — the two must be set in exactly the same face.
    An empty chip still has to be wide enough to aim at. */

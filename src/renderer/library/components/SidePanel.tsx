@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { GameWithStats, Group, Tag } from '../../../shared/db-types'
 import { mediaUrl } from '../../../shared/media-url'
+import { useContextMenuDismiss } from '../context-menu'
 import { formatClock } from '../format'
 import ContextMenu from './ContextMenu'
 import OptionMenu from './OptionMenu'
+import { filterGames, suggestsGroup } from '../filter'
 import TagChip from './TagChip'
 import {
   DEFAULT_SORT,
@@ -30,6 +32,12 @@ interface Props {
   onDeleteGame: (gameId: number) => void
   /** The menu's top row: puts Penpot's New Group Setting up. */
   onAddGroup: () => void
+  /** The HOME button: puts Penpot's Home board in the content column. It is
+      not called while that board is already up — the plate is where you are,
+      not somewhere to go. */
+  onHome: () => void
+  /** Whether that board is the one up, which the button stays lit for. */
+  homeOpen: boolean
 }
 
 interface ContextMenu {
@@ -61,7 +69,9 @@ export default function SidePanel({
   onReorder,
   onEditGame,
   onDeleteGame,
-  onAddGroup
+  onAddGroup,
+  onHome,
+  homeOpen
 }: Props): React.JSX.Element {
   const [now, setNow] = useState(new Date())
   /** What is typed in the box, and the term actually applied to the list. */
@@ -72,7 +82,14 @@ export default function SidePanel({
   const [searchOptionsOpen, setSearchOptionsOpen] = useState(false)
   // Kept mounted through the closing fold, which is the opening one run backwards.
   const [searchOptionsClosing, setSearchOptionsClosing] = useState(false)
+  /* What is in the Select Group field, and the group the list is actually
+     narrowed to. They are two things: the filter only moves when the field is
+     settled — a row picked out of the menu, Enter, or the caret leaving it —
+     so a name is not typed through a run of lists nobody asked for. A field
+     emptied out is settled as it happens; see the same pair on the Home
+     board. */
   const [groupQuery, setGroupQuery] = useState('')
+  const [groupFilter, setGroupFilter] = useState('')
   /* Which of Penpot's "Menu" boards is out, at most one at a time. The Select
      Group button drops the whole list out of its row; typing in that field puts
      the same board up as the field's own suggestions, which is the list
@@ -147,41 +164,22 @@ export default function SidePanel({
     setTagFilters((list) => list.filter((chip) => chip.id !== id))
   }
 
-  // Any click or Escape dismisses the context menu.
-  useEffect(() => {
-    if (!menu) return
-    const close = (): void => setMenu(null)
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setMenu(null)
-    }
-    window.addEventListener('mousedown', close)
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('mousedown', close)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [menu])
+  // Any click, a second right-click, or Escape dismisses the context menu.
+  const menuOpener = useContextMenuDismiss(menu !== null, () => setMenu(null))
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    const group = groupQuery.trim().toLowerCase()
-    /* Every chip on the row is a condition, so a game has to answer to all of
-       them to stay in the list. A chip is matched against the names the game is
-       filed under the way the Select Group field is matched against its group —
-       on what it contains — so a part of a name is enough. A chip still being
-       written is not a condition yet. */
-    const named = new Map(tags.map((tag) => [tag.id, tag.name.toLowerCase()]))
-    const terms = tagFilters.map((chip) => chip.text.trim().toLowerCase()).filter((t) => t !== '')
-    return games.filter((g) => {
-      const matchesQuery =
-        !q || g.title.toLowerCase().includes(q) || (g.shortName ?? '').toLowerCase().includes(q)
-      const matchesGroup = !group || (g.groupName ?? '').toLowerCase().includes(group)
-      const matchesTags = terms.every((term) =>
-        g.tagIds.some((tagId) => (named.get(tagId) ?? '').includes(term))
-      )
-      return matchesQuery && matchesGroup && matchesTags
-    })
-  }, [games, query, groupQuery, tagFilters, tags])
+  /* Every chip on the row is a condition, so a game has to answer to all of
+     them to stay in the list; a chip still being written is not a condition
+     yet. The rule itself is shared with the Home board, which draws the same
+     three controls over the same library (`filter.ts`). */
+  const filtered = useMemo(
+    () =>
+      filterGames(games, tags, {
+        query,
+        group: groupFilter,
+        tagTerms: tagFilters.map((chip) => chip.text)
+      }),
+    [games, query, groupFilter, tagFilters, tags]
+  )
 
   /* What the Sort field asks for. "手動並び順" is the list's own stored order —
      `sort_order`, which starts as the order the games were registered in and is
@@ -253,9 +251,8 @@ export default function SidePanel({
      and a condition that only looked at the rows put it back on screen. */
   const groupOptions = useMemo(() => {
     if (openMenu !== 'group' && openMenu !== 'group-suggest') return []
-    const typed = groupQuery.trim().toLowerCase()
     const rows = groups
-      .filter((group) => openMenu === 'group' || group.name.toLowerCase().includes(typed))
+      .filter((group) => openMenu === 'group' || suggestsGroup(group.name, groupQuery))
       .map((group) => ({ key: String(group.id), label: group.name, color: group.color }))
     return openMenu === 'group'
       ? [{ key: ADD_GROUP_KEY, label: 'グループを追加 ＋' }, ...rows]
@@ -297,11 +294,18 @@ export default function SidePanel({
         <span className="clock-time">{timeLabel}</span>
       </div>
 
-      <div className="home-button">
+      <button
+        className={`home-button${homeOpen ? ' is-open' : ''}`}
+        onClick={() => {
+          if (!homeOpen) onHome()
+        }}
+        title={homeOpen ? undefined : 'ライブラリを一覧する'}
+        aria-pressed={homeOpen}
+      >
         <span className="home-button-diamond">♦</span>
         <span className="home-button-word">&nbsp;home&nbsp;</span>
         <span className="home-button-diamond">♦</span>
-      </div>
+      </button>
 
       <div className="search-option-container">
         <div className="search-box">
@@ -350,19 +354,34 @@ export default function SidePanel({
                     placeholder="Select Group..."
                     value={groupQuery}
                     onChange={(e) => {
-                      setGroupQuery(e.target.value)
-                      setOpenMenu(e.target.value.trim() ? 'group-suggest' : 'none')
+                      /* A blank is nothing typed; see the same field on the
+                         Home board. Only an all-whitespace run goes. */
+                      const text = e.target.value.trim() ? e.target.value : ''
+                      setGroupQuery(text)
+                      if (!text) setGroupFilter('')
+                      setOpenMenu(text ? 'group-suggest' : 'none')
+                    }}
+                    onKeyDown={(e) => {
+                      /* Enter settles the field — but not the Enter that ends
+                         an IME conversion, which is choosing a character. */
+                      if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
+                      setGroupFilter(groupQuery)
+                      setOpenMenu('none')
                     }}
                     onFocus={() => {
                       if (groupQuery.trim()) setOpenMenu('group-suggest')
                     }}
-                    onBlur={() => setOpenMenu((menu) => (menu === 'group-suggest' ? 'none' : menu))}
+                    onBlur={() => {
+                      setGroupFilter(groupQuery)
+                      setOpenMenu((menu) => (menu === 'group-suggest' ? 'none' : menu))
+                    }}
                   />
                   {groupQuery && (
                     <button
                       className="select-clear"
                       onClick={() => {
                         setGroupQuery('')
+                        setGroupFilter('')
                         setOpenMenu('none')
                       }}
                       title="グループの絞り込みを解除"
@@ -448,7 +467,10 @@ export default function SidePanel({
                 return
               }
               const picked = groups.find((group) => String(group.id) === key)
-              if (picked) setGroupQuery(picked.name)
+              if (picked) {
+                setGroupQuery(picked.name)
+                setGroupFilter(picked.name)
+              }
             }}
             onDismiss={() => setOpenMenu('none')}
             anchorRef={groupRowRef}
@@ -493,6 +515,8 @@ export default function SidePanel({
               onClick={() => onSelect(game.id)}
               onContextMenu={(e) => {
                 e.preventDefault()
+                // The row is what a second right-click on it toggles off.
+                menuOpener.current = e.currentTarget
                 const { x, y } = designPointWithin(e.clientX, e.clientY)
                 setMenu({ game, x, y })
               }}

@@ -11,6 +11,14 @@ export interface Game {
   title: string
   shortName: string | null
   thumbnailPath: string | null
+  /* What the Home board's two faces draw. Null on either falls back to
+     `thumbnailPath`, which is what both of them showed before a cell's own
+     right-click menu could be given a picture. A picture set there belongs to
+     that face alone: it never becomes the game's Main Image, never crosses to
+     the other face, and never joins the Add Thumbnail gallery — which is the
+     whole point of setting it from the cell rather than from the gallery. */
+  homeCardImage: string | null
+  homeSpineImage: string | null
   iconPath: string | null
   exePath: string
   groupName: string | null
@@ -165,4 +173,33 @@ export interface FooterStats {
   todaySeconds: number
   weekSeconds: number
   monthSeconds: number
+}
+
+/* The Setting board's 言語/language row. The app is written in Japanese and
+   the design in English; this is what will say which of the two the interface
+   is set in once there is a vocabulary to swap. Until then it is stored and
+   read back and nothing else reads it. */
+export type Language = 'ja' | 'en'
+
+/* The three format rows. Each of them names the file the Recorder Panel's own
+   button writes, so the choice is read where that file is opened rather than
+   only stored: the screenshot's encoder, the recording's extension, and which
+   of the two encoders the audio tap runs through. */
+export type ScreenshotFormat = 'png' | 'jpg'
+export type VideoFormat = 'mp4' | 'mov'
+export type AudioFormat = 'mp3' | 'wav'
+
+/* Which of the Home board's two faces it opens on — the design's Container, a
+   grid of cards, or its Bookshelf Container, a shelf of spines. Not a row on
+   the Setting board: it is what the board's own toggle was last left on, kept
+   so that opening Home again finds it where it was left. */
+export type HomeLayout = 'grid' | 'shelf'
+
+/** The app's own settings, read and written as a whole. */
+export interface AppSettings {
+  language: Language
+  screenshotFormat: ScreenshotFormat
+  videoFormat: VideoFormat
+  audioFormat: AudioFormat
+  homeLayout: HomeLayout
 }

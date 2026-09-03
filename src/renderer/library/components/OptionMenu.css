@@ -20,6 +20,22 @@
   flex-direction: row;
   align-items: stretch;
   z-index: 30;
+  animation: option-menu-drop 0.12s ease-out;
+}
+
+/* Not in the design, which draws the board and not how it arrives: it runs
+   out of the row that opened it rather than appearing over it whole. A wipe
+   rather than a scale — the rows stand still and are uncovered from the top
+   down, where scaling the box would stretch the type on the way. Fast, since
+   the menu is a step in picking something and not a thing to watch. */
+@keyframes option-menu-drop {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
 }
 
 /* Penpot: border1 / border2 — 2px wide, #B1B2B5, 10px clear of the top and
@@ -29,6 +45,19 @@
   flex-shrink: 0;
   margin: 10px 0;
   background: var(--color-border);
+}
+
+/* Not in the design, which draws one menu and that one short enough to stand
+   whole: the rule gives up its 10px of air on the side the list carries on,
+   running to the menu's own edge and being cut off by it. That is the list
+   being cut off, said in the one mark the board has down that side — a menu
+   showing six of a dozen groups otherwise looked like a menu of six. */
+.option-menu-rule.more-above {
+  margin-top: 0;
+}
+
+.option-menu-rule.more-below {
+  margin-bottom: 0;
 }
 
 .option-menu-rule.first {

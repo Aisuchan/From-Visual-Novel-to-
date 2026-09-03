@@ -10,6 +10,15 @@ export function formatPlaytime(totalSeconds: number): string {
   return `${hours}h${minutes}m`
 }
 
+/** The same to the second, e.g. "0h0m0s" … "999h59m59s" — what the Game
+    Hover's PLAYTIME row carries, where the design writes only the hours. */
+export function formatPlaytimeSeconds(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = Math.floor(totalSeconds % 60)
+  return `${hours}h${minutes}m${seconds}s`
+}
+
 export function splitPlaytime(totalSeconds: number): { hours: number; minutes: number } {
   return {
     hours: Math.floor(totalSeconds / 3600),

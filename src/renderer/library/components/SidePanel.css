@@ -67,8 +67,53 @@
   color: var(--color-text);
 }
 
-/* Penpot: "♦ home ♦" — Girassol, ♦ at 40px and "home" at 55px, #e1e8ed */
+/* Not in the design: the plate is a button — it puts Penpot's Home board in
+   the content column — so it comes up under the pointer the way every other
+   control in the panel does, and stays lit while that board is the one up,
+   which is what the footer's ⚙ does for the Setting board. The lift is on the
+   stroke rather than on the fill: #090e17 is dark enough that brightening it
+   says nothing, and the stroke is already the panel's own #aab8c2. */
+.home-button {
+  padding: 0;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+/* Nothing to offer while its own board is the one up: the press would do
+   nothing, so the plate does not answer the pointer either. */
+.home-button.is-open {
+  cursor: default;
+}
+
+.home-button:hover:not(.is-open) {
+  border-color: var(--color-text);
+  /* The plate's own #090e17 is a blue at nearly half saturation; the app's
+     #222326 is a grey, so lifting to it took the colour out of the button
+     rather than lighting it up. This is the plate's own hue and saturation
+     raised with the lightness — hsl(214 55% 14%) against the plate's
+     hsl(214 44% 6%). */
+  background: #102137;
+}
+
+.home-button.is-open {
+  border-color: var(--color-text);
+}
+
+/* Penpot: "♦ home ♦" — Girassol, ♦ at 40px and "home" at 55px, #e1e8ed.
+   The design writes the three as one run on one baseline; here they are three
+   spans of two sizes, centred one by one, and Girassol does not put its ink in
+   the middle of a 1em box — measured at zoom 1, the diamonds' ink came out
+   centred on the plate (330.0 against the box's 330.5) and the word's 6px
+   below it (336.5). Lifting the word by the whole 6 centres its ink on the
+   plate exactly and reads as too high; left where the box put it, it reads as
+   too low. The 3 is the middle of those two readings — the geometric centre
+   and the optical one are not the same place for a run of capitals in this
+   face, and neither measurement decides it. */
 .home-button-word {
+  position: relative;
+  top: -3px;
   font-size: 55px;
 }
 
@@ -124,6 +169,13 @@
 
 .search-input::placeholder {
   color: var(--color-text-dim);
+}
+
+/* No focus ring: the field already carries the design's own 2px #aab8c2 stroke
+   and the theme's accent ring drew a second, blue one just inside it. The caret
+   is what says where the typing goes. */
+.search-input:focus-visible {
+  box-shadow: none;
 }
 
 /* Penpot: Search Submit — 40x40, fill #1da1f2, stroke #aab8c2 2px, r10, 5px gap / 15px from panel edge */
@@ -270,6 +322,17 @@
 
 .select-field::placeholder {
   color: var(--color-text-dim);
+}
+
+/* No focus ring on the Select Group and Sort fields or the ▼ beside them, for
+   the reason the Search Box above them carries none: the design draws the 2px
+   #aab8c2 stroke and nothing inside it, and the theme's accent ring came out
+   as a second, blue one just within. The caret says where the typing goes. */
+.select-field:focus-visible,
+.select-caret:focus-visible,
+.select-clear:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 /* The sort field says which order is on rather than taking anything typed, so

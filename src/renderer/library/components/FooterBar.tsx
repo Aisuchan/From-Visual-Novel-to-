@@ -6,9 +6,17 @@ import './FooterBar.css'
 interface Props {
   stats: FooterStats | null
   onAddGame: () => void
+  /** Puts Penpot's "Setting" board in the content column, or takes it away. */
+  onToggleSetting: () => void
+  settingOpen: boolean
 }
 
-export default function FooterBar({ stats, onAddGame }: Props): React.JSX.Element {
+export default function FooterBar({
+  stats,
+  onAddGame,
+  onToggleSetting,
+  settingOpen
+}: Props): React.JSX.Element {
   const [now, setNow] = useState(new Date())
 
   useEffect(() => {
@@ -44,9 +52,15 @@ export default function FooterBar({ stats, onAddGame }: Props): React.JSX.Elemen
 
       {/* Penpot: Footer Icons — row-reverse, 7px gap: 🔞 📓 🐤 ⚙ left to right */}
       <div className="footer-icons">
-        <span className="footer-icon-gear" title="設定（未実装）">
+        <button
+          className={`footer-icon-gear ${settingOpen ? 'is-open' : ''}`}
+          onClick={onToggleSetting}
+          title="設定"
+          aria-label="設定"
+          aria-pressed={settingOpen}
+        >
           <i className="fa-solid fa-gear" />
-        </span>
+        </button>
         <span className="footer-icon" title="Twitter（未実装）">
           <i className="fa-brands fa-twitter" />
         </span>

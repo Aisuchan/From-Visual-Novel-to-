@@ -1,5 +1,5 @@
 import type { GameWithStats } from '../../../shared/db-types'
-import { formatHours, formatLastPlayed } from '../format'
+import { formatLastPlayed, formatPlaytimeSeconds } from '../format'
 import './GameHover.css'
 
 interface Props {
@@ -19,7 +19,12 @@ export default function GameHover({ game }: Props): React.JSX.Element {
       </div>
       <div className="game-hover-row">
         <span className="game-hover-label">PLAYTIME:</span>
-        <span className="game-hover-value">{formatHours(game.stats.totalPlaySeconds)}</span>
+        {/* Penpot writes "999h" here; the row carries the minutes and the
+            seconds too, a play time being read off this panel rather than
+            glanced at the way the footer's totals are. */}
+        <span className="game-hover-value">
+          {formatPlaytimeSeconds(game.stats.totalPlaySeconds)}
+        </span>
       </div>
       <div className="game-hover-row">
         <span className="game-hover-label">LAST PLAYED:</span>

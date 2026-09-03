@@ -3,10 +3,12 @@ import path from 'node:path'
 import fs from 'node:fs'
 import Database from 'better-sqlite3'
 import type {
+  AppSettings,
   FooterStats,
   GameImage,
   GameWithStats,
   Group,
+  HomeLayout,
   LaunchPrefs,
   NewGameInput,
   NewGroupInput,
@@ -93,6 +95,11 @@ export function initDb(): void {
       PRIMARY KEY (game_id, tag_id)
     );
 
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS launch_prefs (
       game_id INTEGER PRIMARY KEY REFERENCES games(id) ON DELETE CASCADE,
       use_recorder_panel INTEGER NOT NULL DEFAULT 1,
@@ -138,7 +145,12 @@ export function initDb(): void {
     median_score: 'REAL',
     clear_score: 'INTEGER',
     cleared_at: 'TEXT',
-    clear_play_seconds: 'INTEGER'
+    clear_play_seconds: 'INTEGER',
+    // The picture each of the Home board's faces was given from its own cell.
+    // They are that face's and nothing else's, so they are columns here rather
+    // than rows in `game_images`, which is the Add Thumbnail gallery's list.
+    home_card_image: 'TEXT',
+    home_spine_image: 'TEXT'
   })
 
   /* `play_time_offset` used to be stored against the sum over every session.
@@ -212,6 +224,8 @@ function rowToGameWithStats(row: any): GameWithStats {
     title: row.title,
     shortName: row.short_name,
     thumbnailPath: row.thumbnail_path,
+    homeCardImage: row.home_card_image ?? null,
+    homeSpineImage: row.home_spine_image ?? null,
     iconPath: row.icon_path,
     exePath: row.exe_path,
     groupName: row.group_name,
@@ -526,6 +540,66 @@ function rowToTag(row: { id: number; name: string; created_at: string }): Tag {
 }
 
 /** Oldest first, so the row stays where it was put. */
+/* The Setting board's rows. They are the app's own rather than a game's, so
+   they are one flat key/value table read as a whole: a row that has never been
+   written falls back to the default, and a row holding a value this build does
+   not know falls back to it too rather than putting an unreadable setting on
+   the board. */
+const DEFAULT_SETTINGS: AppSettings = {
+  // The app is written in Japanese, so that is what it opens in.
+  language: 'ja',
+  // What each of the three captures is written as today, so an install that
+  // predates these rows keeps making exactly the files it already made.
+  screenshotFormat: 'png',
+  videoFormat: 'mp4',
+  audioFormat: 'mp3',
+  // The face the design draws; the other one is the toggle's to ask for.
+  homeLayout: 'grid'
+}
+
+/** A stored value only counts if this build knows it; anything else is the
+    default, which is what keeps a setting written by a later build off the
+    board rather than putting an unreadable value on it. */
+function oneOf<T extends string>(value: string | undefined, allowed: readonly T[], fallback: T): T {
+  return allowed.includes(value as T) ? (value as T) : fallback
+}
+
+export function getSettings(): AppSettings {
+  const rows = db.prepare('SELECT key, value FROM settings').all() as {
+    key: string
+    value: string
+  }[]
+  const stored = new Map(rows.map((row) => [row.key, row.value]))
+  return {
+    language: oneOf(stored.get('language'), ['ja', 'en'], DEFAULT_SETTINGS.language),
+    screenshotFormat: oneOf(
+      stored.get('screenshotFormat'),
+      ['png', 'jpg'],
+      DEFAULT_SETTINGS.screenshotFormat
+    ),
+    videoFormat: oneOf(stored.get('videoFormat'), ['mp4', 'mov'], DEFAULT_SETTINGS.videoFormat),
+    audioFormat: oneOf(stored.get('audioFormat'), ['mp3', 'wav'], DEFAULT_SETTINGS.audioFormat),
+    homeLayout: oneOf(stored.get('homeLayout'), ['grid', 'shelf'], DEFAULT_SETTINGS.homeLayout)
+  }
+}
+
+/** Writes the keys the patch names and answers with the whole of the settings. */
+export function setSettings(patch: Partial<AppSettings>): AppSettings {
+  const write = db.prepare(
+    `INSERT INTO settings (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+  )
+  const apply = db.transaction((entries: [string, string][]) => {
+    for (const [key, value] of entries) write.run(key, value)
+  })
+  apply(
+    Object.entries(patch)
+      .filter(([, value]) => value !== undefined)
+      .map(([key, value]) => [key, String(value)] as [string, string])
+  )
+  return getSettings()
+}
+
 export function listTags(): Tag[] {
   return (
     db.prepare('SELECT * FROM tags ORDER BY id ASC').all() as Parameters<typeof rowToTag>[0][]
@@ -559,6 +633,26 @@ export function setGameTags(gameId: number, names: string[]): void {
     db.prepare('DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM game_tags)').run()
   })
   tx(names)
+}
+
+/**
+ * What a Home cell's right-click menu writes: the picture that one face shows
+ * for this game, or null to hand the cell back to the game's Main Image.
+ *
+ * Deliberately not `setThumbnail` and deliberately not a `game_images` row — a
+ * picture given to a card is the card's, so nothing else in the app may pick
+ * it up.
+ */
+export function setHomeImage(
+  gameId: number,
+  face: HomeLayout,
+  filePath: string | null
+): GameWithStats {
+  const column = face === 'shelf' ? 'home_spine_image' : 'home_card_image'
+  db.prepare(`UPDATE games SET ${column} = ? WHERE id = ?`).run(filePath, gameId)
+  const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
+  if (!row) throw new Error(`ゲームが見つかりません (id=${gameId})`)
+  return rowToGameWithStats(row)
 }
 
 export function setThumbnail(gameId: number, filePath: string): GameWithStats {

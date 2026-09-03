@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannels } from '../shared/ipc-types'
 import type {
+  HomeLayout,
   LaunchPrefs,
   NewGameInput,
   NewGroupInput,
@@ -24,6 +25,10 @@ const libraryApi: LibraryApi = {
     ipcRenderer.invoke(IpcChannels.GamesSetPlayTime, gameId, seconds),
   setThumbnail: (gameId: number, filePath: string) =>
     ipcRenderer.invoke(IpcChannels.GamesSetThumbnail, gameId, filePath),
+  pickHomeImage: (gameId: number, face: HomeLayout) =>
+    ipcRenderer.invoke(IpcChannels.GamesPickHomeImage, gameId, face),
+  clearHomeImage: (gameId: number, face: HomeLayout) =>
+    ipcRenderer.invoke(IpcChannels.GamesClearHomeImage, gameId, face),
   setProgress: (gameId: number, state: ProgressState | null, score: number | null) =>
     ipcRenderer.invoke(IpcChannels.GamesSetProgress, gameId, state, score),
   listGameImages: (gameId: number) => ipcRenderer.invoke(IpcChannels.GameImagesList, gameId),
@@ -42,6 +47,8 @@ const libraryApi: LibraryApi = {
   listGroups: () => ipcRenderer.invoke(IpcChannels.GroupsList),
   addGroup: (input: NewGroupInput) => ipcRenderer.invoke(IpcChannels.GroupsAdd, input),
   listTags: () => ipcRenderer.invoke(IpcChannels.TagsList),
+  getSettings: () => ipcRenderer.invoke(IpcChannels.SettingsGet),
+  setSettings: (patch) => ipcRenderer.invoke(IpcChannels.SettingsSet, patch),
   listSessions: (gameId: number) => ipcRenderer.invoke(IpcChannels.SessionsList, gameId),
   getFooterStats: () => ipcRenderer.invoke(IpcChannels.GamesFooterStats),
   getLaunchPrefs: (gameId: number) => ipcRenderer.invoke(IpcChannels.LaunchPrefsGet, gameId),

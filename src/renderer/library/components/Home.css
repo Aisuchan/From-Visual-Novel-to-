@@ -1,0 +1,784 @@
+/* All values below are literal Penpot values from board "Home"
+   (616c7363-b9b1-8054-8008-71e0d6bab8f1), 1585x985 — the same slot in Main
+   Display that "Game", "Add Thumbnail" and "Setting" occupy.
+
+   Unlike the Setting board, whose runs are all set at Penpot's 0.7 "the box is
+   the ink" line height, this board's headings and controls are set at 1.2 —
+   an ordinary line — so their boxes hold their own ink. The one run at 0.7 is
+   a card's title, which is the design's own two tight lines. */
+
+.home-board {
+  /* The SORT and GROUP menus drop out of their rows as absolute children of
+     the board, so the board is what their design-pixel top and left are
+     measured against. */
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-bg);
+}
+
+/* Penpot: Top — 1515x106, i.e. 30px above and 35px either side of a 1585
+   board, with the headline held left and the controls right. */
+.home-top {
+  flex: 0 0 auto;
+  height: 106px;
+  margin: 30px 35px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Penpot: Headline — 304x106, the word over the rule with nothing between
+   them: the word's own box is its 81px at 1.2, which is the 98 the rule
+   starts at. */
+.home-headline {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* Penpot: "Home" — Girassol 81px, #e1e8ed, set 20px in from the rule below it. */
+.home-word {
+  margin: 0 0 0 20px;
+  height: 98px;
+  font-family: var(--font-display);
+  font-size: 81px;
+  line-height: 1.2;
+  font-weight: 400;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Penpot: Under Line — 304x8: a 172px bar then a 132px taper, the same rule
+   the Game and Setting boards carry under their own titles. */
+.home-underline {
+  width: 304px;
+  height: 8px;
+  flex-shrink: 0;
+  display: flex;
+}
+
+.home-underline-bar {
+  flex: 1;
+  background: var(--color-text);
+}
+
+.home-underline-tail {
+  width: 132px;
+  height: 8px;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* Penpot: Show Condition — 1034x106, the row of fields over the tag row with
+   the 15px the two leave between them. */
+.home-condition {
+  width: 1034px;
+  height: 106px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Penpot: Others — 1034x52, three controls 30px apart. (The design also
+   carries a fourth, an "Add Tag" pill, hidden in the file; it is not drawn
+   here either.) */
+.home-others {
+  height: 52px;
+  display: flex;
+  align-items: flex-start;
+  column-gap: 30px;
+}
+
+/* Penpot: Way to Sort (239x52) and Group Select (331x52) — a field and its
+   caret button squared off into one pill by 30px radii at the pair's own two
+   ends, both halves filled #2a2d31. */
+.home-select {
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+/* Not in the design: both fields lift under the pointer, as every other
+   control does. */
+.home-select:hover,
+.home-add-tag:hover {
+  filter: brightness(1.18);
+}
+
+/* **The line box is the pill's own 52 rather than a 42px box centred in it.**
+   Penpot's 5px above and below is a real number, but under the shell's
+   fractional zoom every step in the sum rounds: the flex offset, the line box,
+   and the baseline the glyphs are snapped to. Giving the run the pill's whole
+   height takes the flex offset out of that chain — measured at the 1280
+   default, the Search Box's own run went from 2.25 design px high to 0.75. The
+   horizontal 30 is the design's and stays. */
+.home-select-value {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 30px;
+  background: var(--color-bg-alt);
+  border-radius: 30px 0 0 30px;
+}
+
+/* Penpot: Selected Way — 189 wide; Selected Group — 281. */
+.home-select-value.sort {
+  width: 189px;
+}
+
+.home-select-value.group {
+  width: 281px;
+}
+
+/* Penpot: Show Option / Show Groups — 50x52, 10px of air before the caret and
+   15px after it. On the Group pill this half is the button and the other half
+   is typed into, so the browser's own button chrome is taken off it. */
+.home-select-caret {
+  width: 50px;
+  height: 100%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 15px 0 10px;
+  background: var(--color-bg-alt);
+  border: none;
+  border-radius: 0 30px 30px 0;
+  cursor: pointer;
+}
+
+/* The typed half of the Group pill. A group's name is free text, so this is a
+   field rather than a label: it takes the value box's whole 52 for its line
+   box for the reason the run beside it does, and carries no ring of its own —
+   the caret is what says where the typing goes. It cannot step its own size
+   down the way `FitLabel` does, so a name past the box scrolls, which is what
+   the side panel's Select Group field does with the same name. */
+.home-select-input {
+  width: 100%;
+  min-width: 0;
+  height: 52px;
+  padding: 0;
+  background: none;
+  border: none;
+  outline: none;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 35px;
+  line-height: 52px;
+  color: var(--color-text);
+  cursor: text;
+}
+
+/* Penpot's own "GROUP" in #aab8c2 is what the field says while nothing is in
+   it, which is exactly a placeholder. */
+.home-select-input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+/* No focus ring on any of the three filter controls, for the reason the Search
+   Box beside them carries none: Penpot draws the plate and nothing over it. */
+.home-select:focus-visible,
+.home-select-caret:focus-visible,
+.home-select-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Penpot: "SORT" / "GROUP" / "SEARCH..." — Girassol 35px, #aab8c2. The
+   design's own words are what a field says while nothing is chosen in it, so
+   #aab8c2 is the placeholder and a value that has been picked comes up to the
+   app's own ink. */
+/* 52px, the field's own height: see `.home-select-value`. What is left after
+   that is the baseline's snap to a whole device pixel, which moves with the
+   window and cannot be nudged away — measured across five window widths, a
+   constant 1px correction halved the Group field's error and put the same
+   error on the Sort field beside it, whose Japanese run is symmetric about the
+   line box and lands centred as it is. */
+.home-field-label {
+  font-family: var(--font-display);
+  font-size: 35px;
+  line-height: 52px;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.home-select-value.sort .home-field-label {
+  color: var(--color-text-muted);
+}
+
+/* Penpot: SEARCH... — the run is centred in the box, so the field is too. */
+/* The field's whole height again, so Chromium's own centring of the inner
+   editor has nothing left to round; see `.home-select-value`. */
+.home-search-input {
+  width: 100%;
+  min-width: 0;
+  height: 52px;
+  padding: 0;
+  background: none;
+  border: none;
+  outline: none;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 35px;
+  line-height: 52px;
+  color: var(--color-text);
+}
+
+.home-search-input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+/* No focus ring on this field. The theme draws a focused input's accent ring
+   inside the control, which in a 30px pill came out as a blue rectangle within
+   it; put on the box instead it followed the corners but was still not the
+   design's — Penpot draws the plate and nothing over it. The caret is what says
+   where the typing goes, as it is for a tag chip being named. */
+.home-search-input:focus-visible {
+  box-shadow: none;
+}
+
+/* Penpot: "▼" — Girassol 25px, #aab8c2 */
+.home-caret-glyph {
+  font-family: var(--font-display);
+  font-size: 25px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+}
+
+/* Penpot: Search Box — 404x52, rounded 30 all round, its run centred. */
+.home-search {
+  width: 404px;
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 30px;
+  background: var(--color-bg-alt);
+  border-radius: 30px;
+}
+
+/* Penpot: Tag — 1034x39, the row starting 5px in with 10px between its parts.
+   The chips are 34 tall in a 39 row, which is the 5px the design hangs under
+   them; the rule between the button and the tags takes the whole 39. */
+.home-tag-row {
+  height: 39px;
+  display: flex;
+  align-items: flex-start;
+  column-gap: 10px;
+  padding-left: 5px;
+}
+
+/* Penpot: Add Tag — 126x34, squared off (only the tags themselves are pills),
+   #2a2d31 under 15px of side padding and the design's own 3/1 above and
+   below. */
+.home-add-tag {
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  padding: 3px 15px 1px;
+  background: var(--color-bg-alt);
+  border: none;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+/* Penpot draws this rule at the row's full 39, which hangs it 5px below the
+   button it divides from the chips; it takes the button's own 34 instead, so
+   the three read as one row. */
+.home-tag-rule {
+  width: 1px;
+  height: 34px;
+  flex-shrink: 0;
+  background: var(--color-border);
+}
+
+/* Penpot: Tag Container — 660 wide, its chips 10px apart. */
+/* Penpot draws the container 660 wide and stops there. It runs out to where
+   the Search Box above it ends instead — 1034 of the row less the 152 the
+   button, the rule and their gaps take — which is as much room as the board
+   has to give it. Past that the row is scrolled rather than cut off: a chip
+   that has silently gone is a filter no one can see. No bar for it: any bar is
+   drawn out of the row's own height and would push the chips off it, which is
+   the same reason the Add Game dialog's tag row has none. */
+.home-tag-container {
+  width: 882px;
+  height: 34px;
+  display: flex;
+  align-items: flex-start;
+  column-gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.home-tag-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Penpot: Tag1 / Tag2 — 102x34, #2a2d31 rounded right off at 50 with the name
+   set at 25px in #aab8c2. The chip itself is the app's own (`TagChip`), which
+   the side panel sets at its own 22px in #222326; here it takes the Home
+   board's. */
+.home-tag-container .tag-chip {
+  height: 34px;
+  padding: 0 10px 0 15px;
+  background: var(--color-bg-alt);
+  border-radius: 50px;
+  font-size: 25px;
+  color: var(--color-text-muted);
+}
+
+/* Penpot: Tag1 / Tag2 — 102x34, rounded right off at 50. */
+.home-tag {
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  padding: 3px 15px 1px;
+  background: var(--color-bg-alt);
+  border-radius: 50px;
+}
+
+/* Penpot: "ADD TAG +" / "TAG1 ☓" — Girassol 25px, #aab8c2 */
+.home-chip-label {
+  font-family: var(--font-display);
+  font-size: 25px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* Penpot: Number of VN — 1585x25, the count held to the right with 100px of
+   air past it and 5px under it. */
+.home-count {
+  flex: 0 0 25px;
+  /* The run in it is 30 tall against the design's own 25 box — Penpot lets it
+     hang out — and a flex item will not go under its content unless it is told
+     to, which put everything below this row 5px low. */
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  column-gap: 15px;
+  padding: 0 100px;
+  margin-bottom: 5px;
+}
+
+/* Penpot: "9999 games" — Girassol 25px, the figure in #e1e8ed and the word
+   after it in #657786. */
+.home-count-text {
+  font-family: var(--font-display);
+  font-size: 25px;
+  line-height: 1.2;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+.home-count-number {
+  color: var(--color-text);
+}
+
+/* Not in the design: which of the board's two faces the games are shown as.
+   The pair sits at the right edge where the count used to, and the count is
+   moved in by what they come to.
+
+   32 squares centred on the row's own 25, which is as big as the band will
+   take: Penpot's box for the count is 25 with a 30px run hanging out of it, so
+   the row's ink runs 176 to 197, the rule under it is at 202, and the tag row
+   above ends where its chips do at 167 — 35px of room, and the square keeps
+   1.5 of it above and below. */
+.home-layout-toggle {
+  flex-shrink: 0;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  /* Close enough to read as one control rather than as two marks that happen
+     to be near each other, without the plates touching. */
+  column-gap: 2px;
+}
+
+/* The one that is off is set in the ink the Search Box beside it is (#aab8c2)
+   and carries no plate; the one that is on comes up to white on the plate that
+   box carries (#2a2d31), squared with a quarter of its own side rounded off. A
+   hover on the one that is off darkens instead, so it reads as an offer rather
+   than as the choice already being made. */
+.home-layout-button {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.home-layout-button:hover:not(.chosen) {
+  background: var(--color-strip);
+}
+
+.home-layout-button.chosen {
+  background: var(--color-bg-alt);
+  color: #fff;
+}
+
+/* Penpot: Border — 1525x1, #B1B2B5, i.e. 30px in from either edge. */
+.home-rule {
+  flex: 0 0 1px;
+  margin: 0 30px;
+  background: var(--color-border);
+}
+
+/* Penpot: Container — a 5-column grid, 253px to a column with 40 between them
+   and 50 between the rows, 80px in from either edge and 40 below the rule.
+   80 + 5*253 + 4*40 + 80 comes to the board's own 1585.
+
+   The design draws two rows and stops. A library is as long as it is, so past
+   what the column is tall this is what scrolls. */
+/* The scroll lives on this rather than on the grid itself: Chromium leaves a
+   grid scroll container's block-end padding out of the scrollable overflow, so
+   the 10 under the last row was there in layout and never reachable (measured:
+   with 60px of it the last row still ended flush against the footer's rule).
+   With the grid inside a plain scroller its padding is ordinary content again. */
+.home-face {
+  flex: 1;
+  min-height: 0;
+  /* The library is as long as it is, so past the two rows the design draws
+     this is what scrolls — the same bar the side panel's own list carries.
+     Across is named explicitly: a bar down the right takes its 8px out of the
+     content box, which leaves the five columns 8px wider than what is left and
+     put a second bar along the bottom. The cards are unmoved by it (they are
+     laid out from the left padding and the last one still ends inside the
+     box); what gives up the 8 is the row's own right-hand padding. */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* The design's card is 253 x 304, which is 1:1.2016 — no ratio at all. As with
+   a spine, the height is the design's and stays and the width is taken to the
+   clean figure beside it: 304 over six fifths is 253.333, so the card is
+   exactly 5:6 and lands a third of a pixel from where it is drawn. The row's
+   own side padding gives up what that costs — five cards and their four gaps
+   come to 1426.667 of the board's 1585, so the design's 80 either side becomes
+   79.167. Written as one sum from the height, so the ratio is the thing stated
+   and the padding follows from it. */
+.home-grid {
+  --card-height: 304px;
+  --card-width: calc(var(--card-height) * 5 / 6);
+  display: grid;
+  grid-template-columns: repeat(5, var(--card-width));
+  grid-auto-rows: 359px;
+  column-gap: 40px;
+  row-gap: 50px;
+  /* Penpot's own padding is 40/80/0/80 — its two rows fill the Container's 808
+     exactly and it has no bottom padding to give. The board is 985 to the
+     Container's 975, though, so the design does leave 10 under the last row;
+     scrolled to the end, a third row would otherwise sit flush against the
+     footer's rule, so that 10 is carried here. */
+  padding: 40px calc((1585px - 5 * var(--card-width) - 4 * 40px) / 2) 10px;
+}
+
+/* Penpot: Bookshelf Container — 1585x808, the board's other face in the same
+   slot the Container takes, and hidden in the design file. The same 40 below
+   the rule and 80 in from either edge, the same 50 between its rows, and 25
+   spines of 57 across with nothing between them: 80 + 25×57 + 80 comes to the
+   board's own 1585, exactly as the design's five 253s do. */
+/* The design's spine is 57 x 358, which is 1:6.281 — no ratio at all. The
+   height is the design's and stays; the width is taken to exactly a sixth of
+   it, and the row's own side padding gives up what that costs: 25 spines of
+   59.667 come to 1491.667 of the board's 1585, so the design's 80 either side
+   becomes 46.667. The two are written as one sum from the height, so the
+   ratio is the thing that is stated and the padding follows from it. */
+.home-shelf {
+  --spine-height: 358px;
+  --spine-width: calc(var(--spine-height) / 6);
+  display: grid;
+  grid-template-columns: repeat(25, var(--spine-width));
+  grid-auto-rows: 359px;
+  column-gap: 0;
+  row-gap: 50px;
+  /* The 10 the design leaves under the Container; see `.home-grid`. */
+  padding: 40px calc((1585px - 25 * var(--spine-width)) / 2) 10px;
+}
+
+/* Penpot: a spine is a plain rectangle on #B1B2B5 — the same plate a card
+   with no picture is left with — and the design writes nothing on it. It is
+   358 of the cell's 359, so the row keeps its own 1px under it. The picture is
+   the game's Main Image again, cropped to the slice a spine is. */
+.home-spine {
+  width: var(--spine-width);
+  height: var(--spine-height);
+  flex-shrink: 0;
+  display: block;
+  padding: 0;
+  border: none;
+  background: var(--color-border);
+  overflow: hidden;
+  cursor: pointer;
+  transform-origin: center;
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease;
+}
+
+.home-spine img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.home-card-cell.is-hovered .home-spine {
+  transform: scale(1.04);
+  filter: brightness(1.12);
+}
+
+/* Not in the design, which draws the grid whole: the cards arrive on a
+   diagonal from the top left, each waiting by its column plus its row (the
+   delay is the component's, `arriveDelay`). `backwards` so a card is not on
+   screen through the wait it is still counting out. Only the card grid takes
+   it — a shelf of 25 spines across would read as a sweep rather than a
+   diagonal. */
+@keyframes home-card-in {
+  from {
+    opacity: 0;
+    transform: translate(-14px, -14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.home-grid > .home-card-cell {
+  animation: home-card-in 0.26s ease-out backwards;
+}
+
+/* The shelf's own arrival: a book is carried in and then stood up, in that
+   order. It comes in over size and leaning right — over size is what near
+   reads as, so the book is arriving from the front of the shelf — and is
+   pushed back into the row at that lean; **only once it is at its own size
+   does it swing upright**. The two run one after the other rather than
+   together, so each is seen for what it is: the book is put down, then it is
+   straightened.
+
+   Both turn on the same point, the spine's own bottom right corner: the corner
+   a book leaning right would be resting on, standing on the shelf line the
+   cell leaves under it (the cell being the 359 the design draws under its
+   358). So the foot stays in its own slot the whole way in and everything else
+   moves around it. The scale alone turned about the middle of the bottom edge
+   and read as a card being placed rather than a book being shelved; the
+   rotation alone had it arrive at its own size, with nowhere to have come
+   from.
+
+   The halfway keyframe is the join, and the animation is `linear` so that the
+   easing each half carries in its own keyframe is what governs it — an
+   `ease-out` over the pair would have spent almost all of itself on the first
+   half and let the second crawl. 0.36s for the two, which is the 0.22 the
+   single movement took plus what a second one needs to be read as its own.
+
+   **6 degrees, and the row has all but room for it.** A spine is 358 tall and
+   the lean is at its widest while the book is still over size, so the top
+   corner swings out `1.4 × 358 × sin θ` past the pivot: 52.4px at 6, against
+   the 46.667 of padding the row has at either end. Only the last book of a
+   full row of 25 is anywhere near that edge, and it goes 5.7px into the face's
+   own right edge on its first frame and is clear of it a few frames later, as
+   it shrinks and before it has begun to stand up. 5 (43.7px) clears it
+   outright; the rotation on its own, with no scale multiplying it, could
+   afford 7.
+
+   Later siblings paint over earlier ones and the row fills left to right, so
+   the one being put away is the one in front, and it leans into the slot that
+   has nothing in it yet. */
+@keyframes home-spine-in {
+  from {
+    opacity: 0;
+    transform: scale(1.4) rotate(6deg);
+    animation-timing-function: ease-out;
+  }
+
+  /* Down to its own size, still leaning: the book has been put on the shelf
+     and has not been straightened yet. */
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(6deg);
+    animation-timing-function: ease-out;
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.home-shelf > .home-card-cell {
+  transform-origin: right bottom;
+  animation: home-spine-in 0.36s linear backwards;
+}
+
+/* The grid's own cell, which is what the card grows inside and what its Game
+   Hover hangs off. The hovered one is lifted over its neighbours, the card
+   having grown past its own column and the panel reaching two columns over. */
+.home-card-cell {
+  position: relative;
+  display: flex;
+}
+
+.home-card-cell.is-hovered {
+  z-index: 2;
+}
+
+/* Penpot board "Game Hover" — 346x255, drawn at three fifths here: the board
+   is sized for the side panel's rows, and beside a 253-wide card it read as the
+   bigger of the two. Scaled rather than rewritten, so `GameHover.css` keeps
+   the design's own figures and the panel comes out at exactly 3/5 of every one
+   of them; the origin is the corner it is placed by. It follows the pointer,
+   so where it goes is the component's (`trackHover`) and it hangs off the
+   board rather than off a card — the grid scrolls, so it clips. The pointer
+   goes through it: it is a label on the card under it, and the card must not
+   lose the hover to its own panel. */
+.home-card-hover {
+  position: absolute;
+  transform: scale(0.6);
+  transform-origin: top left;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Penpot: Content — 253 wide, the Thumbnail over its rule over the Title. */
+.home-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: center;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+/* Not in the design: a card is a control here, so under the pointer it comes
+   up and grows a little — from its own middle, so the row it is in does not
+   read as having moved. The scale is on the card rather than on the cell,
+   which is what keeps the Game Hover beside it at its own size.
+
+   **0.15s here is `GROW_MS` there.** A cell keeps the class for that long
+   whatever the pointer does, so a card the pointer only passes over still
+   grows the whole way before it comes back; the two figures have to agree or
+   it is held too long or let go early. */
+.home-card {
+  width: 100%;
+  transform-origin: center;
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease,
+    color 0.15s ease;
+}
+
+.home-card-cell.is-hovered .home-card {
+  transform: scale(1.04);
+  filter: brightness(1.12);
+  color: var(--color-text-bright);
+}
+
+/* Penpot: Thumbnail — 253x304, at the 5:6 the grid takes it to, over a plain
+   #B1B2B5 rectangle, which is what a game with no image of its own is left
+   with. The picture is the game's own Main Image cropped to the frame rather
+   than fitted into it, so every card in the grid is the same shape whatever
+   the picture's own proportions are. */
+.home-card-thumb {
+  width: var(--card-width);
+  height: var(--card-height);
+  flex-shrink: 0;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.home-card-thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+/* Penpot: Border — 253x1 at the card's own width, #f5f8fa, carried 5px below
+   the thumbnail on a margin pair that gives back what it takes, so the rule is
+   drawn clear of the picture without moving the title down. */
+.home-card-border {
+  width: var(--card-width);
+  height: 1px;
+  flex-shrink: 0;
+  background: var(--color-text-bright);
+  margin: 5px 0 -5px;
+}
+
+/* Penpot: Title — whatever the card leaves, its run centred in it. */
+.home-card-title {
+  flex: 1;
+  min-height: 0;
+  width: var(--card-width);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text);
+}
+
+/* Penpot: "title\ntitle" — Girassol 30px at a 0.7 line height, #e1e8ed,
+   centred: two tight lines is what the design draws and what the card has room
+   for, so a longer title is cut off after the second.
+
+   The clamp needs `overflow: hidden`, and at 0.7 the line box is shorter than
+   the ink standing in it (see the note in Setting.css), so the padding box is
+   grown above — which is what `overflow` clips against — and the same taken
+   back off the margin, leaving the box the card centres unchanged.
+
+   **Only above.** The room a second line's foot would want and the room a
+   clipped third line's head would show through are the same pixels: at 0.7 a
+   line's box ends exactly where the next line's ink begins, so any padding
+   under the clamp puts the tops of a third line on screen (measured: 0.3em let
+   9px of the next row of capitals through, which reads as a broken third
+   line). The design's own case is unaffected either way — Girassol sets
+   lowercase as small caps, whose ink is the 0.7 cap height the line box
+   already is — and what a title in Japanese loses to it is the last two or
+   three pixels of the second line. */
+.home-card-title-text {
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 0.7;
+  text-align: center;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  padding: 0.3em 0 0;
+  margin: -0.3em 0 0;
+}

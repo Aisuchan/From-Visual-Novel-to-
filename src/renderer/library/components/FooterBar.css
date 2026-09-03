@@ -90,3 +90,18 @@
 .footer-icon-gear:hover {
   color: var(--color-text);
 }
+
+/* The gear is the only one of the four that leads anywhere: it puts Penpot's
+   "Setting" board in the content column and takes it away again, and stays lit
+   while the board is up. As a button it needs the plate and padding a span
+   never had, so that nothing in the row moves. */
+.footer-icon-gear {
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.footer-icon-gear.is-open {
+  color: var(--color-text);
+}

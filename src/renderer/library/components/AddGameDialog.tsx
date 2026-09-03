@@ -7,6 +7,7 @@ import type {
   Tag
 } from '../../../shared/db-types'
 import { mediaUrl } from '../../../shared/media-url'
+import { suggestsGroup } from '../filter'
 import NewGroupSetting from './NewGroupSetting'
 import OptionMenu from './OptionMenu'
 import TagChip from './TagChip'
@@ -141,9 +142,8 @@ export default function AddGameDialog({
      closed, so nothing else decides whether the board is up. */
   const groupOptions = useMemo(() => {
     if (groupMenu === 'none') return []
-    const typed = groupName.trim().toLowerCase()
     const rows = groups
-      .filter((group) => groupMenu === 'all' || group.name.toLowerCase().includes(typed))
+      .filter((group) => groupMenu === 'all' || suggestsGroup(group.name, groupName))
       .map((group) => ({
         key: String(group.id),
         label: group.name,

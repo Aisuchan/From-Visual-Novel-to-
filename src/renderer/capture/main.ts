@@ -1,4 +1,5 @@
 import { Mp3Encoder } from '@breezystack/lamejs'
+import type { AudioFormat, ScreenshotFormat } from '../../shared/db-types'
 import type { CaptureCommand, CaptureTrack } from '../../shared/ipc-types'
 
 /*
@@ -48,9 +49,44 @@ interface AudioRecording {
   stream: MediaStream
   context: AudioContext
   node: AudioWorkletNode
-  encoder: Mp3Encoder
-  /** Samples waiting for a full block, one array per channel. */
+  channels: number
+  /**
+   * Null when the Setting board asks for WAV, which is not an encode at all:
+   * the samples go to the file as the 16-bit PCM they already nearly are,
+   * behind a header the worker writes as the recording's first chunk. That is
+   * why the format has to be known here rather than only where the file is
+   * named — one of the two paths produces bytes the other's file cannot hold.
+   */
+  encoder: Mp3Encoder | null
+  /** Samples waiting for a full block, one array per channel. MP3 only: a WAV
+      takes whatever arrives, whenever it arrives. */
   pending: Float32Array[]
+}
+
+/** The canonical RIFF/PCM header, whose two size fields are only known once
+    the recording ends — the main process patches them as it closes the file. */
+const WAV_HEADER_BYTES = 44
+
+function wavHeader(sampleRate: number, channels: number): Uint8Array {
+  const buffer = new ArrayBuffer(WAV_HEADER_BYTES)
+  const view = new DataView(buffer)
+  const bytesPerFrame = channels * 2
+  const text = (offset: number, value: string): void => {
+    for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i))
+  }
+  text(0, 'RIFF')
+  view.setUint32(4, 0, true) // patched: everything after this field
+  text(8, 'WAVEfmt ')
+  view.setUint32(16, 16, true) // the fmt chunk's own length
+  view.setUint16(20, 1, true) // 1 = uncompressed PCM
+  view.setUint16(22, channels, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * bytesPerFrame, true)
+  view.setUint16(32, bytesPerFrame, true)
+  view.setUint16(34, 16, true) // bits per sample
+  text(36, 'data')
+  view.setUint32(40, 0, true) // patched: the samples' own length
+  return new Uint8Array(buffer)
 }
 
 let audioRecording: AudioRecording | null = null
@@ -72,7 +108,10 @@ function pickMimeType(candidates: string[]): string | undefined {
   return candidates.find((type) => MediaRecorder.isTypeSupported(type))
 }
 
-async function screenshot(): Promise<Uint8Array> {
+/** JPEG quality, which is only asked for when the Setting board says jpg. */
+const JPEG_QUALITY = 0.92
+
+async function screenshot(format: ScreenshotFormat): Promise<Uint8Array> {
   const stream = await openStream()
   try {
     const video = document.createElement('video')
@@ -90,8 +129,13 @@ async function screenshot(): Promise<Uint8Array> {
     if (!context) throw new Error('キャンバスを準備できませんでした')
     context.drawImage(video, 0, 0)
 
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
-    if (!blob) throw new Error('PNG に変換できませんでした')
+    // The canvas is the encoder for both formats the Setting board offers, so
+    // the choice is one argument rather than a second path.
+    const type = format === 'jpg' ? 'image/jpeg' : 'image/png'
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, type, format === 'jpg' ? JPEG_QUALITY : undefined)
+    )
+    if (!blob) throw new Error(`${format.toUpperCase()} に変換できませんでした`)
     return new Uint8Array(await blob.arrayBuffer())
   } finally {
     stopStream(stream)
@@ -176,14 +220,32 @@ function sendMp3(data: Uint8Array): void {
   if (data.length > 0) window.capture.sendChunk({ track: 'audio', data })
 }
 
+/** A WAV interleaves its channels, so a block goes out frame by frame rather
+    than one channel at a time the way lame wants it. */
+function sendPcm(recording: AudioRecording, block: Float32Array[]): void {
+  const channels = recording.channels
+  const frames = block[0]?.length ?? 0
+  if (frames === 0) return
+  const out = new Int16Array(frames * channels)
+  for (let c = 0; c < channels; c++) {
+    const samples = block[c] ?? block[0]
+    for (let i = 0; i < frames; i++) {
+      const clamped = Math.max(-1, Math.min(1, samples[i]))
+      out[i * channels + c] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff
+    }
+  }
+  window.capture.sendChunk({ track: 'audio', data: new Uint8Array(out.buffer) })
+}
+
 /** Encodes whole blocks out of what has piled up, leaving the remainder. */
+/** MP3 only — it is called from behind a check that there is an encoder. */
 function drainPending(recording: AudioRecording, flush: boolean): void {
   const channels = recording.pending.length
   while (recording.pending[0].length >= MP3_BLOCK || (flush && recording.pending[0].length > 0)) {
     const size = Math.min(MP3_BLOCK, recording.pending[0].length)
     const left = toInt16(recording.pending[0].subarray(0, size))
     const right = channels > 1 ? toInt16(recording.pending[1].subarray(0, size)) : left
-    sendMp3(recording.encoder.encodeBuffer(left, channels > 1 ? right : undefined))
+    sendMp3(recording.encoder!.encodeBuffer(left, channels > 1 ? right : undefined))
     for (let c = 0; c < channels; c++) {
       recording.pending[c] = recording.pending[c].subarray(size)
     }
@@ -201,7 +263,7 @@ function appendPending(recording: AudioRecording, block: Float32Array[]): void {
   }
 }
 
-async function startAudio(): Promise<void> {
+async function startAudio(format: AudioFormat): Promise<void> {
   if (audioRecording) return
 
   const stream = await openStream()
@@ -229,12 +291,26 @@ async function startAudio(): Promise<void> {
       stream,
       context,
       node,
-      encoder: new Mp3Encoder(channels, context.sampleRate, MP3_KBPS),
+      channels,
+      encoder: format === 'wav' ? null : new Mp3Encoder(channels, context.sampleRate, MP3_KBPS),
       pending: Array.from({ length: channels }, () => new Float32Array(0))
+    }
+
+    // The header goes out before any samples do, so it is the front of the
+    // file whichever chunk arrives next.
+    if (!recording.encoder) {
+      window.capture.sendChunk({
+        track: 'audio',
+        data: wavHeader(context.sampleRate, channels)
+      })
     }
 
     node.port.onmessage = (event: MessageEvent<Float32Array[]>): void => {
       if (audioRecording !== recording) return
+      if (!recording.encoder) {
+        sendPcm(recording, event.data)
+        return
+      }
       appendPending(recording, event.data)
       drainPending(recording, false)
     }
@@ -260,17 +336,19 @@ async function stopAudio(): Promise<void> {
 
   recording.node.port.onmessage = null
   recording.node.disconnect()
-  // Whatever did not make up a whole block still belongs in the file.
-  drainPending(recording, true)
-  sendMp3(recording.encoder.flush())
+  if (recording.encoder) {
+    // Whatever did not make up a whole block still belongs in the file.
+    drainPending(recording, true)
+    sendMp3(recording.encoder.flush())
+  }
   await recording.context.close()
   stopStream(recording.stream)
 }
 
-async function run(command: CaptureCommand): Promise<{ png?: Uint8Array }> {
+async function run(command: CaptureCommand): Promise<{ image?: Uint8Array }> {
   switch (command.kind) {
     case 'screenshot':
-      return { png: await screenshot() }
+      return { image: await screenshot(command.format) }
     case 'start-video':
       await startRecording('video')
       return {}
@@ -278,7 +356,7 @@ async function run(command: CaptureCommand): Promise<{ png?: Uint8Array }> {
       await stopRecording('video')
       return {}
     case 'start-audio':
-      await startAudio()
+      await startAudio(command.format)
       return {}
     case 'stop-audio':
       await stopAudio()

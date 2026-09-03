@@ -1,0 +1,304 @@
+/* All values below are literal Penpot values from board "Setting"
+   (616c7363-b9b1-8054-8008-71d41ea22bb3), 1585x985 — the same slot in Main
+   Display that "Game" and "Add Thumbnail" occupy.
+
+   The design sets every one of this board's runs with a 0.7 line height, which
+   is Penpot's way of writing a box that is the ink's own height rather than a
+   line of type. That value is carried over literally, so a run's box here is
+   the box the design measures its spacings from. */
+
+.setting-board {
+  /* The language menu drops out of its row as an absolute child of the board,
+     so the board is what its design-pixel top and left are measured against. */
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-bg);
+}
+
+/* Penpot: Top — 1515x84, i.e. 45px of block and 35px of inline margin off a
+   1585 board. */
+.setting-top {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin: 45px 35px;
+}
+
+/* Penpot: Setting — the mark and the word over the rule, 11px apart. */
+.setting-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  row-gap: 11px;
+}
+
+/* Penpot: Letter — 350x65, 10px between the mark and the word. */
+.setting-letter {
+  height: 65px;
+  display: flex;
+  align-items: center;
+  column-gap: 10px;
+}
+
+/* Penpot draws the mark as a "⚙" run at 90px in a 76x65 box. It is the app's
+   own gear artwork instead — the same path the Main Image's button draws — so
+   it is placed by geometry rather than by wherever a glyph's baseline rounds
+   to; see `gear.ts`. Drawn at the box's height, which is what the design's
+   glyph comes to, and centred in the box's own 76. */
+.setting-mark {
+  width: 76px;
+  height: 65px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text);
+}
+
+.setting-mark svg {
+  width: 65px;
+  height: 65px;
+  display: block;
+  fill: currentColor;
+}
+
+/* Penpot: "Setting" — Girassol 91px, #e1e8ed */
+.setting-word {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 91px;
+  line-height: 0.7;
+  font-weight: 400;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Penpot: Under Line — 483x8: a 351px bar then a 132px taper, the same rule the
+   Game board's title carries. */
+.setting-underline {
+  width: 483px;
+  height: 8px;
+  flex-shrink: 0;
+  display: flex;
+}
+
+.setting-underline-bar {
+  flex: 1;
+  background: var(--color-text);
+}
+
+.setting-underline-tail {
+  width: 132px;
+  height: 8px;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* Penpot: Setting Container — 1585x811 under its own 1px #657786 stroke,
+   filling everything the Top leaves. The rows run off the bottom of a short
+   window rather than out of the board, so the container is what scrolls.
+
+   Every stroke on this board is drawn as an inset shadow rather than as a
+   border. Penpot's are inner strokes, which are painted over the shape without
+   taking anything from it; a CSS border is taken out of the box, and the design
+   is written to the pixel — measured, borders put the rows 1px low, the
+   controls 2px in from the right edge the design lands them on, and left the
+   167px value box 4px short of the 117 "enable" is set at, which cut it to
+   "enab...". An inset shadow follows the same corner radii and leaves the box
+   whole. */
+.setting-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  box-shadow: inset 0 0 0 1px var(--color-text-dim);
+  overflow-y: auto;
+}
+
+/* Penpot: Setting Column — 1585x141 with 30px of block and 35px of inline
+   padding, carrying its own 1px #657786 stroke on top of the container's. The
+   two rows are drawn flush, so the seam between them is a row's bottom stroke
+   against the next one's top — which is how the design draws it. */
+.setting-column {
+  flex: 0 0 141px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 30px 35px;
+  box-shadow: inset 0 0 0 1px var(--color-text-dim);
+}
+
+/* Penpot: Setting Explain — 346x81, the name 20px above the line under it. */
+.setting-explain {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  row-gap: 20px;
+  min-width: 0;
+}
+
+/* Penpot: "Setting Name" — Girassol 45px, #e1e8ed. The design's 0.7 is its own
+   raster of the ink; this build's Girassol sets the same run 36 tall, so 0.8 is
+   what makes the box the ink again. That box is what the 20px under it is
+   measured from and what the row centres, so at 0.7 the pair sat 1.5px high in
+   the row with 18 of the design's 20 left between the two runs. */
+.setting-name {
+  font-family: var(--font-display);
+  font-size: 45px;
+  line-height: 0.8;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Penpot: "Setting description..." — Girassol 40px, #aab8c2 */
+.setting-description {
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 0.7;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* See the note under `.setting-select-label`: the run is a box 0.7em tall
+     holding ink that is taller than it, and `overflow` clips both axes. */
+  padding: 0.3em 0;
+  margin: -0.3em 0;
+}
+
+/* Penpot: Select Box — 207x59, the value's 167 box and the 40px arrow beside
+   it squared off into one pill by 15px radii at its two ends. Both halves carry
+   their own 2px #aab8c2 stroke, so the divide between them is the two of them
+   together. The value's box has no fill of its own.
+
+   The whole box is the button rather than only the arrow: a language is one of
+   a fixed list, so there is nothing to type into the field and the menu is the
+   only way to change it — which is what the side panel's Sort field is. */
+.setting-select {
+  width: 207px;
+  height: 59px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* Penpot: Now Setting — 167x59, 25px of side padding. The design puts the run
+   12 down from the top and leaves 18 under it, which is its own drift rather
+   than a measurement — the other row's copy of the same box is 15/15 — and a
+   value set in Japanese, whose ink fills far more of its line than "enable"
+   does, reads as sitting high off it (measured at zoom 1: 4px above the box's
+   middle). The run is centred instead, which lands its ink within a pixel. */
+.setting-select-value {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  transition: box-shadow 0.15s ease;
+  padding: 0 25px;
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
+  border-radius: 15px 0 0 15px;
+}
+
+/* The design draws no hover state. The box is a control here, so its stroke
+   comes up to the ink the value is set in while the pointer is on it. */
+.setting-select:hover .setting-select-value {
+  box-shadow: inset 0 0 0 2px var(--color-text);
+}
+
+/* Penpot: "enable" — Girassol 41px, #aab8c2 */
+.setting-select-label {
+  font-family: var(--font-display);
+  font-size: 41px;
+  line-height: 0.7;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0.3em 0;
+  margin: -0.3em 0;
+}
+
+/* **A run set at the design's line height must not be clipped by it.** Penpot's
+   0.7 is the ink's own box, so any run whose glyphs are taller than that box —
+   a capital in this face reaches 0.8em, and a Japanese glyph very nearly the
+   whole em — hangs out of it on purpose. `overflow: hidden` is there for the
+   ellipsis, which is a horizontal matter, but it clips both axes: measured, the
+   Select Box's 日本語 came back 27px tall against the 36 it is drawn at, cut
+   flat top and bottom, and the description lost the top of its capital S.
+   There is no overflow-x-only in CSS — naming one axis `hidden` turns the other
+   into `auto` — so the padding box is grown by 0.3em above and below, which is
+   what `overflow` clips against, and the same amount is taken back off the
+   margin so the box the layout sees, and the row centres, is unchanged. */
+
+/* Penpot: Show Option — 40x59, #1da1f2 under the same 2px stroke. */
+.setting-select-arrow {
+  flex: 0 0 40px;
+  align-self: stretch;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent);
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
+  border-radius: 0 15px 15px 0;
+}
+
+/* Penpot: "▼" — Girassol 20px, #e1e8ed */
+.setting-select-caret {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 0.7;
+  color: var(--color-text);
+}
+
+/* Penpot: On / Off Button — 207x59, the two halves rounded 15px at the pair's
+   own ends and each under a 2px #aab8c2 stroke. */
+.setting-switch {
+  height: 59px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Penpot: On — 104x59, 27px of side padding; Off — 103x59, 17px. Both put the
+   run 8 down from their top, and both are as wide as that padding and the run
+   come to. */
+.setting-switch-half {
+  height: 100%;
+  display: flex;
+  align-items: flex-start;
+  background: var(--color-strip);
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
+}
+
+.setting-switch-half.chosen {
+  background: var(--color-accent);
+}
+
+.setting-switch-half.on {
+  padding: 8px 27px 15px;
+  border-radius: 15px 0 0 15px;
+}
+
+.setting-switch-half.off {
+  padding: 8px 17px 15px;
+  border-radius: 0 15px 15px 0;
+}
+
+/* Penpot: "on" / "off" — Girassol 50px, #e1e8ed */
+.setting-switch-label {
+  font-family: var(--font-display);
+  font-size: 50px;
+  line-height: 0.7;
+  color: var(--color-text);
+  white-space: nowrap;
+}

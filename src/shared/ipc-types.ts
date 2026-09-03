@@ -1,8 +1,11 @@
 import type {
+  AppSettings,
+  AudioFormat,
   FooterStats,
   GameImage,
   GameWithStats,
   Group,
+  HomeLayout,
   LaunchPrefs,
   NewGameInput,
   NewGroupInput,
@@ -10,6 +13,7 @@ import type {
   ProgressState,
   Route,
   RoutePatch,
+  ScreenshotFormat,
   Session,
   Tag
 } from './db-types'
@@ -25,6 +29,8 @@ export const IpcChannels = {
   GamesExtractExeIcon: 'games:extract-exe-icon',
   GamesSetPlayTime: 'games:set-play-time',
   GamesSetThumbnail: 'games:set-thumbnail',
+  GamesPickHomeImage: 'games:pick-home-image',
+  GamesClearHomeImage: 'games:clear-home-image',
   GamesSetProgress: 'games:set-progress',
   GameImagesList: 'game-images:list',
   GameImagesAdd: 'game-images:add',
@@ -37,6 +43,8 @@ export const IpcChannels = {
   GroupsList: 'groups:list',
   GroupsAdd: 'groups:add',
   TagsList: 'tags:list',
+  SettingsGet: 'settings:get',
+  SettingsSet: 'settings:set',
   GamesFooterStats: 'games:footer-stats',
   LaunchPrefsGet: 'launch-prefs:get',
   LaunchPrefsSet: 'launch-prefs:set',
@@ -116,17 +124,20 @@ export type CaptureTrack = 'video' | 'audio'
  * files, the worker owns the streams.
  */
 export type CaptureCommand =
-  | { id: number; kind: 'screenshot' }
+  /* The two formats the Setting board can change reach the worker as part of
+     the command: it is the worker that encodes, and the setting is read once
+     per capture so a change takes on the next one without a restart. */
+  | { id: number; kind: 'screenshot'; format: ScreenshotFormat }
   | { id: number; kind: 'start-video' }
   | { id: number; kind: 'stop-video' }
-  | { id: number; kind: 'start-audio' }
+  | { id: number; kind: 'start-audio'; format: AudioFormat }
   | { id: number; kind: 'stop-audio' }
 
 export interface CaptureResultPayload {
   id: number
   error?: string
-  /** `screenshot` only: the PNG bytes, written out by the main process. */
-  png?: Uint8Array
+  /** `screenshot` only: the encoded image, written out by the main process. */
+  image?: Uint8Array
 }
 
 export interface CaptureChunkPayload {
@@ -154,6 +165,19 @@ export interface LibraryApi {
   setTotalPlaySeconds(gameId: number, seconds: number): Promise<void>
   /** Applies one of the game's registered images as its main thumbnail. */
   setThumbnail(gameId: number, filePath: string): Promise<GameWithStats>
+  /**
+   * What a Home cell's right-click menu asks for: a picture for that one face,
+   * picked and copied in one call so the copy lands in the face's own folder
+   * rather than in the Add Thumbnail gallery's. `null` back means the dialog
+   * was closed and nothing changed; `clearHomeImage` hands the cell back to the
+   * game's Main Image and takes the copy off disk.
+   *
+   * A picture set this way is that face's alone — nowhere else in the app reads
+   * these two, which is what keeps it off the Game board and out of the
+   * gallery.
+   */
+  pickHomeImage(gameId: number, face: HomeLayout): Promise<GameWithStats | null>
+  clearHomeImage(gameId: number, face: HomeLayout): Promise<GameWithStats>
   /**
    * Sets what the Progress triangle reads. `state` null hands it back to the
    * play history; `score` is only kept for 'cleared', and null there means the
@@ -185,6 +209,11 @@ export interface LibraryApi {
      into it and takes it out again is a game being written (`setGameTags`).
      The side panel's chips only read it to match what has been typed. */
   listTags(): Promise<Tag[]>
+
+  /* The Setting board's own rows. Both calls answer with the whole of the
+     settings, the way the routes and images APIs answer with a whole list. */
+  getSettings(): Promise<AppSettings>
+  setSettings(patch: Partial<AppSettings>): Promise<AppSettings>
   /** The game's sessions, newest first — the Play Log board's source. */
   listSessions(gameId: number): Promise<Session[]>
   getFooterStats(): Promise<FooterStats>
@@ -202,9 +231,9 @@ export interface OverlayApi {
   onTick(cb: (payload: OverlayTickPayload) => void): () => void
   onCaptureState(cb: (state: CaptureState) => void): () => void
   takeScreenshot(): Promise<ScreenshotResult>
-  /** Starts or stops recording the game window to a .webm. */
+  /** Starts or stops recording the game window, in the Setting board's format. */
   toggleVideo(): Promise<CaptureToggleResult>
-  /** Starts or stops recording the system's audio to a .webm. */
+  /** Starts or stops recording the system's audio, likewise. */
   toggleAudio(): Promise<CaptureToggleResult>
   togglePause(): Promise<{ paused: boolean }>
   /**

@@ -3,7 +3,7 @@ import './TagChip.css'
 
 interface Props {
   name: string
-  /** The chip Add Tag has just put out: the only one that can be written in. */
+  /** The chip Add Tag has just put out, which opens with the caret in it. */
   editing?: boolean
   /** The name as it stands when the edit ends. Empty removes the chip. */
   onCommit?: (name: string) => void
@@ -18,10 +18,17 @@ interface Props {
  * the row's own 40px tall, rounded right off, #222326 under #657786, with a ✕
  * inside its right end.
  *
- * A chip is only written in as it is made; after that the name stands, and the
- * ✕ is what takes it back. A chip is as wide as what is written in it, which an
- * input cannot do by itself, so while it is being written the width comes from
- * a copy of the text laid out in the same face with the input over it.
+ * A chip is written in as it is made, and **a settled one is opened again by
+ * double-clicking its name** — the ✕ takes the whole chip away, so without that
+ * a name with a letter wrong had to be thrown out and typed again. Which chip
+ * the row has just put out is the row's to say (`editing`); reopening one is
+ * the chip's own business, so it is held here. A chip that cannot be committed
+ * at all — the Game board's, which only say what a game is filed under — is not
+ * opened by a double-click either.
+ *
+ * A chip is as wide as what is written in it, which an input cannot do by
+ * itself, so while it is being written the width comes from a copy of the text
+ * laid out in the same face with the input over it.
  */
 export default function TagChip({
   name,
@@ -30,18 +37,40 @@ export default function TagChip({
   onDelete
 }: Props): React.JSX.Element {
   const [value, setValue] = useState(name)
+  /** Set by a double-click on a settled chip; the row knows nothing about it. */
+  const [reopened, setReopened] = useState(false)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  /* Escape restores the name and blurs, and the blur is what commits — but it
+     reads the value the field was rendered with, which is still what had been
+     typed. So the cancel is flagged rather than written into the value, and the
+     blur below settles on the name the chip came in with. */
+  const cancelled = useRef(false)
+
+  const open = editing || reopened
+  const renamable = onCommit !== undefined
 
   // A rename that came from anywhere else wins back while this one is idle.
   useEffect(() => setValue(name), [name])
 
   useEffect(() => {
-    if (editing) inputRef.current?.focus()
-  }, [editing])
+    if (!open) return
+    const input = inputRef.current
+    if (!input) return
+    input.focus()
+    // A chip opened again is opened to be renamed: the name it has is the
+    // thing being replaced, so it is taken. A new chip is empty either way.
+    input.select()
+  }, [open])
+
+  /** Ends the edit, whichever way it was opened. */
+  function settle(next: string): void {
+    setReopened(false)
+    onCommit?.(next)
+  }
 
   return (
-    <span className={`tag-chip ${onDelete ? '' : 'static'}`}>
-      {editing ? (
+    <span className={`tag-chip ${onDelete ? '' : 'static'} ${renamable ? 'renamable' : ''}`}>
+      {open ? (
         <span className="tag-chip-edit">
           {/* The sizer is what the chip measures; it is never seen. */}
           <span className="tag-chip-sizer" aria-hidden="true">
@@ -53,11 +82,21 @@ export default function TagChip({
             value={value}
             maxLength={30}
             onChange={(e) => setValue(e.target.value)}
-            onBlur={() => onCommit?.(value)}
+            onBlur={() => {
+              if (cancelled.current) {
+                cancelled.current = false
+                setValue(name)
+                // The name it came in with: a rename undone, and a chip that
+                // never had one taken off the row the way an empty one is.
+                settle(name)
+                return
+              }
+              settle(value)
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') e.currentTarget.blur()
               if (e.key === 'Escape') {
-                setValue(name)
+                cancelled.current = true
                 e.currentTarget.blur()
               }
             }}
@@ -65,7 +104,13 @@ export default function TagChip({
           />
         </span>
       ) : (
-        <span className="tag-chip-name">{name}</span>
+        <span
+          className="tag-chip-name"
+          onDoubleClick={renamable ? () => setReopened(true) : undefined}
+          title={renamable ? 'ダブルクリックで名前を変更' : undefined}
+        >
+          {name}
+        </span>
       )}
 
       {onDelete && (

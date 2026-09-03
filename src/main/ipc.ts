@@ -3,7 +3,13 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import * as db from './db'
-import type { NewGroupInput, NewRouteInput, ProgressState, RoutePatch } from '../shared/db-types'
+import type {
+  HomeLayout,
+  NewGroupInput,
+  NewRouteInput,
+  ProgressState,
+  RoutePatch
+} from '../shared/db-types'
 import { launchGame } from './launcher'
 import * as capture from './capture'
 import {
@@ -81,6 +87,19 @@ function finishActiveSession(): void {
   })
 }
 
+/** The copy a face was carrying, once it is carrying another one or none. Only
+    the copies this app made under its own folder are ours to remove. */
+function removeHomeImageFile(
+  game: { homeCardImage: string | null; homeSpineImage: string | null } | null,
+  face: HomeLayout
+): void {
+  const previous = face === 'shelf' ? game?.homeSpineImage : game?.homeCardImage
+  if (!previous) return
+  const owned = path.join(app.getPath('userData'), 'home-images')
+  if (path.relative(owned, previous).startsWith('..')) return
+  fs.rmSync(previous, { force: true })
+}
+
 export function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannels.GamesList, () => db.listGames())
 
@@ -103,6 +122,41 @@ export function registerIpcHandlers(): void {
     (_event, gameId: number, state: ProgressState | null, score: number | null) =>
       db.setProgress(gameId, state, score)
   )
+
+  /* The picture one Home face shows for one game. It is picked, copied and
+     written in a single call because the copy is not the gallery's: it goes to
+     this face's own folder, and the one it replaces is taken off disk with it.
+     Nothing here touches `game_images` or `thumbnail_path`, which is what keeps
+     the change to the cell it was made on. */
+  ipcMain.handle(
+    IpcChannels.GamesPickHomeImage,
+    async (_event, gameId: number, face: HomeLayout) => {
+      const result = await dialog.showOpenDialog({
+        title: face === 'shelf' ? '背表紙の画像を選択' : 'サムネイルの画像を選択',
+        properties: ['openFile'],
+        filters: [{ name: '画像', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
+      })
+      if (result.canceled || result.filePaths.length === 0) return null
+
+      const destDir = path.join(app.getPath('userData'), 'home-images', String(gameId))
+      fs.mkdirSync(destDir, { recursive: true })
+      const src = result.filePaths[0]
+      const dest = path.join(destDir, `${randomUUID()}${path.extname(src)}`)
+      fs.copyFileSync(src, dest)
+
+      const before = db.getGame(gameId)
+      const updated = db.setHomeImage(gameId, face, dest)
+      removeHomeImageFile(before, face)
+      return updated
+    }
+  )
+
+  ipcMain.handle(IpcChannels.GamesClearHomeImage, (_event, gameId: number, face: HomeLayout) => {
+    const before = db.getGame(gameId)
+    const updated = db.setHomeImage(gameId, face, null)
+    removeHomeImageFile(before, face)
+    return updated
+  })
 
   ipcMain.handle(IpcChannels.GameImagesList, (_event, gameId: number) => db.listGameImages(gameId))
 
@@ -129,6 +183,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannels.GroupsAdd, (_event, input: NewGroupInput) => db.addGroup(input))
 
   ipcMain.handle(IpcChannels.TagsList, () => db.listTags())
+
+  ipcMain.handle(IpcChannels.SettingsGet, () => db.getSettings())
+  ipcMain.handle(IpcChannels.SettingsSet, (_e, patch) => db.setSettings(patch))
 
   ipcMain.handle(IpcChannels.SessionsList, (_event, gameId: number) => db.listSessions(gameId))
 
