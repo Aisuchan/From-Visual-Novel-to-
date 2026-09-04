@@ -160,6 +160,42 @@ export interface Session {
   recorded: boolean
 }
 
+/** One local day's recorded play time — what the Calender board's cells carry
+    while "Show Playtime" is on. `date` is a local "YYYY-MM-DD", and a day with
+    no play time at all is simply absent from the list. */
+export interface DayPlaytime {
+  date: string
+  seconds: number
+}
+
+/** A plan on the Calender board — one entry on a day of the schedule. */
+export interface Plan {
+  id: number
+  /** The local day it falls on, written as "YYYY-MM-DD". */
+  date: string
+  name: string
+  /** Penpot: "PLAN DESCRIPTION" — the line under the name; may be empty. */
+  description: string
+  /** #rrggbb; the plate the plan is drawn on, in the cell's chip and in the
+      Plan panel's own list. */
+  color: string
+  /** Penpot's own Notification switch. Stored; nothing raises a notification
+      yet, the way `language` is stored and nothing reads it. */
+  notify: boolean
+}
+
+export type NewPlanInput = Omit<Plan, 'id'>
+
+/** What one game was played for on one local day. The PlayTime Graph board's
+    whole source: its pie and its game list add these up per game, its histogram
+    per day, and its bars are the rows themselves. */
+export interface DayGamePlaytime {
+  /** The local day, "YYYY-MM-DD". */
+  date: string
+  gameId: number
+  seconds: number
+}
+
 export interface LaunchPrefs {
   gameId: number | null
   recordTime: boolean
@@ -195,6 +231,25 @@ export type AudioFormat = 'mp3' | 'wav'
    so that opening Home again finds it where it was left. */
 export type HomeLayout = 'grid' | 'shelf'
 
+/* Which of Penpot's "Setting Period" rows the PlayTime Graph opens on. Not a
+   row on the Setting board either: it is what that board's own SET DEFAULT was
+   last pressed on, kept so the graph opens on the period its owner reads. */
+export const GRAPH_PERIODS = [
+  'today',
+  'yesterday',
+  'this-week',
+  'last-week',
+  'this-month',
+  'last-month',
+  'this-quarter',
+  'last-quarter',
+  'this-half',
+  'last-half',
+  'this-year',
+  'last-year'
+] as const
+export type GraphPeriod = (typeof GRAPH_PERIODS)[number]
+
 /** The app's own settings, read and written as a whole. */
 export interface AppSettings {
   language: Language
@@ -202,4 +257,5 @@ export interface AppSettings {
   videoFormat: VideoFormat
   audioFormat: AudioFormat
   homeLayout: HomeLayout
+  graphPeriod: GraphPeriod
 }

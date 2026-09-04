@@ -1,0 +1,327 @@
+/* Every value below is a literal from Penpot's board "Setting Period"
+   (9b87421c-4b34-8035-8008-813a0596f964), 291x688 on the 1920x1080 canvas —
+   which is exactly the width of the Period Setting row it drops out of, so
+   nothing here has to be stretched to meet it.
+
+   Its 3px stroke is an inner one, so it is an inset shadow rather than a
+   border: a border comes out of the box and would take the 287 the options
+   are drawn at down to 285 and shift every literal offset inside it. It is
+   set in #657786 rather than the design's #e1e8ed — at 3px a frame in the
+   text's own colour reads as a second thing on the board rather than as the
+   edge of the one under it. */
+
+.period-menu {
+  position: absolute;
+  width: 291px;
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 3px var(--color-text-dim);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  /* The date fields' own lists hang off this box rather than sitting in it, so
+     nothing here may clip them — and being absolute, they do not stretch the
+     frame either. The drop below clips itself. */
+  overflow: visible;
+  /* The same downward wipe OptionMenu arrives on, so both of the app's menus
+     run out of the row that opened them rather than appearing over it. */
+  animation: period-menu-drop 0.12s ease-out;
+}
+
+@keyframes period-menu-drop {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* Penpot: Period Options — 287x488 at 2/2, twelve 39px rows with nothing
+   between them. The design's own 10 of air above the first row and under the
+   last is gone, and so are the block's 2 above and below: neither belongs to an
+   option. What is left in their place is 5 — a row is 39 for a 29px run, so it
+   carries 5 of its own above and below, and two rows therefore stand 10 apart.
+   Five here gives the first row and the last exactly that same 10 against the
+   frame and against the rule, so no gap in the list is unlike another. */
+.period-menu-options {
+  margin: 0 2px;
+  padding: 5px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Penpot: each option's own board — 287x39, its label 15 in from the left and
+   its SET DEFAULT held against the far edge by the same 15. The design draws
+   no hover; a row is a control here, so it takes the plate OptionMenu's rows
+   take, out to the block's own edge. */
+.period-menu-row {
+  flex: 0 0 39px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  overflow: hidden;
+  transition: background 0.15s ease;
+}
+
+.period-menu-row:hover {
+  background: rgba(225, 232, 237, 0.14);
+}
+
+/* Not in the design: the row the period stands at takes the app's accent as
+   its plate and keeps its own ink, the way OptionMenu marks the row a list
+   opens on. */
+.period-menu-row.is-current {
+  background: var(--color-accent);
+}
+
+.period-menu-row.is-current:hover {
+  background-image: linear-gradient(rgba(225, 232, 237, 0.14), rgba(225, 232, 237, 0.14));
+}
+
+/* Penpot: "Today" and the eleven beside it — Girassol 24 in #e1e8ed. The
+   button fills the row so the whole of it picks the period; SET DEFAULT is
+   the one part of it that does something else. */
+.period-menu-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0 0 0 15px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+/* Penpot: SET DEFAULT — Girassol 18 in #657786, a 90-wide run held 15 clear
+   of the block's own right edge, and hidden. It is shown by the pointer being
+   on its own row and no other, so `visibility` rather than `display`: the run
+   keeps its width either way and no label beside it moves when it appears. */
+.period-menu-default {
+  flex: 0 0 90px;
+  margin-right: 15px;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: right;
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.2;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+  visibility: hidden;
+  cursor: pointer;
+}
+
+.period-menu-row:hover .period-menu-default {
+  visibility: visible;
+}
+
+.period-menu-default:hover {
+  color: var(--color-text);
+}
+
+/* The row the default already stands on says so when it is reached for, in
+   the app's accent — without it there is no telling a press has landed. */
+.period-menu-default.is-default {
+  color: var(--color-accent);
+}
+
+/* Penpot: Border — 267x1 in #B1B2B5, 10 in from either side of the 287. */
+.period-menu-rule {
+  height: 1px;
+  margin: 0 12px;
+  background: var(--color-border);
+}
+
+/* Penpot: Spicifing — 287x195, 15 of air above its title and 25 under the
+   dates. */
+.period-menu-specify {
+  margin: 0 2px;
+  padding: 15px 15px 25px;
+}
+
+/* Folded, the block is a title and nothing else, and the design's 25 under the
+   dates then reads as a gap holding nothing up. It takes the 15 it already has
+   above, so the title sits the same distance from the rule over it as from the
+   frame under it. */
+.period-menu-specify.is-folded {
+  padding-bottom: 15px;
+}
+
+/* Penpot: Title / Open — 257x29, the run against the left and the caret
+   against the right. */
+.period-menu-specify-head {
+  height: 29px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+/* Penpot: "SPECIFY THE PERIOD" — Girassol 24 in #e1e8ed. */
+.period-menu-specify-title {
+  flex: 1 1 auto;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Penpot: Open — an 18x29 box carrying the ▼ the design shows and the ▲ it
+   hides. */
+.period-menu-specify-caret {
+  flex: 0 0 18px;
+  height: 29px;
+  padding: 0;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+/* Penpot: Date Setting — 257x111, the two rows 72 apart with the turned "»"
+   between them. The rows are 250 wide, which is 3.5 in from either side. */
+.period-menu-dates {
+  position: relative;
+  height: 111px;
+  margin-top: 15px;
+}
+
+.period-menu-date {
+  position: absolute;
+  left: 3.5px;
+  width: 250px;
+  height: 39px;
+  display: flex;
+  flex-direction: row;
+}
+
+.period-menu-date:first-of-type {
+  top: 0;
+}
+
+.period-menu-date:last-of-type {
+  top: 72px;
+}
+
+/* Penpot: To — a 35x13 box at 111/49 holding the "»" at Girassol 22, turned
+   90° so it points at the row under it. */
+.period-menu-to {
+  position: absolute;
+  left: 111px;
+  top: 49px;
+  width: 35px;
+  height: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--color-text);
+  transform: rotate(90deg);
+}
+
+/* Penpot: Year — 86 wide; Month and Day — 82 each. Every one of them is a
+   value box 5 in from its own left with the ▼ hard against it and 5 left at
+   the far end. */
+.period-menu-field {
+  position: relative;
+  height: 39px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 5px;
+}
+
+.period-menu-field.year {
+  flex: 0 0 86px;
+}
+
+.period-menu-field.month,
+.period-menu-field.day {
+  flex: 0 0 82px;
+}
+
+/* Penpot: Now Setted Year / Month — 58 and 54 wide by 33, rounded 5 on the two
+   corners that fall on the pair's own left edge, under a 1px #aab8c2 stroke.
+   Inner strokes again, so inset shadows. */
+.period-menu-value {
+  height: 33px;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 5px 0 0 5px;
+  box-shadow: inset 0 0 0 1px var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.period-menu-field.year .period-menu-value {
+  flex: 0 0 58px;
+}
+
+.period-menu-field.month .period-menu-value,
+.period-menu-field.day .period-menu-value {
+  flex: 0 0 54px;
+}
+
+/* Penpot: Show Options — 18x33, rounded 5 on the outer pair, its ▼ at
+   Girassol 12 in #aab8c2. */
+.period-menu-caret {
+  flex: 0 0 18px;
+  height: 33px;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 0 5px 5px 0;
+  box-shadow: inset 0 0 0 1px var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.period-menu-value:hover,
+.period-menu-caret:hover {
+  background: rgba(225, 232, 237, 0.1);
+}
+
+/* These fields are all plate and no ring — the theme's accent focus ring reads
+   as a blue box just inside a 1px stroke, which is where the design draws
+   nothing at all. The same call the two boards' own filter fields make. */
+.period-menu-value:focus-visible,
+.period-menu-caret:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-text-muted);
+}
+
+.period-menu-specify-caret:focus-visible,
+.period-menu-label:focus-visible,
+.period-menu-default:focus-visible {
+  outline: none;
+}

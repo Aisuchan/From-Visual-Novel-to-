@@ -16,6 +16,8 @@ import GameDetail from './components/GameDetail'
 import AddThumbnail from './components/AddThumbnail'
 import Setting from './components/Setting'
 import Home from './components/Home'
+import Calendar from './components/Calendar'
+import PlaytimeGraph from './components/PlaytimeGraph'
 import FooterBar from './components/FooterBar'
 import AddGameDialog from './components/AddGameDialog'
 import NewGroupSetting from './components/NewGroupSetting'
@@ -24,7 +26,13 @@ import Confetti, { type ConfettiClip } from './components/Confetti'
 import Balloons from './components/Balloons'
 import './App.css'
 
-type MainView = 'game' | 'add-thumbnail' | 'setting' | 'home'
+type MainView =
+  | 'game'
+  | 'add-thumbnail'
+  | 'setting'
+  | 'home'
+  | 'calendar'
+  | 'graph'
 
 export default function App(): React.JSX.Element {
   const [games, setGames] = useState<GameWithStats[]>([])
@@ -51,7 +59,8 @@ export default function App(): React.JSX.Element {
     screenshotFormat: 'png',
     videoFormat: 'mp4',
     audioFormat: 'mp3',
-    homeLayout: 'grid'
+    homeLayout: 'grid',
+    graphPeriod: 'this-week'
   })
   const [editingGame, setEditingGame] = useState<GameWithStats | null>(null)
   /* The game the side panel has asked to delete. Deleting one takes its
@@ -64,8 +73,8 @@ export default function App(): React.JSX.Element {
   const [celebration, setCelebration] = useState<ConfettiClip | null>(null)
   // The confetti's last seconds, which the balloons leave on too.
   const [finishing, setFinishing] = useState(false)
-  // Which board fills the content column: Penpot's "Game", "Add Thumbnail" or
-  // "Setting".
+  // Which board fills the content column: Penpot's "Game", "Add Thumbnail",
+  // "Setting", "Home" or "Calender".
   const [mainView, setMainView] = useState<MainView>('game')
   const shellRef = useRef<HTMLDivElement | null>(null)
 
@@ -284,6 +293,27 @@ export default function App(): React.JSX.Element {
         />
       )
     }
+    /* The PlayTime Graph stands in the Calender board's own slot and is
+       reached from it. It is a screen of its own rather than a face of that
+       one, so the mouse's side buttons step back to the calendar rather than
+       past it — and the swap gets the board slot's own fade. */
+    if (view === 'graph') {
+      return (
+        <PlaytimeGraph
+          games={games}
+          defaultPeriod={settings.graphPeriod}
+          onSetDefaultPeriod={async (graphPeriod) =>
+            setSettings(await window.library.setSettings({ graphPeriod }))
+          }
+          onBack={() => setMainView('calendar')}
+        />
+      )
+    }
+    // The month is the app's own too, so this board likewise stands with no
+    // game selected.
+    if (view === 'calendar') {
+      return <Calendar onOpenGraph={() => setMainView('graph')} />
+    }
     if (view === 'setting') {
       return (
         <Setting
@@ -339,12 +369,17 @@ export default function App(): React.JSX.Element {
           groups={groups}
           tags={tags}
           /* The panel's highlight is where the content column *is*, not what
-             was last opened: the Home and Setting boards are the app's rather
-             than a game's, so while one of them is up no row is the one being
-             shown. The game itself is still selected — stepping back through
+             was last opened: the Home, Setting and Calender boards are the
+             app's rather than a game's, so while one of them is up no row is
+             the one being shown. The game itself is still selected — stepping back through
              the history, or pressing HOME again, returns to its board. */
           selectedGameId={
-            mainView === 'home' || mainView === 'setting' ? null : selectedGameId
+            mainView === 'home' ||
+            mainView === 'setting' ||
+            mainView === 'calendar' ||
+            mainView === 'graph'
+              ? null
+              : selectedGameId
           }
           /* The board as well as the game: the effect below only fires when
              the id actually changes, so picking the game that is already
@@ -360,6 +395,14 @@ export default function App(): React.JSX.Element {
           onAddGroup={() => setShowNewGroup(true)}
           onHome={() => setMainView((current) => (current === 'home' ? 'game' : 'home'))}
           homeOpen={mainView === 'home'}
+          /* The graph is reached from the calendar and stands in its slot, so
+             the clock is lit for either and takes both away again. */
+          onCalendar={() =>
+            setMainView((current) =>
+              current === 'calendar' || current === 'graph' ? 'game' : 'calendar'
+            )
+          }
+          calendarOpen={mainView === 'calendar' || mainView === 'graph'}
         />
 
         <div className="main-column">
@@ -368,7 +411,9 @@ export default function App(): React.JSX.Element {
               same frame the fade begins. Add Thumbnail has a whole page of
               pictures to read and decode, so it fades for longer. */}
           <div
-            className={`board-slot ${mainView === 'add-thumbnail' ? 'slow-fade' : ''}`}
+            className={`board-slot ${
+              mainView === 'add-thumbnail' || mainView === 'graph' ? 'slow-fade' : ''
+            }`}
             key={mainView}
           >
             {renderBoard(mainView)}

@@ -1,0 +1,504 @@
+/* All values below are literal Penpot values from board "Plan"
+   (1470030f-9d39-80f3-8008-7dbb9a8ba25a), 319x637 on the 1920x1080 canvas. It
+   is drawn beside the Calender board's grid, so it is laid out in the same
+   design pixels the board is and needs no scaling of its own.
+
+   Its 5px stroke is an inner one in Penpot, so it is an inset shadow here
+   rather than a border — a border would take the panel's 319 down to 309 and
+   shift every literal offset inside it, which is the rule this whole board is
+   written to. */
+
+.plan-panel {
+  position: absolute;
+  /* Penpot draws the board 319 wide, its plates 269 and 25 in from either
+     side. The panel is widened to 353 so those 25 become 42 and the day steps
+     have a margin of their own to sit in: a 30-wide arrow with 6 of air either
+     side comes to exactly that 42, and the plates, the rules and the fields
+     all keep the design's own widths. */
+  width: 353px;
+  height: 637px;
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 5px var(--color-text-dim);
+  border-radius: 30px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Penpot: Day — 309x76 at the panel's own 5, holding the date and the mark
+   that puts the panel away. The date is 20 in and 20 down; the mark's 46x44
+   box ends 20 in from the other side. */
+.plan-panel-head {
+  position: relative;
+  /* Penpot: the Day board is 5..81 and the rule sits on 81, so the head is 81
+     and the container that follows the rule begins at the design's own 83. */
+  flex: 0 0 81px;
+}
+
+/* Penpot: "12/31" — Girassol 42px, #e1e8ed. The design sets it 20 in against
+   a rule that starts at 25, so the run hangs 5 past the rule's own left end;
+   it is put 5 *inside* it here instead, and the mark at the other end mirrors
+   that. */
+.plan-panel-date {
+  position: absolute;
+  left: 47px;
+  top: 20px;
+  font-family: var(--font-display);
+  font-size: 42px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Penpot: Delete — a 46x44 box carrying a bar at Girassol 36, set at its left.
+   The design writes it as "ー", the kana mark; "－" is set here, which is the
+   same stroke with the weight of a minus. It is what turns the list into the
+   face a plan can be taken off from, and it is not drawn at all on the editor
+   face, there being no list under it. */
+.plan-panel-close {
+  position: absolute;
+  right: 47px;
+  top: 20px;
+  width: 46px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+/* Not in the design: the mark is a control, so it comes up under the pointer
+   the way every other one in the app does, and stands in the app's own red
+   while the list is the one a plan can be taken off. */
+.plan-panel-close:hover {
+  color: var(--color-text-bright);
+}
+
+.plan-panel-close.is-on,
+.plan-panel-close.is-on:hover {
+  color: var(--color-danger-bright);
+}
+
+/* Penpot: Rectangle — 269x2 in #B1B2B5, 25 in from either side, above the list
+   and again below it. */
+.plan-panel-rule {
+  flex: 0 0 2px;
+  margin: 0 42px;
+  background: var(--color-border);
+}
+
+/* Penpot: Plan Container — 309x463 at the panel's own 5, its rows 269 wide and
+   25 in from either side, the first 10 below the container's own top. The list
+   is as long as the day makes it, so past the design's 463 it scrolls. */
+.plan-panel-list {
+  flex: 1 1 463px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 42px;
+  display: flex;
+  flex-direction: column;
+  row-gap: 10px;
+}
+
+/* A plan and the room it gives up while the head's mark is on. The plate is
+   the whole row until then, so nothing about the list moves except the width
+   the bin takes. */
+.plan-panel-row {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+}
+
+/* Penpot: Plan 1..3 — a 269-wide plate at 15px radius carrying the name over
+   its description, 10 in from the plate's left and 5 down. The design draws its
+   three in #3875a0, #a28f45 and #a24545 at their own opacities; a plan carries
+   its own colour here, the way a route's name does on the Route board. */
+.plan-panel-plan {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 10px;
+  border-radius: 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Penpot draws a hidden 44x44 Delete Button on every plan, parked at the
+   plate's own left where it would sit over the name. The room is taken off the
+   plate's right instead, and it is taken only while the head's mark is on: the
+   plate pulls in and the bin comes up in what it leaves. */
+.plan-panel-trash {
+  flex: 0 0 0;
+  width: 44px;
+  overflow: hidden;
+  padding: 0;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--color-text-muted);
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    flex-basis 0.18s ease,
+    opacity 0.18s ease,
+    color 0.15s ease;
+}
+
+.plan-panel-row.deleting .plan-panel-trash {
+  flex-basis: 44px;
+  opacity: 1;
+}
+
+.plan-panel-row.deleting .plan-panel-trash:hover {
+  color: var(--color-danger-bright);
+}
+
+
+
+/* Penpot: "PLAN1" — Girassol 28px, #e1e8ed. */
+.plan-panel-plan-name {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* Penpot: "PLAN DESCRIPTION" — Girassol 18px, #aab8c2. */
+.plan-panel-plan-note {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Penpot: Add Plan — 269x54 on #1da1f2, a 2px inner stroke in #e1e8ed and a
+   10px radius, 15 below the rule and 20 above the panel's own bottom. */
+.plan-panel-add {
+  flex: 0 0 54px;
+  margin: 15px 42px 20px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-accent);
+  box-shadow: inset 0 0 0 2px var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text);
+  /* Girassol's ink is cap height and nothing else, so a run centred on its
+     line box reads high — the same 0.06em lift the board's menu rows take. */
+  padding-top: 0.06em;
+  cursor: pointer;
+}
+
+/* Penpot: Add Plan — the editor face, standing in the Plan Container's own
+   slot. Its fields are 242 wide, 38.5 in from either side of the panel's 319,
+   and the first label is 10 below the container's top. */
+.plan-panel-form {
+  flex: 1 1 463px;
+  min-height: 0;
+  /* Penpot's fields are 242 in a 319 board — 38.5 in from either side against
+     the plates' 25, so 13.5 further in than they are. That relationship is
+     kept against the widened margin: 42 + 13.5. */
+  overflow-y: auto;
+  padding: 10px 55.5px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Penpot: "Plan Name" / "Description" / "Color" — Girassol 28px, #e1e8ed in a
+   34px box. */
+.plan-panel-field-name {
+  flex: 0 0 34px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Penpot: 10 between the Name, Description and Color blocks. */
+.plan-panel-gap {
+  margin-top: 10px;
+}
+
+/* Penpot: Name Input — 242x42 on #2a2d31 at a 5px radius, its placeholder set
+   at 26px in #657786 with 10 of left padding and the run centred in the box.
+   The design puts the Name label 5 above its field and the Description label
+   flush against its own; both are kept. */
+.plan-panel-input {
+  flex: 0 0 42px;
+  margin-top: 5px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 5px;
+  background: var(--color-bg-alt);
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Penpot: Description Input — 242x100, the run at 25px. */
+.plan-panel-textarea {
+  flex: 0 0 100px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 5px;
+  background: var(--color-bg-alt);
+  resize: none;
+  font-family: var(--font-display);
+  font-size: 25px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.plan-panel-input::placeholder,
+.plan-panel-textarea::placeholder,
+.plan-panel-code input::placeholder {
+  color: var(--color-text-dim);
+}
+
+/* Penpot: Contents — two 118x118 halves 6 apart. */
+.plan-panel-color {
+  flex: 0 0 118px;
+  display: flex;
+  column-gap: 6px;
+}
+
+/* Penpot: Left Side — the code field over the palette, 5 apart. */
+.plan-panel-color-left {
+  width: 118px;
+  display: flex;
+  flex-direction: column;
+  row-gap: 5px;
+}
+
+/* Penpot: Color Code Input — 118x37, a 1px inner stroke in #2a2d31 at a 6px
+   radius, the placeholder at 24px in #657786 with 10 of left padding. The
+   colour itself is shown on the inside end of it, as it is on the New Group
+   Setting board. */
+.plan-panel-code {
+  flex: 0 0 37px;
+  padding: 0 6px 0 10px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--color-bg-alt);
+  display: flex;
+  align-items: center;
+  column-gap: 6px;
+  overflow: hidden;
+}
+
+.plan-panel-code input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* The colour that is picked, read off the end of the field that spells it —
+   a disc the height the 37px box leaves. */
+.plan-panel-code-dot {
+  width: 21px;
+  height: 21px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-text-dim);
+  border-radius: 50%;
+}
+
+/* Penpot: Color Palette — 118x76, six 36x35.5 squares 5 apart, three across. */
+.plan-panel-palette {
+  flex: 0 0 76px;
+  display: grid;
+  grid-template-columns: repeat(3, 36px);
+  grid-template-rows: repeat(2, 35.5px);
+  gap: 5px;
+}
+
+/* Penpot: each square carries a 2px inner stroke in #e1e8ed, and the one that
+   is picked carries #1da1f2 instead. */
+.plan-panel-swatch {
+  padding: 0;
+  border: none;
+  box-shadow: inset 0 0 0 2px var(--color-text);
+  cursor: pointer;
+}
+
+.plan-panel-swatch.is-picked {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+/* Penpot: Right Side — a 118x118 plate. It is `ColorPicker`, the same one the
+   New Group Setting board carries; only its box is this board's to say. */
+.plan-panel-picker {
+  width: 118px;
+  height: 118px;
+  flex-shrink: 0;
+}
+
+/* Penpot: Notification — the word at Girassol 24px over a 34px box with its
+   mark at the field's own right edge, 20 below the Color block. */
+.plan-panel-notify {
+  flex: 0 0 34px;
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.plan-panel-notify input {
+  width: 25px;
+  height: 25px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+/* Penpot: Change Button — CANCEL and OK, 129.5x54 each at a 10px radius with a
+   2px inner stroke in #e1e8ed, 10 apart, in the slot ADD PLAN stands in. */
+.plan-panel-change {
+  flex: 0 0 54px;
+  margin: 15px 42px 20px;
+  display: flex;
+  column-gap: 10px;
+}
+
+.plan-panel-cancel,
+.plan-panel-ok {
+  flex: 1 1 129.5px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 2px var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text);
+  /* The same 0.06em lift the board's other Girassol runs take. */
+  padding-top: 0.06em;
+  cursor: pointer;
+}
+
+.plan-panel-cancel {
+  background: var(--color-bg-alt);
+}
+
+.plan-panel-ok {
+  background: var(--color-accent);
+}
+
+.plan-panel-ok:disabled {
+  cursor: default;
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 2px var(--color-text-dim);
+  color: var(--color-text-dim);
+}
+
+/* Not in the design: a day with nothing on it says so, in the ink the footer's
+   own runs are set in. The list centres it rather than stacking it at the top,
+   there being nothing for it to be the first of. */
+.plan-panel-list.is-empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.plan-panel-empty {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text-dim);
+}
+
+/* Not in the design: the step to the day either side, in the panel's own 42 of
+   left- and right-hand margin. It is the side panel's Strech / Shrink Search
+   Option bar turned a quarter round — the same #222326 plate under a 1px inner
+   #aab8c2 stroke, rounded only on the two corners that fall on the panel's own
+   edge so it reads as a tab hanging off its side, and lit by the same
+   brightness rather than by a colour of its own.
+
+   It runs the Plan Container's own 83..546, so the whole side of the list is
+   the step and is met wherever the pointer is beside it rather than only at a
+   mark in the middle. It stops clear of the head above and the button below,
+   both of which have their own controls. */
+.plan-panel-step {
+  position: absolute;
+  /* Thinner than the 30 the panel's margin would give it, and shorter than the
+     list it runs beside: 18 in the 42, which leaves 12 of air outside it and 12
+     inside before the plates, and 400 of the Plan Container's own 463, centred
+     on it so it still ends well clear of the head above and the button below. */
+  top: 114.5px;
+  width: 18px;
+  height: 400px;
+  padding: 0;
+  border: none;
+  background: var(--color-strip);
+  box-shadow: inset 0 0 0 1px var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* The bar's caret is 10 in its own 15 of thickness; this one keeps that
+     proportion against the 30 the panel's margin gives it. */
+  font-family: 'Segoe UI Symbol', sans-serif;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+/* 12 of air outside the arrow and 12 inside it before the plates, which is the
+   42 of margin the panel was widened for. */
+.plan-panel-step.prev {
+  left: 12px;
+  border-radius: 10px 0 0 10px;
+}
+
+.plan-panel-step.next {
+  right: 12px;
+  border-radius: 0 10px 10px 0;
+}
+
+.plan-panel-step:hover {
+  filter: brightness(1.6);
+}
+
+/* The bar's own caret, turned to point the way the step goes — which is the
+   whole of what turning the design a quarter round means. */
+.plan-panel-step-glyph {
+  display: inline-block;
+}
+
+.plan-panel-step.prev .plan-panel-step-glyph {
+  transform: rotate(90deg);
+}
+
+.plan-panel-step.next .plan-panel-step-glyph {
+  transform: rotate(-90deg);
+}

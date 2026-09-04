@@ -26,6 +26,15 @@ export function splitPlaytime(totalSeconds: number): { hours: number; minutes: n
   }
 }
 
+/** A local calendar day as "YYYY-MM-DD" — the key the Calender board's cells
+    and the per-day play time it reads are matched on. `toISOString` would give
+    the UTC day instead, which is the day before for any evening play. */
+export function toDateKey(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
 const MS_PER_DAY = 86_400_000
 
 function startOfDay(date: Date): number {

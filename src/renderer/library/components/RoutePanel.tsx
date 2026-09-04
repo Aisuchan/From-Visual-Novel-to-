@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Route } from '../../../shared/db-types'
 import { formatPlaytime, splitPlaytime } from '../format'
-import { formatShare, shareInk } from '../route-share'
 import { clamp01, hexToHsv, hsvToHex, HEX, SWATCHES } from '../color'
 import ConfirmDialog from './ConfirmDialog'
+import PieChart from './PieChart'
 import './RoutePanel.css'
 
 interface Props {
@@ -53,87 +53,10 @@ function digitsOnly(raw: string, max: number, cap?: number): string {
    the label with it. Once a route has time on it the plate itself goes and only
    the ring is left, so the middle is the board showing through.
 
-   The corners are taken off by stroking each sector in its own colour with a
-   round join, which rounds all four at once. The stroke grows the sector by
-   half its width on every side, so the geometry is drawn that much inside the
-   radii and comes back out to them. */
-const PIE_CENTRE = 175
-/* The ring fills the design's own 350 circle - it is the plate, drawn in the
-   routes' colours instead of grey. The band is what the shares are written
-   across now, so it is a little wider than the reference's four tenths of the
-   outer radius; the hole still holds the total comfortably. */
-const PIE_RADIUS = 175
-const PIE_HOLE = 95
-/** The space left between neighbouring routes, and how far their corners are
-    rounded. The reference keeps the seam a hairline and takes a good deal off
-    the corners - about a twentieth of the ring's width against a sixth. */
-const PIE_GAP = 2.5
-const PIE_CORNER = 8
-/** Where a share is written: halfway across the ring's own band. There is no
-    room outside it any more - the ring reaches the edge of the board's 350 - so
-    a share sits on its arc rather than beside it, and is set small enough to
-    keep off both rims. */
-const PIE_LABEL_R = (PIE_RADIUS + PIE_HOLE) / 2
-/** A share thinner than this has no room for a label of its own. */
-const PIE_LABEL_MIN = 0.03
-/* Not in the design. The radius of the circle the reveal is stroked on, wide
-   enough that its stroke covers the whole board once it has gone round. */
-const PIE_WIPE_R = 150
-/* How far a wedge comes off the stop, in degrees: every wedge gets the first
-   figure, its share of the second, and the square of its share of the third.
-   The squared term is what tells the big routes apart — it is next to nothing
-   at a tenth of the ring and doubles the swing at the whole of it, so the more
-   of the ring a route holds the harder it comes back, without the small ones
-   moving at all. Never more than half the wedge, so the shortest cannot
-   rebound past their own start. */
-const REBOUND_BASE_DEG = 8
-const REBOUND_SHARE_DEG = 24
-const REBOUND_SHARE_SQ_DEG = 30
+   Its geometry, its arrival, its sweep and the ink its shares take are all
+   `PieChart`'s: the PlayTime Graph board draws the same chart at 750, so every
+   figure is written once, against this board's own 350. */
 
-function polar(radius: number, angle: number): string {
-  return `${(PIE_CENTRE + radius * Math.cos(angle)).toFixed(2)},${(
-    PIE_CENTRE +
-    radius * Math.sin(angle)
-  ).toFixed(2)}`
-}
-
-/** The whole ring, for the one route that has it to itself — two circles wound
-    against each other so the middle stays a hole. */
-function ringPath(outer: number, inner: number): string {
-  const c = PIE_CENTRE
-  return (
-    `M ${c - outer},${c} A ${outer} ${outer} 0 1 0 ${c + outer},${c} ` +
-    `A ${outer} ${outer} 0 1 0 ${c - outer},${c} Z ` +
-    `M ${c - inner},${c} A ${inner} ${inner} 0 1 1 ${c + inner},${c} ` +
-    `A ${inner} ${inner} 0 1 1 ${c - inner},${c} Z`
-  )
-}
-
-/**
- * The sector between two boundary angles, held `inset` px clear of both. The
- * inset is a distance rather than an angle: each edge is the boundary line
- * moved sideways by it, so the space between two routes is the same width all
- * the way across the ring instead of opening out towards the rim. Where that
- * line meets a circle of radius `rad` is `asin(inset / rad)` round from the
- * boundary, which is why the outer and inner ends come back by different
- * amounts.
- */
-function sectorPath(from: number, to: number, outer: number, inner: number, inset: number): string {
-  const turn = (rad: number): number => Math.asin(Math.min(inset / rad, 1))
-  /* A wedge too narrow for both its insets collapses onto its own middle
-     rather than past it, so what the round join paints is a nub centred where
-     the route actually is instead of one overrunning its neighbour. */
-  const middle = (from + to) / 2
-  const o0 = Math.min(from + turn(outer), middle)
-  const o1 = Math.max(to - turn(outer), middle)
-  const i0 = Math.min(from + turn(inner), middle)
-  const i1 = Math.max(to - turn(inner), middle)
-  const large = o1 - o0 > Math.PI ? 1 : 0
-  return (
-    `M ${polar(outer, o0)} A ${outer} ${outer} 0 ${large} 1 ${polar(outer, o1)} ` +
-    `L ${polar(inner, i1)} A ${inner} ${inner} 0 ${large} 0 ${polar(inner, i0)} Z`
-  )
-}
 /** Penpot: Hover Pie Route — 260x118 */
 const HOVER_W = 260
 const HOVER_H = 118
@@ -256,80 +179,14 @@ export default function RoutePanel({
 
   /* One wedge per route that has time on it, in list order from twelve
      o'clock, each carrying its own colour. A route still on 00:00 has nothing
-     to draw; a single route has the ring to itself and no ends to pull back. */
+     to draw. The wedge geometry itself is `PieChart`'s. */
   const timed = routes.filter((route) => route.playSeconds > 0)
   const totalSeconds = timed.reduce((sum, route) => sum + route.playSeconds, 0)
-  const outerR = PIE_RADIUS - PIE_CORNER
-  const innerR = PIE_HOLE + PIE_CORNER
-  /* Half the gap, plus the corner stroke that grows the sector back out by
-     that much again: the distance every edge is held off its boundary. */
-  const edgeInset = PIE_GAP / 2 + PIE_CORNER
-  /* The narrowest wedge that still holds its gap at every radius. An edge is
-     the boundary moved sideways by the inset, so it runs out of room at the
-     inner rim first - `asin(inset / innerR)`, the wider of the two turns. A
-     wedge thinner than twice that has no edges left to draw and collapses onto
-     its own middle, where its sides are parallel to a ray of their own rather
-     than to the boundaries either side, and the gap then opens out towards the
-     rim. So anything under it is opened out to it, and the difference is taken
-     back, in proportion, off the wedges with room to spare. Only the drawing is
-     evened up - the share each label carries is still the route's own. */
-  const minSweep = Math.min(
-    2 * Math.asin(Math.min(edgeInset / innerR, 1)),
-    (Math.PI * 2) / Math.max(timed.length, 1)
-  )
-  const raw = timed.map((route) => (route.playSeconds / totalSeconds) * Math.PI * 2)
-  const owed = raw.reduce((sum, angle) => sum + Math.max(minSweep - angle, 0), 0)
-  const spare = raw.reduce((sum, angle) => sum + Math.max(angle - minSweep, 0), 0)
-  const sweeps = raw.map((angle) =>
-    angle < minSweep ? minSweep : spare > 0 ? angle - (angle - minSweep) * (owed / spare) : angle
-  )
-  let swept = -Math.PI / 2
-  const segments = timed.map((route, index) => {
-    const share = route.playSeconds / totalSeconds
-    const from = swept
-    swept += sweeps[index]
-    const middle = (from + swept) / 2
-    return {
-      route,
-      share,
-      /* Where the wedge starts and how far round it goes, which is what its
-         own mask arc is cut to. */
-      from,
-      sweep: sweeps[index],
-      d:
-        timed.length === 1
-          ? ringPath(outerR, innerR)
-          : sectorPath(from, swept, outerR, innerR, edgeInset),
-      labelX: PIE_CENTRE + PIE_LABEL_R * Math.cos(middle),
-      labelY: PIE_CENTRE + PIE_LABEL_R * Math.sin(middle),
-      labelInk: shareInk(route.color)
-    }
-  })
-
-  /* The sweep is only started once the chart it uncovers has been laid out and
-     painted. Mounting a few dozen wedges, their rounded edges and their shares
-     and starting an animation on the same frame left the first quarter-turn
-     dropping frames; two `requestAnimationFrame`s put the start on a frame
-     after that work is done and off the main thread's way.
-
-     `chartKey` is what identifies one drawing of the chart. Comparing it
-     against the armed one rather than holding a boolean is what keeps the
-     sweep from ever running a frame it was not armed for: the moment there is
-     a different chart to draw, the class is already off in the same render. */
-  const chartKey = `${reveal}:${segments.length}`
-  const [sweptKey, setSweptKey] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (segments.length === 0) return
-    let second = 0
-    const first = requestAnimationFrame(() => {
-      second = requestAnimationFrame(() => setSweptKey(chartKey))
-    })
-    return () => {
-      cancelAnimationFrame(first)
-      cancelAnimationFrame(second)
-    }
-  }, [chartKey, segments.length])
+  const slices = timed.map((route) => ({
+    key: String(route.id),
+    color: route.color,
+    share: route.playSeconds / totalSeconds
+  }))
 
   /** `.rp-pie` is 416 design px wide, which is what recovers the shell's own
       scale — see the note on `designTopWithin` in SidePanel. */
@@ -470,103 +327,23 @@ export default function RoutePanel({
 
             {/* Penpot: Circle — the 350x350 plate, with the routes' play time
               drawn as a ring on it. */}
-            <div key={reveal} className={`rp-circle ${segments.length > 0 ? 'charted' : ''}`}>
-              {segments.length > 0 ? (
-                <svg
-                  className={`rp-chart ${sweptKey === chartKey ? 'sweeping' : ''}`}
-                  viewBox="0 0 350 350"
-                >
-                  {/* Every wedge is drawn on clockwise from its own start, all
-                    of them at once. One arc per wedge does it: a circle stroked
-                    wide enough to cover the board, turned to where that wedge
-                    begins, and dashed to exactly the length the wedge runs — so
-                    the dash sliding in from behind the start uncovers that
-                    wedge and no other. */}
-                  <mask
-                    id="rp-chart-reveal"
-                    maskUnits="userSpaceOnUse"
-                    x="-125"
-                    y="-125"
-                    width="600"
-                    height="600"
-                  >
-                    {segments.map((segment) => {
-                      const reboundDeg =
-                        REBOUND_BASE_DEG +
-                        REBOUND_SHARE_DEG * segment.share +
-                        REBOUND_SHARE_SQ_DEG * segment.share * segment.share
-                      /* Never past half the wedge, so the shortest cannot
-                         rebound back beyond their own start. */
-                      const rebound = Math.min(
-                        (reboundDeg * Math.PI) / 180,
-                        segment.sweep / 2
-                      )
-                      /* The dash is measured in `pathLength` units rather than
-                         in the drawing's own, and the unit chosen is this
-                         wedge's rebound over a hundred. That is what lets the
-                         keyframes be plain numbers: the rebound is 100 to every
-                         wedge, whatever it comes to in degrees. */
-                      const unit = rebound / 100
-                      const circleUnits = (Math.PI * 2) / unit
-                      const arcUnits = segment.sweep / unit
-                      return (
-                        <circle
-                          key={`wipe-${segment.route.id}`}
-                          className={`rp-wedge-wipe ${sweptKey === chartKey ? 'sweeping' : ''}`}
-                          cx={PIE_CENTRE}
-                          cy={PIE_CENTRE}
-                          r={PIE_WIPE_R}
-                          fill="none"
-                          stroke="#ffffff"
-                          strokeWidth={PIE_WIPE_R * 2}
-                          pathLength={circleUnits.toFixed(3)}
-                          /* The gap is the whole circle, so the one dash is the
-                             only thing on the path. The offset starts at the
-                             wedge's whole length, which is where the keyframes
-                             below pick it up. */
-                          strokeDasharray={`${arcUnits.toFixed(3)} ${circleUnits.toFixed(3)}`}
-                          strokeDashoffset={arcUnits.toFixed(3)}
-                          transform={`rotate(${((segment.from * 180) / Math.PI).toFixed(3)} ${PIE_CENTRE} ${PIE_CENTRE})`}
-                        />
-                      )
-                    })}
-                  </mask>
-                  <g mask="url(#rp-chart-reveal)">
-                    {segments.map((segment) => (
-                      <path
-                        key={segment.route.id}
-                        d={segment.d}
-                        fillRule="evenodd"
-                        fill={segment.route.color}
-                        stroke={segment.route.color}
-                        strokeWidth={PIE_CORNER * 2}
-                        strokeLinejoin="round"
-                        onMouseMove={(event) => trackPointer(event, segment.route)}
-                        onMouseLeave={() => setHovered(null)}
-                      />
-                    ))}
-                    {/* The share each route holds, set outside its own arc. */}
-                    {segments
-                      .filter((segment) => segment.share >= PIE_LABEL_MIN)
-                      .map((segment) => (
-                        <text
-                          key={`share-${segment.route.id}`}
-                          className="rp-chart-share"
-                          x={segment.labelX}
-                          y={segment.labelY}
-                          textAnchor="middle"
-                          dominantBaseline="central"
-                          style={{ fill: segment.labelInk }}
-                        >
-                          {formatShare(segment.share)}
-                        </text>
-                      ))}
-                  </g>
-                </svg>
-              ) : null}
+            <div key={reveal} className={`rp-circle ${slices.length > 0 ? 'charted' : ''}`}>
+              <PieChart
+                slices={slices}
+                reveal={reveal}
+                /* The wedge under the pointer is lit and the rest held back —
+                   the same thing the PlayTime Graph's ring does, this being the
+                   same chart. */
+                highlight={hovered ? String(hovered.route.id) : null}
+                onSliceHover={(key, event) => {
+                  const route = timed.find((one) => String(one.id) === key)
+                  if (route) trackPointer(event, route)
+                }}
+                onSliceLeave={() => setHovered(null)}
+              />
               {/* Penpot puts "TIME / RECORD" here; once the ring has something to
                 show, the middle carries what it adds up to instead. */}
-              {segments.length > 0 ? (
+              {slices.length > 0 ? (
                 <span className="rp-circle-label total">{formatPlaytime(totalSeconds)}</span>
               ) : (
                 <span className="rp-circle-label">

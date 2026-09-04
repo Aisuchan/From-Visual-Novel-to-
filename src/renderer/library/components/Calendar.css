@@ -1,0 +1,407 @@
+/* All values below are literal Penpot values from board "Calender"
+   (9bb41208-e5f5-8043-8008-7594ef9fb6eb), 1585x986 — the same slot in Main
+   Display that "Game", "Home" and "Setting" occupy.
+
+   Every stroke the design draws on this board is a Penpot *inner* stroke,
+   painted over a shape without taking anything from it, so each is an inset
+   shadow here rather than a CSS border — a border comes out of the box and
+   would take 204x114 cells down to 202x112 and shift every literal offset
+   inside them. This is the same rule the Setting board is written to. */
+
+.calendar-board {
+  /* The year and month menus drop out of their runs as absolute children of
+     the board, so the board is what their design-pixel top and left are
+     measured against. */
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-bg);
+}
+
+/* Penpot: Top — 1585x147, the year at one end and the month at the other. */
+.calendar-top {
+  position: relative;
+  flex: 0 0 147px;
+}
+
+/* Penpot: Year / Month — each run with the design's own "▼ hover" mark beside
+   it, 15px off and centred on the run (measured on the Year board: the run
+   ends at 847 and the mark begins at 862, and the two boxes share a centre at
+   229). Both are buttons: the mark is what says the run can be picked from,
+   and the list drops out of the run itself.
+
+   **The mark keeps its room whether or not it is shown.** It is hidden with
+   `visibility` rather than taken out of the flow, so neither run moves when the
+   pointer arrives — which is what keeps both on the design's own coordinates:
+   the year is held by its left edge with the mark after it, and the month by
+   its right edge with the mark before it. */
+.calendar-year,
+.calendar-month {
+  position: absolute;
+  padding: 0;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  column-gap: 15px;
+  font-family: var(--font-display);
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Penpot: "2026" — Girassol 80px, #e1e8ed, 80 in from the left and 20 down. */
+.calendar-year {
+  left: 80px;
+  top: 20px;
+  font-size: 80px;
+}
+
+/* Penpot: "August" — Girassol 100px, #e1e8ed, its right edge 80 in from the
+   board's and 27 down. A month's name is as long as it is, so the run is held
+   by that right edge rather than by a left one. */
+.calendar-month {
+  right: 80px;
+  top: 27px;
+  font-size: 100px;
+}
+
+/* Penpot: "▼ hover" — Girassol 24px, #e1e8ed, drawn hidden. It stands while
+   the run is under the pointer and while its list is out. */
+.calendar-head-caret {
+  font-size: 24px;
+  visibility: hidden;
+}
+
+.calendar-year:hover .calendar-head-caret,
+.calendar-month:hover .calendar-head-caret,
+.calendar-year.is-open .calendar-head-caret,
+.calendar-month.is-open .calendar-head-caret {
+  visibility: visible;
+}
+
+/* Not in the design: the run comes up under the pointer the way every other
+   control in the app does. */
+.calendar-year:hover .calendar-head-run,
+.calendar-month:hover .calendar-head-run,
+.calendar-year.is-open .calendar-head-run,
+.calendar-month.is-open .calendar-head-run {
+  color: var(--color-text-bright);
+}
+
+/* Penpot: Calender — the grid itself, 722 tall: a 38px row of weekday plates
+   over six rows of 114. Seven 204px columns come to 1428, and the 157 the
+   board has left over is the design's own 79 on the left and 78 on the right.
+
+   The rows are the one part of this board meant to stretch: a window taller
+   than 16:9 puts its extra design px into the day cells, which is what the
+   grid is for, and everything else here keeps its literal height. */
+.calendar-grid {
+  flex: 1 1 722px;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 204px);
+  grid-template-rows: 38px repeat(6, 1fr);
+  padding: 0 78px 0 79px;
+}
+
+/* Penpot: Sun … Sat — 204x38, fill #2a2d31, 1px inner stroke #657786, the
+   name set in Girassol 36px and centred both ways. */
+.calendar-weekday {
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 1px var(--color-text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text-bright);
+}
+
+/* The design gives the two ends of the week their own ink and leaves the five
+   weekdays in #f5f8fa. */
+.calendar-weekday.sun {
+  color: #f75252;
+}
+
+.calendar-weekday.sat {
+  color: var(--color-accent);
+}
+
+/* Penpot: DAY — 204x114, no fill, 1px inner stroke #657786. The cell is a
+   button: it puts the Plan board up beside itself. */
+.calendar-day {
+  position: relative;
+  box-shadow: inset 0 0 0 1px var(--color-text-dim);
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+/* Penpot draws today's cell on the board's own plate. */
+.calendar-day.today {
+  background: var(--color-bg-alt);
+}
+
+/* Not in the design: a cell is a control, so it comes up under the pointer and
+   stays up while its Plan board is the one open — the same lift the side
+   panel's HOME plate takes, on the one mark a cell has. The plate is laid over
+   whatever the cell already carries rather than put in its place, so today's
+   own #2a2d31 is still under it. */
+.calendar-day:hover,
+.calendar-day.is-open {
+  box-shadow: inset 0 0 0 1px var(--color-text-muted);
+  background-image: linear-gradient(rgba(225, 232, 237, 0.07), rgba(225, 232, 237, 0.07));
+}
+
+/* Penpot: Top — 184x47, 10 in from the cell's left and flush with its top. */
+.calendar-day-top {
+  position: absolute;
+  left: 10px;
+  top: 0;
+  width: 184px;
+  height: 47px;
+}
+
+/* Penpot: Day — the number, Girassol 36px, at the strip's own left. #e1e8ed
+   for a day of the month on show and #657786 for one carried in from the month
+   either side of it. */
+.calendar-day-number {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.calendar-day.outside .calendar-day-number {
+  color: var(--color-text-dim);
+}
+
+/* Penpot: And More! — a 55x47 box at the strip's right end carrying the "+n"
+   pill 28 down: 55x19 on #2a2d31, rounded right off, the count set in Girassol
+   14px at a 0.8 line height and centred in it. It says how many plans the cell
+   has that there was no room to draw. */
+.calendar-day-more {
+  position: absolute;
+  right: 0;
+  top: 28px;
+  width: 55px;
+  height: 19px;
+  border-radius: 20px;
+  background: var(--color-bg-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 0.8;
+  color: var(--color-text);
+}
+
+/* Penpot: Plans / PlayTime — the same 184x64 slot, 10 in from the cell's left
+   and 50 down. The design draws the two as alternative faces of a day, and the
+   Bottom bar's "Show Playtime" is what turns one into the other. */
+.calendar-day-slot {
+  position: absolute;
+  left: 10px;
+  top: 50px;
+  width: 184px;
+  height: 64px;
+}
+
+/* Penpot: Plan1/2/3 — 50x18 chips, 5px radius, 3px apart, the name set in
+   Girassol 16px at a 0.8 line height on 5px of left-hand padding. A plan's
+   name is as long as it is, so a chip runs out to the slot's own width and
+   what is past that is cut off. */
+.calendar-plan {
+  height: 18px;
+  max-width: 184px;
+  margin-bottom: 3px;
+  padding-left: 5px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 0.8;
+  color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Penpot: "10h10m" — Girassol 48px, #e1e8ed, drawn 12 in from the slot's left
+   and 3 down. Those two are the run centred in the slot rather than set against
+   its left: the design's own run is 160x58 in a 184x64 box, which leaves
+   exactly 12 either side and 3 above and below. So the run is centred here,
+   which puts "10h10m" back on the design's own 12/3 and keeps a shorter figure
+   — "0h7m", which is most of them — in the middle of the cell rather than
+   hanging off its left. */
+.calendar-day-playtime {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  /* A step up from the design's 48, which reads small for the one figure a
+     cell carries. 54 is as far as it goes: the longest a day's play time
+     realistically runs is six glyphs ("23h59m"), which the design measures at
+     160 wide at 48px and so comes to 180 here — inside the slot's own 184. */
+  font-size: 54px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* A day carried in from the month either side of this one is dim, and its play
+   time is that day's too — the figure says as much about which month it
+   belongs to as the number above it does. */
+.calendar-day.outside .calendar-day-playtime {
+  color: var(--color-text-dim);
+}
+
+/* Penpot: Bottom — 1585x120 under the grid, holding the two month steps and
+   the pair of Playtime buttons. Its own box begins 3px above where the grid's
+   last row ends; the 117 left below that row is what it is given here, and the
+   design's own y for everything in it is kept by measuring off this top. */
+.calendar-bottom {
+  position: relative;
+  flex: 0 0 117px;
+}
+
+/* Penpot: to Previous Month / to Next Month — the arrow and the month's name
+   5px apart, the pair 47 in from the board's own edge. The name is as long as
+   it is, so the two are laid out as a row rather than at literal x. */
+.calendar-step {
+  position: absolute;
+  top: 31.5px;
+  height: 51px;
+  padding: 0;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: flex-start;
+  column-gap: 5px;
+  cursor: pointer;
+}
+
+.calendar-step.prev {
+  left: 47px;
+}
+
+.calendar-step.next {
+  right: 47px;
+}
+
+/* Penpot: "July" / "September" — Girassol 42px, #e1e8ed. */
+.calendar-step-month {
+  font-family: var(--font-display);
+  font-size: 42px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Penpot sets the two arrows in Source Sans Pro at 36px, #1da1f2, 7px below
+   the name's own top — Girassol has no ◀/▶ of its own. That face is not one of
+   the app's three, so the glyphs are set in the platform's sans instead. */
+.calendar-step-arrow {
+  margin-top: 7px;
+  font-family: sans-serif;
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-accent);
+}
+
+/* Not in the design: the two steps are controls, so the name comes up under
+   the pointer the way every other control in the app does. */
+.calendar-step:hover .calendar-step-month {
+  color: var(--color-text-bright);
+}
+
+/* Penpot: On Calender / Go Graph — 373x54, 2px inner stroke #657786, 5px
+   radius, 30 apart, the run set in Girassol 36px and centred. */
+.calendar-bottom-button {
+  position: absolute;
+  top: 30px;
+  width: 373px;
+  height: 54px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  box-shadow: inset 0 0 0 2px var(--color-text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text);
+  cursor: pointer;
+  /* Girassol sets lowercase as small caps, so a run here is cap height and
+     nothing else: its ink stands above the baseline with the descender's room
+     left empty under it, and a line box centred in the plate therefore reads
+     high. Measured against the 36px run in this 54px box: 10.89 above the ink
+     and 13.11 under it, so the ink's own centre is 1.11 design px above the
+     plate's. Half of this padding is what closes that, and it is written in em
+     so it holds if the run is ever set at another size. */
+  padding-top: 0.0617em;
+  transition:
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.calendar-bottom-button.show-playtime {
+  left: 352.5px;
+}
+
+.calendar-bottom-button.go-graph {
+  left: 755.5px;
+}
+
+/* Not in the design: the two answer the pointer the way every other control in
+   the app does — the stroke up to #aab8c2 and the plate lifted by the same 0.1
+   white the PlayTime Graph's own period field takes. Show Playtime carries no
+   *lit* state, though: it is a toggle whose own word says which face the cells
+   are on and therefore which face the press would put up, so a plate saying the
+   same thing would only disagree with it. */
+.calendar-bottom-button:hover {
+  background: rgba(225, 232, 237, 0.1);
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
+}
+
+
+
+/* Girassol's ink is cap height and nothing else — its lowercase is small caps —
+   so a label centred on its line box reads high, the descender's room under it
+   being empty. Measured on this board's rows, 31px in a 37.2 box: "2026" 4.5
+   above the ink and 7.7 under it, "September" 3.5 and 7.7, the difference
+   between the two being the S's own overshoot above the cap line. That asks
+   for 1.6 and 2.1 design px of lift; 0.06em is 1.86, the middle of the two, and
+   leaves either a quarter of a pixel out. It is scoped to this board on
+   purpose: the same nudge on a menu of group names would push a Japanese run
+   low, that ink being symmetric about the line box already (see the note under
+   the Setting board). */
+.calendar-board .option-menu-label {
+  position: relative;
+  top: 0.06em;
+}

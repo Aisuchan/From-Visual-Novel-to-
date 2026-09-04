@@ -5,6 +5,7 @@ import type {
   LaunchPrefs,
   NewGameInput,
   NewGroupInput,
+  NewPlanInput,
   NewRouteInput,
   ProgressState,
   RoutePatch
@@ -50,6 +51,14 @@ const libraryApi: LibraryApi = {
   getSettings: () => ipcRenderer.invoke(IpcChannels.SettingsGet),
   setSettings: (patch) => ipcRenderer.invoke(IpcChannels.SettingsSet, patch),
   listSessions: (gameId: number) => ipcRenderer.invoke(IpcChannels.SessionsList, gameId),
+  getPlaytimeByDay: (fromDate: string, toDate: string) =>
+    ipcRenderer.invoke(IpcChannels.SessionsPlaytimeByDay, fromDate, toDate),
+  getPlaytimeByDayAndGame: (fromDate: string, toDate: string) =>
+    ipcRenderer.invoke(IpcChannels.SessionsPlaytimeByDayAndGame, fromDate, toDate),
+  listPlans: (fromDate: string, toDate: string) =>
+    ipcRenderer.invoke(IpcChannels.PlansList, fromDate, toDate),
+  addPlan: (input: NewPlanInput) => ipcRenderer.invoke(IpcChannels.PlansAdd, input),
+  deletePlan: (planId: number) => ipcRenderer.invoke(IpcChannels.PlansDelete, planId),
   getFooterStats: () => ipcRenderer.invoke(IpcChannels.GamesFooterStats),
   getLaunchPrefs: (gameId: number) => ipcRenderer.invoke(IpcChannels.LaunchPrefsGet, gameId),
   setLaunchPrefs: (prefs: LaunchPrefs) => ipcRenderer.invoke(IpcChannels.LaunchPrefsSet, prefs),

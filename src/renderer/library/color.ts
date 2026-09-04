@@ -20,6 +20,33 @@ export const SWATCHES = [
 
 export const HEX = /^#[0-9a-f]{6}$/i
 
+/**
+ * The same hue at the same lightness, with the colour taken out of it by
+ * `factor` — 1 leaves it alone, 0 makes it grey. It is HSL saturation rather
+ * than HSV: in HSL every channel is moved towards the lightness itself, which
+ * is `(max + min) / 2` and does not change, so the swatch dims in colour
+ * without going pale or dark. In HSV it would move towards white instead.
+ *
+ * The Template Color palette is drawn for a plate the size of a route's plan
+ * chip; a ring of a dozen wedges in it is a great deal more of the same
+ * colours at once, which is what the PlayTime Graph puts it through.
+ */
+export function desaturate(hex: string, factor: number): string {
+  const match = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex)
+  if (!match) return hex
+  const channels = match.slice(1).map((part) => parseInt(part, 16))
+  const lightness = (Math.max(...channels) + Math.min(...channels)) / 2
+  return (
+    '#' +
+    channels
+      .map((value) => {
+        const moved = Math.round(lightness + (value - lightness) * factor)
+        return Math.max(0, Math.min(255, moved)).toString(16).padStart(2, '0')
+      })
+      .join('')
+  )
+}
+
 export function clamp01(n: number): number {
   return n < 0 ? 0 : n > 1 ? 1 : n
 }

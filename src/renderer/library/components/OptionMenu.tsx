@@ -26,6 +26,11 @@ export interface MenuOption {
   label: string
   /** Ink for this row's label. The design sets every one of them in #e1e8ed. */
   color?: string
+  /** Marks this as the row the list stands at — the Calender board's year and
+      month for today. It takes the app's accent as its *plate* and keeps its
+      own ink, so it is picked out without being set differently from the rows
+      either side of it. */
+  current?: boolean
 }
 
 interface Props {
@@ -46,6 +51,15 @@ interface Props {
      dialog's Group row is 426 wide and flush with its column. */
   left?: number
   width?: number
+  /** What the rows are set at, where the design's own 28 is not the largest a
+      menu has room for — the Calender board's, which is as wide as the run it
+      drops out of allows and takes the type up to fill it. */
+  fontSize?: number
+  /** The row the list is to open on, brought into the middle of the box. A
+      list long enough to scroll and ordered by something other than what is
+      picked — the Calender board's years, which run 1980 to 2100 — would
+      otherwise open at its own beginning rather than at where it stands. */
+  scrollToKey?: string
 }
 
 export default function OptionMenu({
@@ -56,7 +70,9 @@ export default function OptionMenu({
   onDismiss,
   anchorRef,
   left = OPTION_MENU_LEFT,
-  width = OPTION_MENU_WIDTH
+  width = OPTION_MENU_WIDTH,
+  fontSize = OPTION_FONT_SIZE,
+  scrollToKey
 }: Props): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const optionsRef = useRef<HTMLDivElement | null>(null)
@@ -96,8 +112,30 @@ export default function OptionMenu({
     }
   }, [onDismiss, anchorRef])
 
+  /* The design's row is 34 for the 28 its label is set at; a menu that takes
+     its type up grows the row with it, since the row is only a floor
+     (`min-height`) and the label's own line box is what fills it. The count of
+     rows on show has to be measured against the row a menu actually has, or a
+     list told to stand whole would scroll. */
+  const rowHeight = Math.max(OPTION_HEIGHT, fontSize * 1.2)
   const maxHeight =
-    maxRows * OPTION_HEIGHT + (maxRows - 1) * OPTION_GAP + OPTIONS_PADDING * 2
+    maxRows * rowHeight + (maxRows - 1) * OPTION_GAP + OPTIONS_PADDING * 2
+
+  /* Brought to the row the list opens on, before any of it is read. The
+     browser's own scrolling is what does it, since `scrollTop` is in the
+     element's unzoomed CSS px while a measured rect is not — the shell's zoom
+     is between the two. Keyed on that row alone: the options array is a new
+     one every render, and depending on it would drag the box back here every
+     time the caller re-rendered. */
+  useEffect(() => {
+    const box = optionsRef.current
+    if (!box || scrollToKey === undefined) return
+    const index = options.findIndex((option) => option.key === scrollToKey)
+    const row = index >= 0 ? box.children[index] : null
+    if (row) row.scrollIntoView({ block: 'center' })
+    readScroll()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollToKey])
 
   // The list is read as it stands, and again whenever it changes under the box.
   useEffect(readScroll, [readScroll, options, maxHeight])
@@ -141,6 +179,8 @@ export default function OptionMenu({
                colour of its own is. A group carries one, so — as a route's name
                does on the Route board — it arrives inline. */
             color={option.color}
+            current={option.current}
+            fontSize={fontSize}
             maxWidth={width - OPTION_LABEL_INSET}
             onClick={() => onPick(option.key)}
           />
@@ -157,11 +197,15 @@ export default function OptionMenu({
 function MenuRow({
   label,
   color,
+  current,
+  fontSize,
   maxWidth,
   onClick
 }: {
   label: string
   color?: string
+  current?: boolean
+  fontSize: number
   maxWidth: number
   onClick: () => void
 }): React.JSX.Element {
@@ -170,15 +214,20 @@ function MenuRow({
   useEffect(() => {
     const el = textRef.current
     if (!el) return
-    el.style.fontSize = `${OPTION_FONT_SIZE}px`
+    el.style.fontSize = `${fontSize}px`
     const width = el.scrollWidth
     if (width > maxWidth) {
-      el.style.fontSize = `${Math.floor(OPTION_FONT_SIZE * (maxWidth / width))}px`
+      el.style.fontSize = `${Math.floor(fontSize * (maxWidth / width))}px`
     }
-  }, [label, maxWidth])
+  }, [label, fontSize, maxWidth])
 
   return (
-    <button type="button" className="option-menu-option" role="menuitem" onClick={onClick}>
+    <button
+      type="button"
+      className={`option-menu-option${current ? ' is-current' : ''}`}
+      role="menuitem"
+      onClick={onClick}
+    >
       <span className="option-menu-label" ref={textRef} style={color ? { color } : undefined}>
         {label}
       </span>

@@ -29,6 +29,29 @@
   flex-shrink: 0;
 }
 
+/* Not in the design: the plate is a button — it puts Penpot's Calender board
+   in the content column — so it answers the pointer the way the HOME plate
+   below it does, and stays lit while that board is the one up. The plate's own
+   #2c3034 at half opacity is a near-grey, so the lift here is on the fill as
+   well as the stroke: the same colour taken up to full. */
+.clock {
+  padding: 0;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.clock:hover {
+  border-color: var(--color-text);
+  background: var(--color-clock-bg);
+}
+
+.clock.is-open {
+  border-color: var(--color-text);
+  background: var(--color-clock-bg);
+}
+
 /* Penpot: "2026 8/1 (Sat.)" — Alumni Sans Collegiate One 60px, #aab8c2.
    Penpot's text box is 66px tall for 60px text, so line-height 1.1. */
 .clock-date {

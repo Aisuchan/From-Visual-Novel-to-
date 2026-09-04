@@ -1,0 +1,70 @@
+/* The picker Penpot draws as a plain plate on the New Group Setting and Add
+   Route boards, and again on the Plan board's Color block. Only its outer size
+   differs between them, so that is the caller's to set and everything here is
+   the picker's own. */
+
+.color-picker {
+  display: flex;
+  flex-direction: column;
+  row-gap: 4px;
+}
+
+/* The hue strip — every pure hue across its width. A range input, so it also
+   takes the arrow keys. */
+.color-picker-hue {
+  width: 100%;
+  height: 14px;
+  flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    #ff0000 0%,
+    #ffff00 17%,
+    #00ff00 33%,
+    #00ffff 50%,
+    #0000ff 67%,
+    #ff00ff 83%,
+    #ff0000 100%
+  );
+  cursor: pointer;
+}
+
+.color-picker-hue::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 6px;
+  height: 14px;
+  border: 1px solid var(--color-bg);
+  border-radius: 2px;
+  background: var(--color-text-bright);
+  cursor: pointer;
+}
+
+/* The square: the hue washes out to white across it and down to black under
+   it, so a point in it is one saturation and one brightness of that hue. */
+.color-picker-square {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  background-image: linear-gradient(to top, #000000, rgba(0, 0, 0, 0)),
+    linear-gradient(to right, #ffffff, rgba(255, 255, 255, 0));
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* Where in the square the colour is. Rides on both fills, so it is ringed in
+   white over black to stay visible on either. */
+.color-picker-marker {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}

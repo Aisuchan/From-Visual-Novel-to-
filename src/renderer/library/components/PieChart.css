@@ -1,0 +1,163 @@
+/* The ring the Route board draws its routes' play time as, and the PlayTime
+   Graph board its games'. Every figure is the Route board's own — see
+   `PieChart.tsx` — and only the box it is drawn in differs, so the two charts
+   are the same drawing at two sizes. */
+
+.pie-chart {
+  position: absolute;
+  inset: 0;
+  display: block;
+  /* The ring's stroked corners reach the very edge of the plate. */
+  overflow: visible;
+  /* An SVG root takes its transform origin from the fill box, so the arrival
+     below is told to grow about the middle of the plate rather than its
+     top-left corner. */
+  transform-origin: 50% 50%;
+}
+
+/* The chart arrives a little under size and grows past itself before settling,
+   so the ring reads as coming forward rather than being switched on. It peaks
+   where the wedges below run into their stops, which is what makes the two
+   read as one movement. Scale only: the ring's position is what the wedges
+   mean, so nothing here turns it. */
+.pie-chart.sweeping {
+  animation: pie-chart-appear 0.8s forwards;
+}
+
+@keyframes pie-chart-appear {
+  0% {
+    transform: scale(0.9);
+    /* Off slowly and then hard into the stop, in step with the wedges below —
+       see the note on the wipe's own first segment. */
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  /* Past full size, on the frame the wedges hit their ends. */
+  37.5% {
+    transform: scale(1.045);
+    animation-timing-function: ease-in-out;
+  }
+  62% {
+    transform: scale(0.995);
+    animation-timing-function: ease-in-out;
+  }
+  82% {
+    transform: scale(1.004);
+    animation-timing-function: ease-in-out;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* A wedge under the pointer lifts and comes forward a little. The scale is
+   about the chart's own middle rather than the wedge's (`view-box`, not the
+   default fill box), so the wedge grows outward along its own radius and keeps
+   its angle — which is what the wedge means — instead of drifting sideways.
+   Per wedge rather than over the whole ring: it is the one being asked about
+   that answers. */
+.pie-chart path {
+  transition:
+    filter 0.15s ease,
+    transform 0.15s ease;
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+
+.pie-chart path:hover,
+.pie-chart path.is-hovered {
+  filter: brightness(1.2);
+  transform: scale(1.03);
+}
+
+/* And every wedge that is not the one being asked about is held back, so a ring
+   of a dozen slices answers with one of them rather than with all of it. The
+   share written across a held-back wedge goes with it: the figure is part of
+   the slice, and left at full it read as the only thing still lit. */
+.pie-chart.has-highlight path:not(.is-hovered) {
+  filter: brightness(0.4);
+}
+
+.pie-chart-share.is-dimmed {
+  opacity: 0.3;
+}
+
+.pie-chart-share {
+  transition: opacity 0.15s ease;
+}
+
+/* Each wedge is drawn on clockwise from its own start, and they all set off
+   together, so a slice's share grows in place rather than arriving when a sweep
+   reaches it. One mask arc per wedge does the drawing (see the render): the
+   arc's dash is exactly as long as the wedge, and its offset carries the dash
+   from wholly behind the wedge's start to wholly over it.
+
+   The front runs into the end of the wedge with something left over: it comes
+   off the stop, falls back into the wedge, and swings into place. Only the
+   falling back can be seen — going the other way, past the end, uncovers ground
+   the next wedge's own arc has already uncovered, and the mask, being a union,
+   shows nothing for it — so the rebound is the whole of the collision, and it
+   stays inside the wedge's own slot the way a real one would. How far it comes
+   back is the wedge's own, worked out per wedge in the render: the bigger the
+   share, the harder it comes off the stop.
+
+   The numbers below are plain because the arc is dashed in `pathLength` units
+   whose size is that wedge's own rebound over a hundred — so "100" is one
+   rebound to every wedge, whatever it comes to in degrees, and nothing here has
+   to reach for a custom property.
+
+   Covered until the component arms the class, which it does a couple of frames
+   after the chart is drawn — see the note on `chartKey` in PieChart. */
+.pie-chart-wipe.sweeping {
+  animation: pie-chart-wipe 0.8s forwards;
+}
+
+@keyframes pie-chart-wipe {
+  /* Out and into the stop, over 0.225s of the 0.6s: the run at the wall is
+     the quick part, and what is left is the collision, which needs the room to
+     be seen at all — at 4 degrees over 135ms an earlier one was there and
+     unwatchable.
+
+     The run is not at a constant rate. It sets off slowly and gathers speed the
+     whole way, hitting the end at its fastest — the accelerator to the floor
+     and then the wall — which is what the rebound after it is the sound of.
+     Linear made the arrival read as a wipe passing through rather than
+     something being thrown. */
+  0% {
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  37.5% {
+    stroke-dashoffset: 0;
+    animation-timing-function: ease-out;
+  }
+  /* Off the stop and back into the wedge, twice, dying away. */
+  53% {
+    stroke-dashoffset: 100;
+    animation-timing-function: ease-in;
+  }
+  70% {
+    stroke-dashoffset: 0;
+    animation-timing-function: ease-out;
+  }
+  83% {
+    stroke-dashoffset: 28;
+    animation-timing-function: ease-in;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* The reference sets each share on its own arc in a light, plain face.
+   Numbers are set in the app's numeric face wherever they carry a value.
+   The band is 80 design px across on the Route board and the widest share
+   ("25.2%") is written straight across it where a slice sits at three or nine
+   o'clock, so the face has to leave that band a margin either side — which is
+   why the size is scaled with the chart rather than written once. */
+.pie-chart-share {
+  font-family: var(--font-numeric);
+  /* Each share sets its own ink inline — whichever of the two reads on its own
+     slice's colour — because a class rule beats a presentation attribute. This
+     is only the fallback. */
+  fill: var(--color-text);
+  pointer-events: none;
+}

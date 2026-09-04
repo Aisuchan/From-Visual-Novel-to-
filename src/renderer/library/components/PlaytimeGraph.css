@@ -1,0 +1,858 @@
+/* All values below are literal Penpot values from board "PlayTime Graph"
+   (46c2ae74-8739-80c4-8008-7fd68fa6d596), 1585x986 — the same slot in Main
+   Display the Calender board occupies, which is what the "See Playtime on
+   Graph" button puts it in.
+
+   Three columns: Left 351, Middle 750, Right 484. */
+
+.graph-board {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-bg);
+}
+
+/* Penpot: Left — 351 wide, its contents 30 in from the board's own edge. */
+.graph-left {
+  position: relative;
+  width: 351px;
+  flex-shrink: 0;
+}
+
+/* Penpot: Period — 459x119 at 30/30. It runs past the Left column's own 351,
+   which is the design's own overlap: the two dates and the "»" between them
+   are wider than the column that holds them.
+
+   The one figure that is not the design's is that 30. The Start Day box sits
+   32.25 into the Period, so the design leaves that much air between the Under
+   Line's left end and the month above it — which reads as the whole stamp
+   being indented from the rule under it. It is cut to a third, 10.75, by
+   moving the Period itself 21.5 left; every offset inside it is untouched, so
+   the two stamps and the "»" keep the design's own spacing. */
+.graph-period {
+  position: absolute;
+  left: 8.5px;
+  top: 30px;
+  width: 459px;
+  height: 119px;
+  /* The box runs 116 past the Left column into the Middle, and the Middle is
+     the later sibling — so without this the second stamp's own day sat under
+     `.graph-middle` and could not be clicked at all, while the first stamp's
+     three and the second's month and year could. Nothing here is painted over:
+     the Middle carries no ground of its own, so this only decides what the
+     pointer reaches. And only the runs take the pointer, so the ring under the
+     rest of the box is left alone. */
+  z-index: 2;
+  pointer-events: none;
+}
+
+.graph-day-run,
+.graph-day-input {
+  pointer-events: auto;
+}
+
+/* Penpot: Start Day — 151x101, the two of them at 32.25 and 275.75 within the
+   Period, with the "»" at 215.5 between. */
+.graph-day {
+  position: absolute;
+  top: 0;
+  width: 151px;
+  height: 101px;
+}
+
+/* The block's own leading corner — see the keyframes below. The run is `linear`
+   because it is two movements one after the other and each keyframe carries the
+   easing of its own half; one curve over the pair would spend almost all of
+   itself on the slide and leave the pitch crawling. */
+.graph-day,
+.graph-arrow {
+  transform-origin: 100% 100%;
+  animation: graph-period-arrive 0.78s linear both;
+}
+
+.graph-day.from {
+  left: 32.25px;
+  animation-delay: 250ms;
+}
+
+.graph-arrow {
+  animation-delay: 320ms;
+}
+
+.graph-day.to {
+  animation-delay: 390ms;
+}
+
+.graph-day.to {
+  left: 275.75px;
+}
+
+/* Penpot: "»" — Girassol 48px in a 28x101 box, set against the box's own
+   bottom (its `verticalAlign`), which is what puts it level with the day
+   rather than between the two halves of the stamp. */
+.graph-arrow {
+  position: absolute;
+  left: 215.5px;
+  top: 0;
+  width: 28px;
+  height: 101px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 48px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Penpot writes a date as the month over the year with the day dropped below a
+   great slash, and the weekday small beside it. Every one of these is placed
+   against the Start Day box's own corner. Three of them are controls — the
+   month, the day and the year can be typed over — so the rule has to reach a
+   button and an input as well as a span. */
+.graph-day-month,
+.graph-day-date,
+.graph-day-year,
+.graph-day-weekday {
+  position: absolute;
+  font-family: var(--font-display);
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Not in the design: the three figures a date is made of are typed over in
+   place. The run itself is the control — the design draws no plate for one and
+   a plate under a 65px glyph would be the loudest thing on the board — so it
+   is the caret and the lift under the pointer that say so. */
+.graph-day-run {
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: text;
+  transition: color 0.15s ease;
+}
+
+.graph-day-run:hover {
+  color: var(--color-text-bright);
+}
+
+.graph-day-run:focus-visible {
+  outline: none;
+  color: var(--color-text-bright);
+}
+
+/* An input cannot size itself to its own text, so each takes the width Penpot
+   gives that run's box — 71 for the two big figures and 48 for the year. */
+.graph-day-input {
+  padding: 0;
+  border: none;
+  background: none;
+  outline: none;
+  caret-color: var(--color-accent);
+}
+
+.graph-day-month.graph-day-input,
+.graph-day-date.graph-day-input {
+  width: 71px;
+}
+
+.graph-day-year.graph-day-input {
+  width: 48px;
+}
+
+/* Penpot: "08" — Girassol 65px, 10 above the box's own top. */
+.graph-day-month {
+  left: 0;
+  top: -10px;
+  font-size: 65px;
+}
+
+/* Penpot: "／" — a fullwidth solidus at 85px in an 80x102 box, which its own
+   raster draws as a thin, even diagonal from just above the year's right end
+   up to just short of the weekday. No font here has that character: Chromium
+   falls back to a short tapered serif slash that sits high and lands across
+   the year. So the mark is drawn rather than set — a line at the ink the
+   design shows, in the Start Day box's own 151x101 coordinates. */
+.graph-day-slash {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 151px;
+  height: 101px;
+  overflow: visible;
+  /* It is drawn over the whole 151x101 box, so it lies across the month behind
+     it — and an inline SVG's own box is hit-tested like any other. Without this
+     the month could not be clicked at all while the day and the year, which are
+     drawn after it, could. */
+  pointer-events: none;
+}
+
+.graph-day-slash line {
+  stroke: var(--color-text);
+  stroke-width: 4.5;
+}
+
+/* Penpot: "01" — Girassol 65px. */
+.graph-day-date {
+  left: 90px;
+  top: 32px;
+  font-size: 65px;
+}
+
+/* Penpot: "2026" — Girassol 22px. */
+.graph-day-year {
+  left: 0;
+  top: 67px;
+  font-size: 22px;
+}
+
+/* Penpot: "SAT" — Girassol 24px. */
+.graph-day-weekday {
+  left: 118px;
+  top: 8px;
+  font-size: 24px;
+}
+
+/* Penpot: Under Line — a 273x8 bar in #e1e8ed and, past it, a 186-wide path
+   that tapers away to the right. */
+.graph-underline {
+  position: absolute;
+  left: 30px;
+  top: 141px;
+  width: 459px;
+  height: 8px;
+}
+
+/* Not in the design, which draws the period and not how it arrives: it comes in
+   from the left, stops, and only then pitches over and settles — a body braking
+   hard, the pitch being what its own weight does once the wheels have stopped.
+
+   **The two run one after the other rather than together.** The slide reaches
+   its place and is over; the turn begins from there. Overlapped, the block was
+   still moving sideways while it tipped and the two read as one crooked drift
+   rather than as an arrival followed by its own consequence.
+
+   **The turn is about the block's own bottom-right corner** — its leading one,
+   the corner it is travelling towards. Held there, that corner stands still and
+   the trailing end lifts, which is what something carried past its stop does;
+   turned about the bottom-left instead it read as the block being tipped rather
+   than as it having overrun.
+
+   **The three blocks arrive one at a time**, not the row as a whole: the first
+   date, then the "»", then the second, each on its own corner so each brakes on
+   its own. The Under Line under them takes none of it — it is the rule the
+   period is written on rather than a part of what is written, and it swinging
+   with the type read as the whole column coming loose. Held at its start until
+   the board slot's fade is half done, the same 250 the ring and the bars wait,
+   so the board sets off together. */
+@keyframes graph-period-arrive {
+  /* The slide gathers speed the whole way and arrives at its fastest, with no
+     easing off at the end: braking to a halt and then pitching over is two
+     stops, and the join between them read as a stumble. Coming in at speed, the
+     turn below is what the stop is made of. */
+  0% {
+    transform: translateX(-64px) rotate(0deg);
+    opacity: 0;
+    animation-timing-function: ease-in;
+  }
+
+  30% {
+    opacity: 1;
+  }
+
+  /* In place, square, and stopped. Everything after this is the pitch. */
+  45% {
+    transform: translateX(0) rotate(0deg);
+    opacity: 1;
+    animation-timing-function: ease-out;
+  }
+
+  /* Over on the leading corner: 5° across the 151 a date stamp is comes to
+     13px of lift at its trailing end. */
+  62% {
+    transform: translateX(0) rotate(5deg);
+    animation-timing-function: ease-in-out;
+  }
+
+  /* Back through square, and a little past it. */
+  80% {
+    transform: translateX(0) rotate(-1.6deg);
+    animation-timing-function: ease-in-out;
+  }
+
+  92% {
+    transform: translateX(0) rotate(0.5deg);
+    animation-timing-function: ease-in-out;
+  }
+
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+}
+
+.graph-underline-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 273px;
+  height: 8px;
+  background: var(--color-text);
+}
+
+.graph-underline-taper {
+  position: absolute;
+  left: 273px;
+  top: 0;
+  width: 186px;
+  height: 8px;
+  background: var(--color-text);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+/* Penpot: Period Setting — a 263-wide field and a 28-wide button, each with a
+   1px inner stroke in #e1e8ed, the pair rounded 5 at its outer corners.
+
+   Penpot: Period And Setting — 459x168 at 30/30, which is the Period's own 119
+   and the Period Setting's 39 with **10** between them. The setting was put 40
+   below the Under Line's end at 149; the design's own y is 159. */
+.graph-period-setting {
+  position: absolute;
+  left: 30px;
+  top: 159px;
+  width: 291px;
+  height: 39px;
+  display: flex;
+}
+
+.graph-period-field,
+.graph-period-caret {
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  line-height: 1.2;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+/* Penpot: Now Setting — 263x39, "THIS WEEK" at Girassol 24 centred in it. */
+.graph-period-field {
+  flex: 0 0 263px;
+  border-radius: 5px 0 0 5px;
+  font-size: 24px;
+  /* The same 0.06em lift the calendar's own Girassol runs take. */
+  padding-top: 0.06em;
+}
+
+/* Penpot: Show Option Button — 28x39 with "▼" at 18. */
+.graph-period-caret {
+  flex: 0 0 28px;
+  border-radius: 0 5px 5px 0;
+  font-size: 18px;
+}
+
+.graph-period-field:hover,
+.graph-period-caret:hover {
+  background: rgba(225, 232, 237, 0.1);
+}
+
+/* Penpot: Histgram — 291x313 at 30/613: a 65-wide column of dates, a 1px rule
+   in #B1B2B5 down its whole height, and 215 of bars past it. That 313 is
+   exactly the seven rows of a week
+   (10 + 7x29 + 6x15 + 10). A longer period makes more rows, and rather than
+   scrolling them straight away the box **grows upward**: its bottom stays on
+   the design's own 926 and its top runs up towards the Period Setting above,
+   which ends at 198. The floor is 40 clear of that, so at most 688 — fifteen
+   rows — and past that it scrolls. */
+.graph-histogram {
+  position: absolute;
+  left: 30px;
+  top: auto;
+  bottom: calc(100% - 926px);
+  /* Penpot draws it 291, which leaves 30 of nothing between its right edge and
+     the Middle column. The box takes that 30: 321 puts its own right edge on
+     the pie's left, which is as far as anything here can run without meeting
+     the ring, and the 30 goes to the bars rather than to the air. */
+  width: 321px;
+  max-height: 688px;
+  display: flex;
+}
+
+/* The bar is what this box is for and the pie is what stands to its right,
+   so the scrollbar goes on the **left**: down the far side it sat between the
+   two, cutting the longest bars short of the ring they belong to. `direction:
+   rtl` is what moves it there, and each row is turned back to `ltr` so nothing
+   inside them is reversed with it.
+
+   The gutter is taken from outside the design's own 321 rather than out of it:
+   a negative margin of the theme's 8px scrollbar width puts the box's edge that
+   much further left, and `scrollbar-gutter: stable` holds the space whether the
+   list scrolls or not — so the dates still begin on the design's own 0, the
+   rule still stands at 75, and the bars keep every pixel they had. */
+.graph-histogram-days {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-left: -8px;
+  direction: rtl;
+  scrollbar-gutter: stable;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  row-gap: 15px;
+}
+
+/* Penpot: a row is 29 tall, its date at Girassol 24 in a 65 column and its bar
+   filling what is left of the 215 past the rule. */
+.graph-histogram-row {
+  flex: 0 0 29px;
+  direction: ltr;
+  display: flex;
+  align-items: center;
+  column-gap: 10px;
+}
+
+.graph-histogram-date {
+  flex: 0 0 65px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Penpot: the rule between the dates and the bars, 1px #B1B2B5 down the box's
+   own full height. It is the row's own left edge rather than a column of its
+   own, so it stands whole while the rows scroll behind it. */
+.graph-histogram-rule {
+  position: absolute;
+  left: 75px;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: var(--color-border);
+}
+
+/* Penpot: Playtime — a bar as long as the day is against the longest in the
+   period. The design draws one flat #B1B2B5; here the day is cut into the games
+   that made it, largest first, each in the colour its own wedge carries — so a
+   bar says which game the day went to as well as how long it was. A day with
+   nothing draws nothing. */
+/* The design's bar is 29 tall and so is the row; this box is 40, which is what
+   the two lines of figures at its end come to. `clip-path` clips to the border
+   box, so a 29-tall track cut the minutes off at the row's own bottom edge —
+   and the arrival below is a clip. The extra 11 hangs 5.5 either side, into the
+   15 the design leaves between one row and the next. */
+.graph-histogram-track {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+/* The row's own length, which the games inside it divide between them. */
+.graph-histogram-fill {
+  flex: 0 0 auto;
+  height: 29px;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Not in the design: a length answers the pointer the way its own wedge does,
+   and in the same colour — the bars and the ring are the same games. Per length
+   rather than per row: what is being pointed at is one game's share of that
+   day, not the day. */
+.graph-histogram-bar {
+  height: 29px;
+  transition: filter 0.15s ease;
+}
+
+.graph-histogram-bar:hover {
+  filter: brightness(1.2);
+}
+
+/* Not in the design: what the row came to, at the end of its own bar. It is a
+   fixed column so the figure is never cut off, and the bars are laid out
+   against what the track leaves once it has been taken — see
+   `HISTOGRAM_TIME_COLUMN` — so the longest of them still ends inside the box. */
+.graph-histogram-time {
+  flex: 0 0 46px;
+  /* Held against the box's own right edge rather than trailing the bar: two
+     columns are for reading down, and following the bar put every row's pair
+     at a different x, which is the one thing two columns are meant to fix. The
+     longest bar comes to exactly 6 short of them, since the bars are laid out
+     against what this column leaves. */
+  /* Against the end of its own bar rather than the box's right edge: what the
+     figure is about is that bar, and the eye has to travel the whole row to
+     read a column that stands away from it. */
+  margin-left: 6px;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-numeric);
+  /* Two lines of 20 in a row of 29 — the pair hangs 5.5 either side, into the
+     15 the design leaves between one row and the next, so nothing collides.
+     At the 14.5 that fitted inside the row the figures could not be read. */
+  font-size: 19px;
+  line-height: 20px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* Hours on the first line and minutes on the second, both against the bar they
+   belong to: written as one run, "0h7m" and "10h30m" would take twice the width
+   for the same figures. */
+.graph-histogram-time .hours,
+.graph-histogram-time .minutes {
+  text-align: left;
+}
+
+/* Not in the design, which draws the bars and not how they arrive: a row is
+   uncovered from the rule it starts at, growing out to its own length. The
+   clip is on the track rather than a scale on each length, so the seams
+   between one game and the next stay exactly where they land; and every row
+   takes the same time whatever it comes to, so a long day and a short one
+   arrive together rather than the short ones being over first.
+
+   Held covered until the board slot's own fade is done — see `ARRIVAL_MS` —
+   so the two movements follow one another instead of running together. */
+.graph-histogram-track {
+  clip-path: inset(0 100% 0 0);
+}
+
+.graph-histogram.armed .graph-histogram-track {
+  /* Slow off the mark, quick across the middle, slow into the end — the pull
+     is all in the middle of the run and both ends are eased hard. */
+  animation: graph-bar-grow 0.5s cubic-bezier(0.76, 0, 0.24, 1) forwards;
+}
+
+@keyframes graph-bar-grow {
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* Not in the design: the way back to the Calender board, set the way that
+   board's own month steps are. The design draws no way off this board at all;
+   its Left column has 60 clear under the histogram, which is where this goes. */
+.graph-back {
+  position: absolute;
+  left: 30px;
+  top: 936px;
+  padding: 0;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  column-gap: 5px;
+  cursor: pointer;
+}
+
+.graph-back-arrow {
+  font-family: sans-serif;
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-accent);
+}
+
+.graph-back-word {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.graph-back:hover .graph-back-word {
+  color: var(--color-text-bright);
+}
+
+/* Penpot: Middle — 750 wide, holding the Pie Chart's own 750x750 at 118 down. */
+.graph-middle {
+  position: relative;
+  width: 750px;
+  flex-shrink: 0;
+}
+
+.graph-pie {
+  position: absolute;
+  left: 0;
+  top: 118px;
+  width: 750px;
+  height: 750px;
+  border-radius: 375px;
+  background: var(--color-border);
+}
+
+/* Penpot draws the circle flat in #B1B2B5 — the placeholder for the whole
+   chart. It is the Route board's ring here, so the plate is only what stands in
+   while nothing at all has been played in the period. */
+.graph-pie.charted {
+  background: none;
+}
+
+/* Penpot: "TOTAL PLAY TIME" at Girassol 48 over the figure at 72, both at a 0.9
+   line height and centred in #14171a. */
+.graph-pie-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 750px;
+  height: 750px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  line-height: 0.9;
+  /* The design sets this in the board's own dark, which is what a flat light
+     plate needs. The ring leaves a hole in the middle instead, so the run is
+     set in the app's text the way the Route board's own total is. */
+  color: var(--color-text);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Put away while the ring's own middle is carrying a game instead. */
+.graph-pie-label.covered {
+  visibility: hidden;
+}
+
+.graph-pie-label .title {
+  font-size: 48px;
+}
+
+.graph-pie-label .total {
+  font-size: 72px;
+}
+
+
+/* Penpot: Hover Pie Game — 375x136 on #14171a, a 2px inner stroke in #657786 at
+   a 10px radius, holding the game's name at Girassol 48 in #da5e5e over its
+   time at 48 in #e1e8ed, each in a 58px line and 10 clear of the panel's own
+   top and bottom. It follows the pointer, so it takes none of its own. */
+.graph-hover {
+  position: absolute;
+  width: 375px;
+  height: 136px;
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 2px var(--color-text-dim);
+  border-radius: 10px;
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Asked for by a row of the list it stands in the middle of the ring rather
+   than at the pointer, and there it wants no frame: the hole it sits in is
+   already a shape, and a second one drawn inside it read as a box dropped on
+   the chart. The plate stays — it is the board's own ground, so it is invisible
+   against the hole and is what covers the total underneath. */
+.graph-hover.at-pie {
+  box-shadow: none;
+}
+
+.graph-hover-name,
+.graph-hover-time {
+  height: 58px;
+  max-width: 325px;
+  font-family: var(--font-display);
+  line-height: 58px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+/* Penpot sets both at 48. A game's title is a sentence and the design's own
+   "Title Example" is not: at 48 the panel held about eight characters before
+   the ellipsis, so the name is set smaller and carries half again as many.
+   The time is a figure of known length and keeps the design's size. */
+.graph-hover-name {
+  font-size: 32px;
+}
+
+.graph-hover-time {
+  font-size: 48px;
+  color: var(--color-text);
+}
+
+/* In the middle of the ring the two are weighted the other way round. Nothing
+   else is on the chart at that moment, and what the row was pointed at for is
+   the time — the name is the label on it.
+
+   It takes no plate there either: the panel would otherwise punch its own dark
+   rectangle into the ring as it grew, and the ground it stands on is the hole,
+   which is that colour already. The total underneath is put away while it is up
+   rather than covered. Being plateless it can be as tall as its name needs, so
+   it is placed by its own middle on the pie's centre (493 = 118 + 375) rather
+   than by a corner the caller works out. */
+.graph-hover.at-pie {
+  left: 187.5px;
+  top: 493px;
+  transform: translateY(-50%);
+  height: auto;
+  padding: 0;
+  background: none;
+}
+
+/* The name is set as large as it can be and still be read whole — one line at
+   the cap if it fits there, two at the largest size those hold otherwise — so
+   its size and its own max-height arrive inline from FitName. */
+.graph-hover.at-pie .graph-hover-name {
+  height: auto;
+  line-height: 1.15;
+  white-space: normal;
+  text-align: center;
+  text-overflow: clip;
+}
+
+/* Two lines, and where the break falls is FitName's rather than the browser's:
+   each line is its own block, so nothing is left to Chromium's rule that a
+   Japanese line may end between any two characters. */
+.graph-hover.at-pie .graph-hover-line {
+  display: block;
+}
+
+.graph-hover.at-pie .graph-hover-time {
+  height: 72px;
+  font-size: 62px;
+  line-height: 72px;
+}
+
+/* Penpot: Right — 484 wide, a 404x1 #B1B2B5 rule at 112 and another at 873
+   with the Game List between them. */
+.graph-right {
+  position: relative;
+  width: 484px;
+  flex-shrink: 0;
+}
+
+.graph-right-rule {
+  position: absolute;
+  left: 40px;
+  width: 404px;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.graph-right-rule.top {
+  top: 112px;
+}
+
+.graph-right-rule.bottom {
+  top: 873px;
+}
+
+/* Penpot: Game List — 404x700 at 40/143, its five rows centred in it. `safe`
+   so a library longer than the box scrolls from its own top rather than having
+   the first rows cut off above it. */
+.graph-game-list {
+  position: absolute;
+  left: 40px;
+  top: 143px;
+  width: 404px;
+  height: 700px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+}
+
+/* Penpot: Game — 384x30 at 10 in from the list's own left, the colour and the
+   name against its left and the share against its right. */
+/* Penpot draws no hover for a row, and a row is a control here — it points at
+   a wedge. The plate is the design's own Game board, 384 at 10 in from the
+   list's 404. */
+/* Penpot draws a 30-tall row every 40, which is a 10 gap between them. The row
+   takes the whole 40 with that gap as its own padding instead: a row is a
+   control here — it points at a wedge — and a gap between two controls is a
+   strip where the pointer is on neither, which made a run down the list flicker
+   the ring on and off. The 30 the design draws is still what is in it, and the
+   5 above and below keep every row the same distance from the next. */
+.graph-game {
+  flex: 0 0 40px;
+  margin: 0 10px;
+  padding: 5px 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  border-radius: 5px;
+  transition: background 0.15s ease;
+  /* It turns about its own left end, so the row swings up about where it
+     starts rather than pivoting on its middle — the reading end stays put. */
+  transform-origin: 0 50%;
+  animation: graph-game-arrive 0.42s cubic-bezier(0.2, 0, 0.15, 1) both;
+}
+
+/* Not in the design, which draws the list and not how it comes up: a row rises
+   into place from a little below and, as it rises, rights itself from a lean
+   with its far end down. The two are one movement rather than one after the
+   other — the row is being set level as it is put down, not tipped once it has
+   landed. 20° across the 384 a row is comes to 131px at the far end, on top of
+   the 16 it is carried up, so the right of a row travels a good deal further
+   than the left and the list reads as sweeping into place. The wait per row is
+   set inline; see LEGEND_STEP_MS above. */
+@keyframes graph-game-arrive {
+  from {
+    transform: translateY(16px) rotate(20deg);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.graph-game:hover,
+/* Lit for as long as its arrival lasts, and given up when that is over — see
+   `LegendRow`. The row's own transition is what fades it out from there. */
+.graph-game.arriving {
+  background: rgba(225, 232, 237, 0.14);
+}
+
+/* Penpot: Game Color — a 30x30 plate at a 10px radius, 10 clear of the name. */
+.graph-game-color {
+  flex: 0 0 30px;
+  height: 30px;
+  margin-right: 10px;
+  border-radius: 10px;
+}
+
+/* Penpot: "Title Example" — Girassol 24px, #e1e8ed, in the 294 the row leaves
+   between the colour and the share. */
+.graph-game-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Penpot: "10.0%" — Girassol 18px, #aab8c2, in a 50-wide box at the row's end. */
+.graph-game-share {
+  flex: 0 0 50px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  text-align: right;
+}

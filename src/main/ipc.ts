@@ -189,6 +189,23 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IpcChannels.SessionsList, (_event, gameId: number) => db.listSessions(gameId))
 
+  ipcMain.handle(IpcChannels.SessionsPlaytimeByDay, (_event, fromDate: string, toDate: string) =>
+    db.getPlaytimeByDay(fromDate, toDate)
+  )
+
+  ipcMain.handle(
+    IpcChannels.SessionsPlaytimeByDayAndGame,
+    (_event, fromDate: string, toDate: string) => db.getPlaytimeByDayAndGame(fromDate, toDate)
+  )
+
+  ipcMain.handle(IpcChannels.PlansList, (_event, fromDate: string, toDate: string) =>
+    db.listPlans(fromDate, toDate)
+  )
+
+  ipcMain.handle(IpcChannels.PlansAdd, (_event, input) => db.addPlan(input))
+
+  ipcMain.handle(IpcChannels.PlansDelete, (_event, planId: number) => db.deletePlan(planId))
+
   // "ADD IMAGE" in the Add Thumbnail screen. The files are copied under
   // userData so the grid keeps working if the originals move or are deleted.
   ipcMain.handle(IpcChannels.GameImagesAdd, async (_event, gameId: number) => {

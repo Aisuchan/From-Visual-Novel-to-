@@ -4,6 +4,10 @@ import fs from 'node:fs'
 import Database from 'better-sqlite3'
 import type {
   AppSettings,
+  DayPlaytime,
+  DayGamePlaytime,
+  NewPlanInput,
+  Plan,
   FooterStats,
   GameImage,
   GameWithStats,
@@ -19,6 +23,7 @@ import type {
   Session,
   Tag
 } from '../shared/db-types'
+import { GRAPH_PERIODS } from '../shared/db-types'
 
 let db: Database.Database
 
@@ -94,6 +99,18 @@ export function initDb(): void {
       tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
       PRIMARY KEY (game_id, tag_id)
     );
+
+    CREATE TABLE IF NOT EXISTS plans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      color TEXT NOT NULL,
+      notify INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_plans_date ON plans(date);
 
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
@@ -554,7 +571,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   videoFormat: 'mp4',
   audioFormat: 'mp3',
   // The face the design draws; the other one is the toggle's to ask for.
-  homeLayout: 'grid'
+  homeLayout: 'grid',
+  // Penpot writes THIS WEEK into the Period Setting field, so that is the
+  // period the graph opens on until SET DEFAULT is pressed on another row.
+  graphPeriod: 'this-week'
 }
 
 /** A stored value only counts if this build knows it; anything else is the
@@ -579,7 +599,8 @@ export function getSettings(): AppSettings {
     ),
     videoFormat: oneOf(stored.get('videoFormat'), ['mp4', 'mov'], DEFAULT_SETTINGS.videoFormat),
     audioFormat: oneOf(stored.get('audioFormat'), ['mp3', 'wav'], DEFAULT_SETTINGS.audioFormat),
-    homeLayout: oneOf(stored.get('homeLayout'), ['grid', 'shelf'], DEFAULT_SETTINGS.homeLayout)
+    homeLayout: oneOf(stored.get('homeLayout'), ['grid', 'shelf'], DEFAULT_SETTINGS.homeLayout),
+    graphPeriod: oneOf(stored.get('graphPeriod'), GRAPH_PERIODS, DEFAULT_SETTINGS.graphPeriod)
   }
 }
 
@@ -926,4 +947,137 @@ export function getFooterStats(): FooterStats {
     weekSeconds: sumSince(startOfWeek.toISOString()),
     monthSeconds: sumSince(startOfMonth.toISOString())
   }
+}
+
+
+/**
+ * Recorded play time banked against each local day between the two given
+ * dates, both inclusive and both written as a local "YYYY-MM-DD" — what the
+ * Calender board's grid asks for, which is the 42 cells it draws rather than
+ * the month alone.
+ *
+ * `sessions.started_at` is a UTC instant, so the two ends are turned into
+ * local midnights before they are compared and the buckets are made from each
+ * session's own local date. A session is banked on the day it *started*: one
+ * played across midnight belongs to the evening it began, which is how the
+ * player would describe it.
+ */
+export function getPlaytimeByDay(fromDate: string, toDate: string): DayPlaytime[] {
+  // No `Z`, so both are read as local midnight; the end is the day after the
+  // last one asked for.
+  const from = new Date(`${fromDate}T00:00:00`)
+  const to = new Date(`${toDate}T00:00:00`)
+  to.setDate(to.getDate() + 1)
+
+  const rows = db
+    .prepare(
+      `SELECT started_at, duration_seconds FROM sessions
+       WHERE recorded = 1 AND duration_seconds > 0 AND started_at >= ? AND started_at < ?`
+    )
+    .all(from.toISOString(), to.toISOString()) as {
+    started_at: string
+    duration_seconds: number
+  }[]
+
+  const totals = new Map<string, number>()
+  for (const row of rows) {
+    const at = new Date(row.started_at)
+    const key = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(
+      at.getDate()
+    ).padStart(2, '0')}`
+    totals.set(key, (totals.get(key) ?? 0) + row.duration_seconds)
+  }
+
+  return [...totals].map(([date, seconds]) => ({ date, seconds }))
+}
+
+
+/* The Calender board's plans. A plan belongs to a local calendar day rather
+   than to an instant, so `date` is the same "YYYY-MM-DD" the day totals are
+   keyed on and no timezone maths is needed to read one back. */
+
+interface PlanRow {
+  id: number
+  date: string
+  name: string
+  description: string
+  color: string
+  notify: number
+}
+
+function toPlan(row: PlanRow): Plan {
+  return {
+    id: row.id,
+    date: row.date,
+    name: row.name,
+    description: row.description,
+    color: row.color,
+    notify: !!row.notify
+  }
+}
+
+/** Every plan between the two days, both inclusive — the 42 cells the grid
+    draws ask for their own span in one read. Oldest first, and within a day in
+    the order they were written. */
+export function listPlans(fromDate: string, toDate: string): Plan[] {
+  const rows = db
+    .prepare('SELECT * FROM plans WHERE date >= ? AND date <= ? ORDER BY date, id')
+    .all(fromDate, toDate) as PlanRow[]
+  return rows.map(toPlan)
+}
+
+export function addPlan(input: NewPlanInput): Plan {
+  const info = db
+    .prepare(
+      'INSERT INTO plans (date, name, description, color, notify) VALUES (?, ?, ?, ?, ?)'
+    )
+    .run(input.date, input.name, input.description, input.color, input.notify ? 1 : 0)
+  const row = db.prepare('SELECT * FROM plans WHERE id = ?').get(info.lastInsertRowid) as PlanRow
+  return toPlan(row)
+}
+
+export function deletePlan(planId: number): void {
+  db.prepare('DELETE FROM plans WHERE id = ?').run(planId)
+}
+
+
+/**
+ * What each game was played for on each local day between the two given days,
+ * both inclusive — the PlayTime Graph board's whole source. Its pie and its
+ * game list add these up per game and its histogram per day, so the board
+ * reads them once rather than asking two questions of the same sessions.
+ *
+ * Bucketed the way `getPlaytimeByDay` buckets: `sessions.started_at` is a UTC
+ * instant, so the two ends are turned into local midnights before they are
+ * compared and every session is banked on the local day it *started*.
+ */
+export function getPlaytimeByDayAndGame(fromDate: string, toDate: string): DayGamePlaytime[] {
+  const from = new Date(`${fromDate}T00:00:00`)
+  const to = new Date(`${toDate}T00:00:00`)
+  to.setDate(to.getDate() + 1)
+
+  const rows = db
+    .prepare(
+      `SELECT game_id, started_at, duration_seconds FROM sessions
+       WHERE recorded = 1 AND duration_seconds > 0 AND started_at >= ? AND started_at < ?`
+    )
+    .all(from.toISOString(), to.toISOString()) as {
+    game_id: number
+    started_at: string
+    duration_seconds: number
+  }[]
+
+  const totals = new Map<string, DayGamePlaytime>()
+  for (const row of rows) {
+    const at = new Date(row.started_at)
+    const date = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(
+      at.getDate()
+    ).padStart(2, '0')}`
+    const key = `${date}:${row.game_id}`
+    const already = totals.get(key)
+    if (already) already.seconds += row.duration_seconds
+    else totals.set(key, { date, gameId: row.game_id, seconds: row.duration_seconds })
+  }
+
+  return [...totals.values()]
 }

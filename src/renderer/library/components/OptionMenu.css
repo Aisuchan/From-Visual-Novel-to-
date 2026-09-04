@@ -113,6 +113,20 @@
   background: rgba(225, 232, 237, 0.14);
 }
 
+/* Not in the design: a row the caller marks as the one the list stands at takes
+   the app's accent as its plate — the blue the Add Game button carries — and
+   keeps its own ink, so it is picked out without being set differently from the
+   rows either side of it. */
+.option-menu-option.is-current {
+  background: var(--color-accent);
+}
+
+/* The same 0.14 lift the plain hover is, laid over the accent rather than put
+   in its place. */
+.option-menu-option.is-current:hover {
+  background-image: linear-gradient(rgba(225, 232, 237, 0.14), rgba(225, 232, 237, 0.14));
+}
+
 /* Penpot: "Option1" — Girassol #e1e8ed, line-height 1.2, at 42px in the
    design and 28 here. A label too long for the column has its size set inline
    instead. */

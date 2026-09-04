@@ -1,6 +1,8 @@
 import type {
   AppSettings,
   AudioFormat,
+  DayPlaytime,
+  DayGamePlaytime,
   FooterStats,
   GameImage,
   GameWithStats,
@@ -9,7 +11,9 @@ import type {
   LaunchPrefs,
   NewGameInput,
   NewGroupInput,
+  NewPlanInput,
   NewRouteInput,
+  Plan,
   ProgressState,
   Route,
   RoutePatch,
@@ -49,6 +53,11 @@ export const IpcChannels = {
   LaunchPrefsGet: 'launch-prefs:get',
   LaunchPrefsSet: 'launch-prefs:set',
   SessionsList: 'sessions:list',
+  SessionsPlaytimeByDay: 'sessions:playtime-by-day',
+  SessionsPlaytimeByDayAndGame: 'sessions:playtime-by-day-and-game',
+  PlansList: 'plans:list',
+  PlansAdd: 'plans:add',
+  PlansDelete: 'plans:delete',
   SessionStart: 'session:start',
   SessionEnded: 'session:ended',
   SessionScreenshot: 'session:screenshot',
@@ -216,6 +225,17 @@ export interface LibraryApi {
   setSettings(patch: Partial<AppSettings>): Promise<AppSettings>
   /** The game's sessions, newest first — the Play Log board's source. */
   listSessions(gameId: number): Promise<Session[]>
+  /** Recorded play time per local day over an inclusive "YYYY-MM-DD" range —
+      what the Calender board's cells carry while "Show Playtime" is on. */
+  getPlaytimeByDay(fromDate: string, toDate: string): Promise<DayPlaytime[]>
+  /** What each game was played for on each day of the same kind of range — the
+      PlayTime Graph board's whole source. */
+  getPlaytimeByDayAndGame(fromDate: string, toDate: string): Promise<DayGamePlaytime[]>
+  /* The Calender board's plans. The grid reads its own 42 cells in one call
+     and reads them again after a write, the way the game list does. */
+  listPlans(fromDate: string, toDate: string): Promise<Plan[]>
+  addPlan(input: NewPlanInput): Promise<Plan>
+  deletePlan(planId: number): Promise<void>
   getFooterStats(): Promise<FooterStats>
   getLaunchPrefs(gameId: number): Promise<LaunchPrefs>
   setLaunchPrefs(prefs: LaunchPrefs): Promise<void>

@@ -38,6 +38,11 @@ interface Props {
   onHome: () => void
   /** Whether that board is the one up, which the button stays lit for. */
   homeOpen: boolean
+  /** The clock: puts Penpot's Calender board in the content column, and takes
+      it away again — the same toggle HOME and the footer's ⚙ make. */
+  onCalendar: () => void
+  /** Whether that board is the one up, which the clock stays lit for. */
+  calendarOpen: boolean
 }
 
 interface ContextMenu {
@@ -71,7 +76,9 @@ export default function SidePanel({
   onDeleteGame,
   onAddGroup,
   onHome,
-  homeOpen
+  homeOpen,
+  onCalendar,
+  calendarOpen
 }: Props): React.JSX.Element {
   const [now, setNow] = useState(new Date())
   /** What is typed in the box, and the term actually applied to the list. */
@@ -287,12 +294,20 @@ export default function SidePanel({
 
   return (
     <aside className="side-panel" ref={panelRef}>
-      <div className="clock">
+      {/* Not in the design: the clock is a button — it puts Penpot's Calender
+          board in the content column — and stays lit while that board is up,
+          the way the HOME plate below it does for Home. */}
+      <button
+        className={`clock${calendarOpen ? ' is-open' : ''}`}
+        onClick={onCalendar}
+        title={calendarOpen ? 'カレンダーを閉じる' : 'カレンダーを開く'}
+        aria-pressed={calendarOpen}
+      >
         <span className="clock-date" ref={dateRef}>
           {dateLabel}
         </span>
         <span className="clock-time">{timeLabel}</span>
-      </div>
+      </button>
 
       <button
         className={`home-button${homeOpen ? ' is-open' : ''}`}
