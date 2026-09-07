@@ -1,16 +1,41 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { DayGamePlaytime, GameWithStats, GraphPeriod } from '../../../shared/db-types'
-import { desaturate, SWATCHES } from '../color'
+import type {
+  DayGamePlaytime,
+  GameWithStats,
+  GraphPeriod,
+  Group,
+  Tag
+} from '../../../shared/db-types'
+import { colorForRank } from '../color'
+import { filterGames, suggestsGroup } from '../filter'
 import { toDateKey } from '../format'
 import { periodRow, startOfWeek } from '../period'
 import { displayName } from '../sort'
+import OptionMenu from './OptionMenu'
 import PeriodMenu from './PeriodMenu'
 import PieChart from './PieChart'
+import TagChip from './TagChip'
+import { motionOff } from '../motion'
 import './PlaytimeGraph.css'
+import { t } from '../../../shared/i18n'
 
 /** Penpot: PlayTime Graph — the board's own width, which the period menu's
     placement is measured off, the way the Setting board's is. */
 const BOARD_WIDTH = 1585
+
+/* The filter plate's two controls are the Home board's own, kept at that
+   board's own widths: the Group pill and its ▼ come to Penpot's 331, and the
+   tag chips have the rest of the 1117 the plate is. The list the ▼ drops is as
+   wide as the pill it drops out of, which is what every menu in the app is —
+   and it opens *upward*, the plate standing on the footer, which is
+   `OptionMenu`'s own rule for a list that would run off the bottom. */
+const GROUP_WIDTH = 331
+const GROUP_MENU_ROWS = 8
+/** The menu is set clear of the pill rather than flush under it, which is what
+    the Home board's own two are. */
+const MENU_GAP = 6
+/** The row for no group at all, which is this plate's one-click release. */
+const ALL_GROUPS_KEY = 'all-groups'
 
 /** Penpot: Pie Chart — the design's own 750 circle, 118 down its column. */
 const PIE_SIZE = 750
@@ -58,6 +83,24 @@ const LAST_YEAR = 2100
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
+/** Days in an average month, which is what a month's average is divided by:
+    365.25 / 12, so the three figures below are one rate read at three
+    lengths rather than three different sums. */
+const DAYS_IN_MONTH = 365.25 / 12
+
+/* The three lengths the bottom-right plate reads the period at. `days` is what
+   the day's own average is multiplied by; `least` is the longest a period can
+   be and still leave the figure saying nothing — a period no longer than the
+   unit puts the whole of itself into one of them, so what would be written is
+   the total over again rather than an average, and 「--」 is written instead.
+   A calendar month runs 28 to 31 days and every one of them is one month, so
+   the longest of them is what the month's own figure is held against. */
+const AVERAGE_UNITS = [
+  { label: '1日', days: 1, least: 1 },
+  { label: '1週間', days: 7, least: 7 },
+  { label: '1ヶ月', days: DAYS_IN_MONTH, least: 31 }
+]
+
 /* How the histogram's rows are cut. A row a day is what the design draws and
    what a week or a month wants; a longer period would run off the box, so it
    is read at a coarser grain instead — a quarter by the week, half a year and
@@ -72,23 +115,16 @@ function bucketFor(spanDays: number): Bucket {
   return 'day'
 }
 
-/** How much colour the palette keeps here. The Template Color swatches are
-    drawn for one plate at a time; a ring of a dozen wedges in them, with the
-    same dozen again down the histogram and once more in the legend, is a great
-    deal of pure colour at once and reads as noise. A quarter of the saturation
-    comes off and the lightness is left where it is. */
-const RANK_SATURATION = 0.75
-
-/** The colour a game is drawn in, in the ring, in its own bars and in the list
-    beside them. Games carry no colour of their own — a route does — so it comes
-    off the game's rank in the period, out of the app's own Template Color
-    palette, with that palette held back to the figure above. */
-export function colorForRank(rank: number): string {
-  return desaturate(SWATCHES[rank % SWATCHES.length], RANK_SATURATION)
-}
-
 /** Penpot: "9999:99:99" — hours, minutes and seconds, each padded to two but
     the hours as long as they run. */
+/** An average is a rate rather than a stopwatch, so it is written in hours and
+    minutes — seconds on a figure divided by a month say nothing. */
+function formatAverage(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  return `${hours}h${pad2(minutes)}m`
+}
+
 function formatTotal(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600)
   const minutes = Math.floor((totalSeconds % 3600) / 60)
@@ -114,6 +150,10 @@ interface Props {
   /** The row SET DEFAULT was last pressed on, which is what the board opens
       on — the one thing about this screen that outlives it. */
   defaultPeriod: GraphPeriod
+  /** The vocabulary the tag chips are matched against. */
+  tags: Tag[]
+  /** The groups the GROUP pill offers, which is the Home board's own list. */
+  groups: Group[]
   onSetDefaultPeriod: (key: GraphPeriod) => void
   /** Back to the Calender board, which is what put this one up. */
   onBack: () => void
@@ -122,6 +162,8 @@ interface Props {
 export default function PlaytimeGraph({
   games,
   defaultPeriod,
+  tags,
+  groups,
   onSetDefaultPeriod,
   onBack
 }: Props): React.JSX.Element {
@@ -133,6 +175,33 @@ export default function PlaytimeGraph({
     periodRow(defaultPeriod).range(new Date())
   )
   const [menuOpen, setMenuOpen] = useState(false)
+  /* Penpot's own top-right Rectangle: which games the board counts at all.
+     The two controls in it are the Home board's own — the Group pill and the
+     ADD TAG + row — so a name is typed, settled and matched here exactly the
+     way it is there.
+
+     The Group field is two things. `groupText` is what is in it, which is what
+     the suggestions are drawn from; `groupName` is the group the board is
+     narrowed to, which follows on a row picked out of the menu, on Enter, or
+     on the caret leaving the field. */
+  const [groupText, setGroupText] = useState('')
+  const [groupName, setGroupName] = useState('')
+  /* The chips ADD TAG + puts out. They are a filter over the board and nothing
+     else — a chip is a piece of text, and its ✕ takes it off the row. */
+  const [tagFilters, setTagFilters] = useState<{ id: number; text: string }[]>([])
+  const [newTagId, setNewTagId] = useState<number | null>(null)
+  const nextTagId = useRef(1)
+  /* Which of Penpot's "Menu" boards is out: 'group' is the whole list, dropped
+     out of the pill by its ▼, and 'group-suggest' is that same list narrowed
+     to what has been typed. */
+  const [groupMenu, setGroupMenu] = useState<{
+    key: 'group' | 'group-suggest'
+    top: number
+    left: number
+  } | null>(null)
+  const groupRef = useRef<HTMLDivElement | null>(null)
+  const groupAnchorRef = useRef<HTMLElement | null>(null)
+  const tagsRef = useRef<HTMLDivElement | null>(null)
   const [rows, setRows] = useState<DayGamePlaytime[]>([])
   /* Bumped whenever there is a different chart to draw, which is what runs the
      ring's arrival again — the same counter the Route board keeps. */
@@ -158,12 +227,44 @@ export default function PlaytimeGraph({
   const anchorRef = useRef<HTMLDivElement | null>(null)
   const [menuAt, setMenuAt] = useState<{ top: number; left: number } | null>(null)
   /* False until the board slot's fade is over, which is what holds the ring
-     and the bars back so the screen resolves before anything on it moves. */
-  const [arrived, setArrived] = useState(false)
+     and the bars back so the screen resolves before anything on it moves.
+     True from the first frame while the Setting board's アニメーション row is
+     off: there is no fade to come out of, and nothing to hold back. */
+  const [arrived, setArrived] = useState(() => motionOff())
 
   useEffect(() => {
+    if (motionOff()) return
     const id = window.setTimeout(() => setArrived(true), ARRIVAL_MS)
     return () => window.clearTimeout(id)
+  }, [])
+
+  // A chip added past the end of the row is scrolled to.
+  useEffect(() => {
+    if (newTagId === null) return
+    const row = tagsRef.current
+    if (row) row.scrollLeft = row.scrollWidth
+  }, [newTagId])
+
+  /* The row carries no scrollbar, so the wheel is the whole of how it moves. A
+     vertical wheel over a box that only scrolls across does nothing in
+     Chromium, and left alone it would scroll whatever is behind it instead —
+     so the delta is turned sideways here and the event stopped. React's own
+     `onWheel` is registered passive and cannot stop it, hence the native
+     listener; the Home board's own tag row is the same. */
+  useEffect(() => {
+    const row = tagsRef.current
+    if (!row) return
+    const onWheel = (event: WheelEvent): void => {
+      if (row.scrollWidth <= row.clientWidth) return
+      const delta = event.deltaY !== 0 ? event.deltaY : event.deltaX
+      if (delta === 0) return
+      event.preventDefault()
+      // Line and page deltas, which some mice report, in pixels.
+      const scale = event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? 400 : 1
+      row.scrollLeft += delta * scale
+    }
+    row.addEventListener('wheel', onWheel, { passive: false })
+    return () => row.removeEventListener('wheel', onWheel)
   }, [])
 
   /* What the period comes to. A preset answers with its own range given today;
@@ -193,11 +294,47 @@ export default function PlaytimeGraph({
     }
   }, [fromKey, toKey])
 
+  /* What the two fields on the top-right plate have left. They are the app's
+     own three matches less the Search Box: a group whole (`matchesGroupName`)
+     and a tag whole, from `filter.ts`, so a name means here exactly what it
+     means on the side panel and the Home board. It narrows the *whole* board
+     — the ring, the bars, the legend and the averages are all built off the
+     rows this leaves. */
+  const tagTerms = useMemo(
+    /* Written chips only. A blank one is what ADD TAG + puts out for a name to
+       be typed into, and it narrows nothing until there is one. */
+    () => tagFilters.map((chip) => chip.text).filter((text) => text !== ''),
+    [tagFilters]
+  )
+
+  const counted = useMemo(() => {
+    if (!groupName && tagTerms.length === 0) return null
+    return new Set(
+      filterGames(games, tags, { query: '', group: groupName, tagTerms }).map((game) => game.id)
+    )
+  }, [games, tags, groupName, tagTerms])
+
+  /* The rows the menu offers: the whole list under the ▼, with 「すべて」 over
+     it for no group at all, and the names beginning with what has been typed
+     under the field. The match is `filter.ts`'s own, so a menu here offers
+     exactly the groups the Home board's would. */
+  const groupOptions = useMemo(() => {
+    if (!groupMenu) return []
+    const rows = groups.map((group) => ({
+      key: String(group.id),
+      label: group.name,
+      color: group.color
+    }))
+    if (groupMenu.key === 'group') return [{ key: ALL_GROUPS_KEY, label: t('すべて') }, ...rows]
+    return rows.filter((row) => suggestsGroup(row.label, groupText))
+  }, [groups, groupMenu, groupText])
+
   /* The list the ring and the legend share: the games played in the period,
      largest first. A game the library no longer has is left out — its sessions
      went with it, but a range read before a delete could still be in hand. */
   const perGame = new Map<number, number>()
   for (const row of rows) {
+    if (counted && !counted.has(row.gameId)) continue
     perGame.set(row.gameId, (perGame.get(row.gameId) ?? 0) + row.seconds)
   }
   const played = [...perGame]
@@ -213,7 +350,12 @@ export default function PlaytimeGraph({
   /** The colour a game is drawn in, which its own bars take too. */
   const inkFor = new Map(played.map((row) => [row.gameId, row.color]))
 
-  const spanDays = Math.round((spanTo.getTime() - spanFrom.getTime()) / 86400000) + 1
+  const spanDays = Math.max(1, Math.round((spanTo.getTime() - spanFrom.getTime()) / 86400000) + 1)
+  /* Penpot's own bottom-right Rectangle: what the period came to, at three
+     lengths. One rate read three ways rather than three sums — a week is seven
+     of the day's own average and a month is 365.25/12 of it — so the three
+     figures can never disagree about the same period. */
+  const perDay = total / spanDays
   const bucket = bucketFor(spanDays)
   const slots: Slot[] = []
   // A guard rather than a rule: no period the board offers reaches it.
@@ -323,6 +465,78 @@ export default function PlaytimeGraph({
     setMenuOpen(true)
   }
 
+  /* Where the group menu hangs, in the board's own design pixels — measured
+     when the pill is opened rather than written down, the way the Home board's
+     own is, since `position: fixed` and `getBoundingClientRect` do not share
+     the shell's coordinate space. */
+  function placeGroupMenu(key: 'group' | 'group-suggest', row: HTMLElement): void {
+    const board = boardRef.current
+    if (!board) return
+    const boardRect = board.getBoundingClientRect()
+    const rect = row.getBoundingClientRect()
+    const scale = boardRect.width / BOARD_WIDTH
+    groupAnchorRef.current = row
+    setGroupMenu({
+      key,
+      top: (rect.bottom - boardRect.top) / scale + MENU_GAP,
+      left: (rect.left - boardRect.left) / scale
+    })
+  }
+
+  function toggleGroupMenu(row: HTMLElement): void {
+    if (groupMenu?.key === 'group') {
+      setGroupMenu(null)
+      return
+    }
+    placeGroupMenu('group', row)
+  }
+
+  /* The suggestions hang off the whole pill rather than off the field, so they
+     line up with the list the ▼ drops out of it. A field holding only spaces
+     has nothing in it: it puts no suggestions up, and — `filterGames` trimming
+     what it is given — narrows the board by nothing either. */
+  function openGroupSuggestions(text: string): void {
+    const row = groupRef.current
+    if (!row) return
+    if (text.trim()) placeGroupMenu('group-suggest', row)
+    else setGroupMenu((open) => (open?.key === 'group-suggest' ? null : open))
+  }
+
+  /** Settles the field: what it holds becomes what the board is narrowed to. */
+  function commitGroup(text: string): void {
+    setGroupText(text)
+    setGroupName(text)
+  }
+
+  function addTag(): void {
+    const id = nextTagId.current++
+    setTagFilters((list) => [...list, { id, text: '' }])
+    setNewTagId(id)
+  }
+
+  /* The name a chip was left holding. Nothing in it takes the chip away —
+     **and so does a name the row already carries**: a tag is one condition on
+     the list, and the same one twice narrows nothing further while standing
+     there as though it did. Case is ignored because the match ignores it
+     (`filterGames` lowercases both sides), so "RPG" over "rpg" would have been
+     the one condition written twice. */
+  function commitTag(id: number, text: string): void {
+    const trimmed = text.trim()
+    setNewTagId((current) => (current === id ? null : current))
+    setTagFilters((list) => {
+      const repeats = list.some(
+        (chip) => chip.id !== id && chip.text.toLowerCase() === trimmed.toLowerCase()
+      )
+      if (trimmed === '' || repeats) return list.filter((chip) => chip.id !== id)
+      return list.map((chip) => (chip.id === id ? { ...chip, text: trimmed } : chip))
+    })
+  }
+
+  function deleteTag(id: number): void {
+    setNewTagId((current) => (current === id ? null : current))
+    setTagFilters((list) => list.filter((chip) => chip.id !== id))
+  }
+
   return (
     <div className="graph-board" ref={boardRef}>
       {/* Penpot: Left — the period, its preset and the histogram */}
@@ -348,10 +562,10 @@ export default function PlaytimeGraph({
 
         {/* Penpot: Period Setting — the field and its ▼, one control */}
         <div className="graph-period-setting" ref={anchorRef}>
-          <button className="graph-period-field" onClick={toggleMenu} title="期間を選ぶ">
+          <button className="graph-period-field" onClick={toggleMenu} title={t('期間を選ぶ')}>
             {periodLabel}
           </button>
-          <button className="graph-period-caret" onClick={toggleMenu} aria-label="期間を選ぶ">
+          <button className="graph-period-caret" onClick={toggleMenu} aria-label={t('期間を選ぶ')}>
             ▼
           </button>
         </div>
@@ -405,7 +619,7 @@ export default function PlaytimeGraph({
         </div>
 
         {/* Not in the design: the way back to the board that put this one up. */}
-        <button className="graph-back" onClick={onBack} title="カレンダーに戻る">
+        <button className="graph-back" onClick={onBack}>
           <span className="graph-back-arrow">◀</span>
           <span className="graph-back-word">Calender</span>
         </button>
@@ -507,6 +721,139 @@ export default function PlaytimeGraph({
         </div>
         <div className="graph-right-rule bottom" />
       </div>
+
+      {/* Penpot: Rectangle — 1117x50 at 468/935, the plate at the board's
+          foot. The design draws it and nothing in it; what it holds is the
+          Home board's own two filters, divided by the same rule, which say
+          which games this board counts at all. */}
+      <div className="graph-filters">
+        {/* The Group pill: the ▼ drops the whole list out of the row, typing
+            narrows that same board to the names beginning with what has been
+            typed, and the board is narrowed to the group of exactly that
+            name. Penpot's own "GROUP" is what the field says while nothing is
+            in it. */}
+        <div className="graph-filter-half">
+          <div className="graph-select" ref={groupRef}>
+            <span className="graph-select-value">
+              <input
+                className="graph-select-input"
+                placeholder="GROUP"
+                value={groupText}
+                spellCheck={false}
+                onChange={(event) => {
+                  /* A blank is nothing typed: a field holding only spaces goes
+                     back to being empty, so it says GROUP again rather than
+                     standing there looking filled in while it narrows the
+                     board by nothing. Only a run that is *all* whitespace
+                     goes — a space inside a name is part of the name. */
+                  const text = event.target.value.trim() ? event.target.value : ''
+                  if (text) setGroupText(text)
+                  else commitGroup('')
+                  openGroupSuggestions(text)
+                }}
+                onKeyDown={(event) => {
+                  /* Enter settles the field. Not the Enter that ends an IME
+                     conversion, though — that one is choosing a character, and
+                     a group written in Japanese would otherwise be searched
+                     for one syllable at a time. */
+                  if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+                  commitGroup(groupText)
+                  setGroupMenu(null)
+                }}
+                onFocus={() => openGroupSuggestions(groupText)}
+                onBlur={() => {
+                  commitGroup(groupText)
+                  setGroupMenu((open) => (open?.key === 'group-suggest' ? null : open))
+                }}
+              />
+            </span>
+            <button
+              className="graph-select-caret"
+              onClick={(event) => toggleGroupMenu(event.currentTarget.parentElement!)}
+              title={t('グループ一覧')}
+              aria-label={t('グループ一覧')}
+              aria-haspopup="menu"
+              aria-expanded={groupMenu !== null}
+            >
+              {/* ▲ rather than the ▼ every other one of these carries: the
+                  plate stands on the footer, so this list has nowhere to go
+                  but up and always opens above the row. The mark says which
+                  way the press goes. */}
+              <span className="graph-caret-glyph">▲</span>
+            </button>
+          </div>
+        </div>
+
+        <span className="graph-filter-rule" />
+
+        {/* The tag half is the Home board's own row: ADD TAG + puts out a
+            chip, named in place, and every written one is a condition on the
+            whole board. A tag is matched whole, the way it is everywhere
+            else. */}
+        <div className="graph-filter-half tags">
+          <button className="graph-add-tag" onClick={addTag}>
+            <span className="graph-chip-label">ADD TAG +</span>
+          </button>
+          <span className="graph-tag-rule" />
+          <div className="graph-tag-container" ref={tagsRef}>
+            {tagFilters.map((chip) => (
+              <TagChip
+                key={chip.id}
+                name={chip.text}
+                editing={chip.id === newTagId}
+                onCommit={(text) => commitTag(chip.id, text)}
+                onDelete={() => deleteTag(chip.id)}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Penpot: Rectangle — 600x50 at 986/0, the plate at the board's head.
+          What it holds is what the period came to per day, per week and per
+          month. */}
+      <div className="graph-averages">
+        <span className="graph-average-title">{t('平均:')}</span>
+        {/* The three figures are a box of their own, which is what lets the
+            air on either side of them be the one figure (see the sheet). */}
+        <div className="graph-average-units">
+          {AVERAGE_UNITS.map((unit) => (
+            <div className="graph-average" key={unit.label}>
+              <span className="graph-average-label">{t(unit.label)}</span>
+              <span className="graph-average-value">
+                {/* A period no longer than the unit puts the whole of itself
+                    into one of them, so the figure would be the total written
+                    again rather than an average of anything. */}
+                {spanDays <= unit.least ? '--' : formatAverage(perDay * unit.days)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* No rows, no board: a search matching no group puts nothing up rather
+          than an empty plate, which is what every other one of these does. */}
+      {groupMenu && groupOptions.length > 0 && (
+        <OptionMenu
+          options={groupOptions}
+          top={groupMenu.top}
+          left={groupMenu.left}
+          width={GROUP_WIDTH}
+          /* The groups are what the list is of; the 「すべて」 row over them is
+             not one of them, and the suggestions leave it off entirely. */
+          maxRows={GROUP_MENU_ROWS + (groupOptions[0]?.key === ALL_GROUPS_KEY ? 1 : 0)}
+          onPick={(key) => {
+            if (key === ALL_GROUPS_KEY) commitGroup('')
+            else {
+              const picked = groups.find((group) => String(group.id) === key)
+              if (picked) commitGroup(picked.name)
+            }
+            setGroupMenu(null)
+          }}
+          onDismiss={() => setGroupMenu(null)}
+          anchorRef={groupAnchorRef as React.RefObject<HTMLElement>}
+        />
+      )}
 
       {menuOpen && menuAt && (
         <PeriodMenu
@@ -833,7 +1180,7 @@ function DayPart({
 
   if (!active) {
     return (
-      <button type="button" className={`${className} graph-day-run`} onClick={onOpen} title="編集">
+      <button type="button" className={`${className} graph-day-run`} onClick={onOpen} title={t('編集')}>
         {text}
       </button>
     )

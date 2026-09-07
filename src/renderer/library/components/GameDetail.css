@@ -178,15 +178,40 @@
   filter: brightness(1.22);
 }
 
-/* Not in the design: the mark, set on the triangle's incentre and turned 40°
-   clockwise so it runs with the hypotenuse. */
+/* Not in the design: the mark, set on the triangle's centroid and turned 40°
+   clockwise so it runs with the hypotenuse.
+
+   **How large it can be was measured rather than judged.** A run turned 40° in
+   a right triangle is held by whichever edge its corners reach first, which is
+   not the same edge for a square glyph as for a three-digit score — so the ink
+   of every mark was measured (a canvas `measureText` in a probe window, at
+   100px, in these same two faces) and each size worked out from the triangle's
+   own geometry. At 100px: 未/途/完 come to a 94x91 ink box, and the numerals to
+   61 tall with each figure 36.5 wide. The mark's centre is the centroid
+   (176.67, 82), which stands 82 from the top edge, 88.33 from the right one
+   and 60.10 from the hypotenuse; a box of half-width w and half-height h
+   turned 40° reaches `w|n·u| + h|n·v|` towards an edge whose inward normal is
+   n. Every size below is the largest that keeps about 9 design px of ink clear
+   of all three edges — the ink being what is seen, where the em box the type
+   is set in leaves two fifths of itself empty above and below the numerals and
+   would have set the scores half the size they can be.
+
+   **未/途/完 are set from their own point rather than the score's** (see
+   `GLYPH_MARK_X` in GameDetail.tsx): a square box reaches nearly as far
+   towards the hypotenuse as towards the top, so on the centroid it had 10 of
+   air on one side and 20 on the other and read as sitting into the lower-left
+   corner. Standing where all three come out equal, the same 9.5 of air holds
+   it at **112** rather than 104 — and the room it gains is room the glyph
+   fills, which is the other half of what makes it read as centred. That puts
+   its ink a little taller than the score's own (102 against 95), so the two
+   are no longer set to one optical size: a square glyph fills its box where a
+   figure is a stroke through the middle of one, and matched exactly the glyph
+   read as the smaller of the two. */
 .progress-mark {
   position: absolute;
   transform: translate(-50%, -50%) rotate(40deg);
   font-family: var(--font-display);
-  /* The largest that keeps every mark clear of all three edges once turned:
-     the turned 104px box only just fits, so this leaves a little air. */
-  font-size: 96px;
+  font-size: 112px;
   line-height: 1;
   color: var(--color-text-bright);
   white-space: nowrap;
@@ -195,18 +220,33 @@
 
 /* A score is set in the app's numeric face, as numbers are everywhere else.
    That face carries far less ink per em than a CJK glyph — measured, digits at
-   96px stand 58 tall against 未/途/完's 85 — so it is set larger to read as the
-   same size. 141px puts its cap height on 85 as well, and even "100" turned 40°
-   still clears all three edges (measured: nothing clipped). */
+   the numerals are 0.61 of their em against 未/途/完's 0.91, so a score is set
+   half again as large to stand as tall — 155 puts its figures' own height on
+   95. It is held by the *top* edge rather than the hypotenuse, a wide, short
+   box reaching that way first: from the centroid it clears the top by 8.9, the
+   hypotenuse by 10.0 and the right edge by 13.9, which is even enough that it
+   keeps that point where the glyphs above are given one of their own. */
 .progress-mark.scored {
   font-family: var(--font-numeric);
-  font-size: 141px;
+  font-size: 155px;
 }
 
-/* Only one score runs to three digits, and off the incentre 100 reaches the
-   triangle's top edge at the full size; 128px puts the air back under it. */
+/* **A letter is not a square glyph.** 未/途/完 read as N/P/C in English, and a
+   Girassol capital is narrower than a CJK glyph and about 0.7em of cap height
+   against the CJK's 0.91 — so at the 112 above it would come out a third
+   shorter. 146 puts its ink back on the glyphs' own 102, which is what the
+   point they share was worked out against. */
+.progress-mark.letter {
+  font-size: 146px;
+}
+
+/* Only one score runs to three digits, and "100" is half again as wide as
+   "88": at 155 it would run 20px past the top edge. 129 is as large as it
+   goes — it clears that edge by 9.9, which is the same air every other mark
+   keeps — so a three-digit score is the one that is set smaller than the
+   rest. */
 .progress-mark.wide {
-  font-size: 128px;
+  font-size: 129px;
 }
 
 /* ------------------------------------------------------------- Middle ---- */
@@ -285,7 +325,7 @@
 }
 
 /* The whole image, scaled to fit its frame, whatever its aspect ratio. */
-.main-image img {
+.main-image :is(img, video) {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -305,16 +345,16 @@
    `object-position` is animatable, and shares the slide's 0.4s above, so an
    entry promoted to the centre eases back to the centred `contain` the main
    image is drawn with — nothing about the main image changes. */
-.main-image.side-left img {
+.main-image.side-left :is(img, video) {
   object-position: 100% 50%;
 }
 
-.main-image.side-right img {
+.main-image.side-right :is(img, video) {
   object-position: 0% 50%;
 }
 
 /* The peeking neighbours sit in shadow. */
-.main-image.side img {
+.main-image.side :is(img, video) {
   filter: brightness(0.5);
 }
 
@@ -326,7 +366,7 @@
   border: none;
 }
 
-.main-image.side:hover img {
+.main-image.side:hover :is(img, video) {
   filter: brightness(0.72);
 }
 
@@ -341,6 +381,41 @@
    tooth points straight up and down while the sides fall between teeth, so the
    ring is a little closer above and below than it is either side. That is the
    glyph's own shape, not a placement to correct. */
+/* Not in the design, which draws a row of pictures: the one control a clip in
+   the middle of the row carries. It stands in the corner the gear does not,
+   and it is the gear's own plate at two thirds — the two are the only marks
+   laid over the Main Image and should read as a pair, so they share the row
+   they stand on. Muted it is written in
+   the dim ink the footer's runs are; with the sound on it comes up to the
+   app's text, so the plate says which way it is set without a second mark. */
+.main-image-sound {
+  position: absolute;
+  left: 20px;
+  top: 20px;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-text);
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.main-image-sound:hover {
+  color: var(--color-text-bright);
+}
+
+.main-image-sound.is-on {
+  color: var(--color-text);
+}
+
 .main-image-setting {
   position: absolute;
   top: 20px;

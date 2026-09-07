@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './OptionMenu.css'
+import { t } from '../../../shared/i18n'
 
 /* Penpot: Menu (859aefd8-f4ae-804d-8008-8e1ff363764a) — a 201x295 board of
    five options behind two rules. It is the list both of the side panel's select
@@ -31,6 +32,10 @@ export interface MenuOption {
       own ink, so it is picked out without being set differently from the rows
       either side of it. */
   current?: boolean
+  /** Puts a 試聴 button at this row's right end, which `onAudition` answers.
+      For the Setting board's effect sounds, where a row is a number and
+      hearing it is the only thing that says what it is. */
+  audition?: boolean
 }
 
 interface Props {
@@ -60,6 +65,10 @@ interface Props {
       picked — the Calender board's years, which run 1980 to 2100 — would
       otherwise open at its own beginning rather than at where it stands. */
   scrollToKey?: string
+  /** Fired by a row's 試聴 button, which is drawn only on the rows that ask
+      for one. It does not pick the row: the button is the row's sibling
+      rather than a button inside a button, so the press never reaches it. */
+  onAudition?: (key: string) => void
 }
 
 export default function OptionMenu({
@@ -72,7 +81,8 @@ export default function OptionMenu({
   left = OPTION_MENU_LEFT,
   width = OPTION_MENU_WIDTH,
   fontSize = OPTION_FONT_SIZE,
-  scrollToKey
+  scrollToKey,
+  onAudition
 }: Props): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const optionsRef = useRef<HTMLDivElement | null>(null)
@@ -121,21 +131,106 @@ export default function OptionMenu({
   const maxHeight =
     maxRows * rowHeight + (maxRows - 1) * OPTION_GAP + OPTIONS_PADDING * 2
 
-  /* Brought to the row the list opens on, before any of it is read. The
-     browser's own scrolling is what does it, since `scrollTop` is in the
-     element's unzoomed CSS px while a measured rect is not — the shell's zoom
-     is between the two. Keyed on that row alone: the options array is a new
-     one every render, and depending on it would drag the box back here every
-     time the caller re-rendered. */
-  useEffect(() => {
+  /* Brought to the row the list opens on, before any of it is read.
+     `scrollTop` and `offsetTop` are both in the element's own unzoomed CSS px,
+     so the two agree and the shell's zoom never enters it — which is what a
+     measured rect would have dragged in. It is written rather than left to
+     `scrollIntoView`, whose job is to bring a row into the *window*: that
+     scrolls every ancestor that can be scrolled, the board and the column with
+     it, which is exactly what the placement below is undoing. A layout effect
+     so it lands before that placement measures anything. Keyed on that row
+     alone: the options array is a new one every render, and depending on it
+     would drag the box back here every time the caller re-rendered. */
+  useLayoutEffect(() => {
     const box = optionsRef.current
     if (!box || scrollToKey === undefined) return
     const index = options.findIndex((option) => option.key === scrollToKey)
-    const row = index >= 0 ? box.children[index] : null
-    if (row) row.scrollIntoView({ block: 'center' })
+    const row = index >= 0 ? (box.children[index] as HTMLElement | undefined) : undefined
+    if (row) {
+      const middle = row.offsetTop - box.offsetTop - (box.clientHeight - row.offsetHeight) / 2
+      box.scrollTop = Math.max(0, middle)
+    }
     readScroll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollToKey])
+
+  /*
+   * Where the menu actually lands. `top` is where the caller hung it — flush
+   * under the row it drops out of — and this is that, corrected when the list
+   * would run off the bottom of what it is drawn inside.
+   *
+   * A menu is an absolutely positioned child of a board, so one hanging past
+   * the bottom is overflow: it stretches what is around it rather than being
+   * clipped by it. Two answers, in this order. **Scroll the row up**, by
+   * exactly as much as the list is over by, so the list has the room where it
+   * already is — the Setting board's rows are in a scroller of their own, and
+   * this is what that scroller is for. **Or put the list above the row**, when
+   * there is nothing left to scroll. Only if it fits in neither is it held
+   * inside, which is the last resort and covers the row it belongs to.
+   *
+   * What it is measured against is the nearest ancestor that actually clips —
+   * `.app-shell` where nothing closer does — rather than the board it is
+   * positioned in. A menu hanging past its own board is ordinary and is what
+   * a list floating over one does; hanging past the window is not.
+   *
+   * Everything is worked out in the parent's own design pixels: `offsetHeight`
+   * and `scrollTop` are unzoomed, which is the space `top` is written in, and
+   * a measured rect is not — so a rect is divided by the zoom the parent's own
+   * two widths give.
+   */
+  const [placed, setPlaced] = useState<{ top: number | null; above: boolean }>({
+    top: null,
+    above: false
+  })
+
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    const parent = root?.offsetParent as HTMLElement | null
+    if (!root || !parent) return
+    const anchor = anchorRef.current
+    const height = root.offsetHeight
+
+    /* Re-read on every step: scrolling the row moves it, and the answer to
+       "does it fit now" has to be asked of where things actually are. */
+    const frame = (): { limit: number; anchorTop: number; anchorBottom: number } => {
+      const parentRect = parent.getBoundingClientRect()
+      const scale = parentRect.width / parent.offsetWidth || 1
+      const rect = anchor?.getBoundingClientRect()
+      return {
+        limit: (clipBottom(root) - parentRect.top) / scale,
+        anchorTop: rect ? (rect.top - parentRect.top) / scale : top,
+        anchorBottom: rect ? (rect.bottom - parentRect.top) / scale : top
+      }
+    }
+
+    let at = frame()
+    if (top + height <= at.limit) {
+      setPlaced({ top: null, above: false })
+      return
+    }
+
+    const scroller = scrollableAncestor(anchor)
+    if (scroller) {
+      scroller.scrollTop = Math.min(
+        scroller.scrollHeight - scroller.clientHeight,
+        scroller.scrollTop + (top + height - at.limit)
+      )
+      at = frame()
+      if (at.anchorBottom >= 0 && at.anchorBottom + height <= at.limit) {
+        setPlaced({ top: at.anchorBottom, above: false })
+        return
+      }
+    }
+
+    /* Whether the list ended up over the row is what its arrival is played
+       from, so it is answered here rather than guessed at from the number: the
+       last case holds the menu inside the frame and can land either side of
+       the row it belongs to. */
+    const over = at.anchorTop - height
+    const settled = over >= 0 ? over : Math.max(0, at.limit - height)
+    setPlaced({ top: settled, above: settled < at.anchorTop })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [top, left, width, maxHeight])
 
   // The list is read as it stands, and again whenever it changes under the box.
   useEffect(readScroll, [readScroll, options, maxHeight])
@@ -150,10 +245,13 @@ export default function OptionMenu({
 
   return (
     <div
-      className="option-menu"
+      /* A list that opens upward is uncovered upward: the wipe runs from the
+         edge the row is on, which is its bottom when it stands over the row.
+         Downward there, it read as arriving from the wrong end. */
+      className={`option-menu${placed.above ? ' is-above' : ''}`}
       ref={rootRef}
       role="menu"
-      style={{ top, left, width }}
+      style={{ top: placed.top ?? top, left, width }}
       /* A press in the menu must not move the caret out of the field: the
          suggestions are up only while the field holds it, and blurring here
          would put them away before the click that picked a row landed. */
@@ -183,6 +281,9 @@ export default function OptionMenu({
             fontSize={fontSize}
             maxWidth={width - OPTION_LABEL_INSET}
             onClick={() => onPick(option.key)}
+            onAudition={
+              option.audition && onAudition ? () => onAudition(option.key) : undefined
+            }
           />
         ))}
       </div>
@@ -200,7 +301,8 @@ function MenuRow({
   current,
   fontSize,
   maxWidth,
-  onClick
+  onClick,
+  onAudition
 }: {
   label: string
   color?: string
@@ -208,6 +310,7 @@ function MenuRow({
   fontSize: number
   maxWidth: number
   onClick: () => void
+  onAudition?: () => void
 }): React.JSX.Element {
   const textRef = useRef<HTMLSpanElement | null>(null)
 
@@ -221,16 +324,61 @@ function MenuRow({
     }
   }, [label, fontSize, maxWidth])
 
+  /* The row and its 試聴 button are siblings in a box of their own rather than
+     one inside the other: a button cannot hold a button, and a press on the
+     mark must not also pick the row. The plate is still the row's and still
+     runs the whole width of the menu — the mark is laid over its right end
+     rather than taking a column out of it. */
   return (
-    <button
-      type="button"
-      className={`option-menu-option${current ? ' is-current' : ''}`}
-      role="menuitem"
-      onClick={onClick}
-    >
-      <span className="option-menu-label" ref={textRef} style={color ? { color } : undefined}>
-        {label}
-      </span>
-    </button>
+    <div className={`option-menu-row${onAudition ? ' has-audition' : ''}`}>
+      <button
+        type="button"
+        className={`option-menu-option${current ? ' is-current' : ''}`}
+        role="menuitem"
+        onClick={onClick}
+      >
+        <span className="option-menu-label" ref={textRef} style={color ? { color } : undefined}>
+          {label}
+        </span>
+      </button>
+
+      {onAudition && (
+        <button
+          type="button"
+          className="option-menu-audition"
+          onClick={onAudition}
+          title={t('この音を聞く')}
+          aria-label={t('試聴')}
+        >
+          <i className="fa-solid fa-play" />
+        </button>
+      )}
+    </div>
   )
+}
+
+/** The bottom of the nearest thing above `el` that clips what runs past it —
+    the window itself where nothing closer does. */
+function clipBottom(el: HTMLElement): number {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    const style = getComputedStyle(node)
+    if (style.overflowY !== 'visible' || style.overflowX !== 'visible') {
+      return node.getBoundingClientRect().bottom
+    }
+  }
+  return window.innerHeight
+}
+
+/** The nearest thing above `el` that is scrolled rather than simply tall. */
+function scrollableAncestor(el: HTMLElement | null): HTMLElement | null {
+  for (let node = el?.parentElement ?? null; node; node = node.parentElement) {
+    const overflowY = getComputedStyle(node).overflowY
+    if (
+      (overflowY === 'auto' || overflowY === 'scroll') &&
+      node.scrollHeight > node.clientHeight
+    ) {
+      return node
+    }
+  }
+  return null
 }

@@ -4,14 +4,16 @@ import {
   desktopCapturer,
   dialog,
   ipcMain,
+  screen,
   session as electronSession
 } from 'electron'
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { getSettings } from './db'
+import { getSettings, setSettings } from './db'
 import { getOverlayWindow, loadRenderer } from './windows'
 import { IpcChannels } from '../shared/ipc-types'
+import { t } from '../shared/i18n'
 import type {
   CaptureChunkPayload,
   CaptureCommand,
@@ -86,6 +88,49 @@ function stamp(): string {
   )
 }
 
+/*
+ * **The three folders a capture is written to before it is saved anywhere.**
+ * A recording is appended to a file on disk chunk by chunk and a shot is
+ * written before the dialog is put up, so the file has to exist somewhere
+ * first; saving `rename`s it to wherever the player chose, and nothing is left
+ * behind. What *is* left behind is a capture whose save dialog was closed — the
+ * app keeps that copy rather than throwing away what was just taken.
+ *
+ * So they fill with exactly one thing: captures nobody saved. A day is how long
+ * one is kept — long enough to go back for a shot closed by mistake, short
+ * enough that a folder nothing points into does not grow forever. Swept once,
+ * as the app starts, when nothing can be recording into them.
+ */
+const SCRATCH_DIRS = ['screenshots', 'videos', 'audio']
+const SCRATCH_TTL_MS = 24 * 60 * 60 * 1000
+
+export function pruneCaptureScratch(userDataDir: string): void {
+  const now = Date.now()
+  for (const folder of SCRATCH_DIRS) {
+    const root = path.join(userDataDir, folder)
+    let games: string[]
+    try {
+      games = fs.readdirSync(root)
+    } catch {
+      // The folder is only made when a capture is taken; there may be none.
+      continue
+    }
+    for (const game of games) {
+      const dir = path.join(root, game)
+      try {
+        for (const name of fs.readdirSync(dir)) {
+          const file = path.join(dir, name)
+          if (now - fs.statSync(file).mtimeMs > SCRATCH_TTL_MS) fs.rmSync(file, { force: true })
+        }
+        // A game's folder with nothing left in it says nothing.
+        if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir)
+      } catch {
+        // A file that will not go is a file that stays; this is housekeeping.
+      }
+    }
+  }
+}
+
 function outputPath(userDataDir: string, folder: string, gameId: number, ext: string): string {
   const dir = path.join(userDataDir, folder, String(gameId))
   fs.mkdirSync(dir, { recursive: true })
@@ -147,6 +192,81 @@ function processWindowHandles(target: CaptureTarget): Promise<number[]> {
 /** A handle is stable for as long as its window is, so the lookup need not be. */
 let cachedSource: { key: string; id: string } | null = null
 
+/** JPEG quality, which is only asked for when the Setting board says jpg. */
+const JPEG_QUALITY = 92
+
+/**
+ * What each source's own pixels come to, which is what a thumbnail has to be
+ * asked for by name: `getSources` scales its thumbnail to *fit* the box it is
+ * given, upwards as readily as down — measured, a 1920x1080 screen asked for
+ * 3840x2160 came back 3840x2160, and a 1266x776 window asked for the same came
+ * back 3817x2160. Ask for the window's own size and the frame is handed over
+ * untouched.
+ *
+ * Cached per source: a game's window does not change size while it is being
+ * played, and finding out costs a PowerShell of its own (measured: 532ms).
+ */
+const sourceSizes = new Map<string, { width: number; height: number }>()
+
+/**
+ * `GetWindowRect` through PowerShell, the way `MainWindowHandle` already is.
+ * There is no way to ask Electron how big a `desktopCapturer` source is.
+ */
+function windowSize(handle: number): Promise<{ width: number; height: number } | null> {
+  const script =
+    `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;` +
+    ` public struct R { public int L,T,Rt,B; }` +
+    ` public class W { [DllImport("user32.dll")] public static extern bool` +
+    ` GetWindowRect(IntPtr h, out R r); }';` +
+    ` $r = New-Object R; [void][W]::GetWindowRect([IntPtr]${handle}, [ref]$r);` +
+    ` "$($r.Rt - $r.L) $($r.B - $r.T)"`
+
+  return new Promise((resolve) => {
+    execFile(
+      'powershell',
+      ['-NoProfile', '-NonInteractive', '-Command', script],
+      { windowsHide: true },
+      (error, stdout) => {
+        if (error) {
+          resolve(null)
+          return
+        }
+        const [width, height] = String(stdout).trim().split(/\s+/).map(Number)
+        const sane = (value: number): boolean => Number.isFinite(value) && value > 0
+        resolve(sane(width) && sane(height) ? { width, height } : null)
+      }
+    )
+  })
+}
+
+/** A source's own size, or the primary display's — a shot scaled a little is
+    better than no shot, and the aspect ratio is the capturer's to keep. */
+async function sourceSize(
+  source: Electron.DesktopCapturerSource
+): Promise<{ width: number; height: number }> {
+  const cached = sourceSizes.get(source.id)
+  if (cached) return cached
+
+  const [kind, id] = source.id.split(':')
+  let size: { width: number; height: number } | null = null
+  if (kind === 'screen') {
+    // A screen source is named by its index into the display list.
+    const display = screen.getAllDisplays()[Number(id)]
+    if (display) {
+      size = {
+        width: Math.round(display.size.width * display.scaleFactor),
+        height: Math.round(display.size.height * display.scaleFactor)
+      }
+    }
+  } else {
+    size = await windowSize(Number(id))
+  }
+
+  const answer = size ?? screen.getPrimaryDisplay().size
+  sourceSizes.set(source.id, answer)
+  return answer
+}
+
 /**
  * The game's window. It is found through the process that was launched rather
  * than through the library's name for the game, which is a label the player
@@ -199,7 +319,7 @@ async function findSource(target: CaptureTarget): Promise<Electron.DesktopCaptur
   const screenSource = sources.find((source) => source.id.startsWith('screen:'))
   if (screenSource) return screenSource
 
-  throw new Error('キャプチャ対象のウィンドウが見つかりませんでした')
+  throw new Error(t('キャプチャ対象のウィンドウが見つかりませんでした'))
 }
 
 function getCaptureWindow(): Promise<BrowserWindow> {
@@ -303,6 +423,13 @@ function safeName(value: string): string {
  * not be a way to lose a recording, and it is the only copy until they say
  * otherwise.
  */
+/** Which setting holds where this kind of capture was last saved. */
+const LAST_SAVE_KEY = {
+  screenshot: 'lastSaveScreenshot',
+  video: 'lastSaveVideo',
+  audio: 'lastSaveAudio'
+} as const
+
 async function offerToSave(
   filePath: string,
   gameTitle: string,
@@ -315,10 +442,29 @@ async function offerToSave(
   const suffix = ext.replace(/^\./, '').toLowerCase()
   const filters = [{ name: suffix.toUpperCase(), extensions: [suffix] }]
 
+  /* The dialog opens on the file this kind of capture was last saved as, which
+     is what puts it back in the folder the player keeps them in. Each kind
+     remembers its own — screenshots and recordings rarely live together — and
+     the first one of each still opens on the system folder for it. */
+  const lastSaved = getSettings()[LAST_SAVE_KEY[kind]]
+
   const parent = getOverlayWindow()
+
+  /* A recording's effect sound is played here rather than when this resolves:
+     the recorder has stopped and the file is closed by now, so the sound lands
+     after the last byte rather than in it, and it is heard as the dialog
+     arrives rather than once it has been answered. A screenshot's own sound is
+     on the press, the shutter being the sound of the button. */
+  if (kind !== 'screenshot') {
+    parent?.webContents.send(IpcChannels.OverlayPlayRecordEffect, kind)
+  }
+
   const options: Electron.SaveDialogOptions = {
-    title: kind === 'screenshot' ? 'スクリーンショットを保存' : kind === 'video' ? '録画を保存' : '録音を保存',
-    defaultPath: path.join(defaultDir, `${safeName(gameTitle)}_${path.basename(filePath)}`),
+    title: t(
+      kind === 'screenshot' ? 'スクリーンショットを保存' : kind === 'video' ? '録画を保存' : '録音を保存'
+    ),
+    defaultPath:
+      lastSaved || path.join(defaultDir, `${safeName(gameTitle)}_${path.basename(filePath)}`),
     filters
   }
   const result = parent
@@ -327,6 +473,7 @@ async function offerToSave(
   if (result.canceled || !result.filePath) return null
 
   const target = path.extname(result.filePath) ? result.filePath : result.filePath + ext
+  setSettings({ [LAST_SAVE_KEY[kind]]: target })
   await fs.promises.mkdir(path.dirname(target), { recursive: true })
   try {
     await fs.promises.rename(filePath, target)
@@ -376,6 +523,21 @@ export function registerCaptureHandlers(): void {
   })
 }
 
+/**
+ * A shot of the game's window, taken here rather than in the capture worker.
+ *
+ * **`getDisplayMedia` composites the mouse pointer into every frame**, so a
+ * shot taken while the mouse was over the game had a pointer painted into the
+ * picture, and there is no constraint that reliably turns it off. A
+ * `desktopCapturer` thumbnail has no pointer in it — measured end to end: the
+ * cursor was put at the exact middle of a 1280x720 window, that window was
+ * captured at its own size, and the middle of the picture came back with
+ * nothing on it. So the shot is that thumbnail, asked for at the window's own
+ * pixel size and encoded here.
+ *
+ * A recording still goes through the worker and still keeps the pointer: what
+ * it is a recording *of* usually includes where the player was pointing.
+ */
 export function takeScreenshot(
   target: CaptureTarget,
   gameId: number,
@@ -386,17 +548,23 @@ export function takeScreenshot(
     // takes on the next shot without the app being restarted.
     const format = getSettings().screenshotFormat
     const source = await findSource(target)
-    nextDisplayMedia = { source, audio: false }
-    try {
-      const result = await send({ kind: 'screenshot', format })
-      if (!result.image) throw new Error('スクリーンショットを取得できませんでした')
-      const filePath = outputPath(userDataDir, 'screenshots', gameId, format)
-      fs.writeFileSync(filePath, Buffer.from(result.image))
-      const savedTo = await offerToSave(filePath, target.title, 'screenshot')
-      return { filePath: savedTo ?? filePath, savedTo }
-    } finally {
-      nextDisplayMedia = null
+    const size = await sourceSize(source)
+
+    /* Asked for again rather than kept from `findSource`: that call takes no
+       thumbnail at all (0x0), which is what keeps finding a window cheap. */
+    const shot = await desktopCapturer.getSources({
+      types: source.id.startsWith('screen:') ? ['screen'] : ['window'],
+      thumbnailSize: size
+    })
+    const picture = shot.find((entry) => entry.id === source.id)?.thumbnail
+    if (!picture || picture.isEmpty()) {
+      throw new Error(t('スクリーンショットを取得できませんでした'))
     }
+
+    const filePath = outputPath(userDataDir, 'screenshots', gameId, format)
+    fs.writeFileSync(filePath, format === 'jpg' ? picture.toJPEG(JPEG_QUALITY) : picture.toPNG())
+    const savedTo = await offerToSave(filePath, target.title, 'screenshot')
+    return { filePath: savedTo ?? filePath, savedTo }
   })
 }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Confetti from './Confetti'
 import './ClearDialog.css'
+import { t } from '../../../shared/i18n'
 
 interface Props {
   /** The score the game already carries, or '' when it has none. */
@@ -43,7 +44,7 @@ export default function ClearDialog({
         {/* Penpot: Input Point — 450x119, 40px sides, 40/30 top/bottom */}
         <div className="clear-window-input-point">
           <label className="clear-window-label" htmlFor="clear-score">
-            点数を入力
+            {t('点数を入力')}
           </label>
           {/* Penpot: Input — 116x49, fill #2a2d31, radius 5, 10/20 padding. The
               field is the box itself rather than something inside it, so a
@@ -53,7 +54,7 @@ export default function ClearDialog({
             id="clear-score"
             autoFocus
             inputMode="numeric"
-            placeholder="0～100"
+            placeholder={t('0～100')}
             value={score}
             onChange={(event) => setScore(event.target.value.replace(/\D/g, '').slice(0, 3))}
             onKeyDown={(event) => event.key === 'Enter' && confirm()}

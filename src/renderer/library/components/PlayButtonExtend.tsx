@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { LaunchPrefs } from '../../../shared/db-types'
 import './PlayButtonExtend.css'
+import { t } from '../../../shared/i18n'
 
 interface Props {
   gameId: number
@@ -96,7 +97,7 @@ export default function PlayButtonExtend({ gameId, onLaunch, disabled }: Props):
         className="play-caret"
         disabled={disabled}
         onClick={toggle}
-        aria-label="起動オプション"
+        aria-label={t('起動オプション')}
         aria-expanded={expanded}
       >
         {/* Flips to point the other way while Setting is open, and back when
@@ -129,7 +130,7 @@ export default function PlayButtonExtend({ gameId, onLaunch, disabled }: Props):
               checked={prefs.recordTime}
               onChange={(e) => setPrefs({ ...prefs, recordTime: e.target.checked })}
             />
-            Record Time
+            {t('時間を記録する')}
           </label>
 
           <label className="play-extend-row">
@@ -138,7 +139,7 @@ export default function PlayButtonExtend({ gameId, onLaunch, disabled }: Props):
               checked={prefs.useRecorderPanel}
               onChange={(e) => setPrefs({ ...prefs, useRecorderPanel: e.target.checked })}
             />
-            Use Recorder Panel
+            {t('パネルを使用')}
           </label>
 
           <label className="play-extend-row">
@@ -147,7 +148,7 @@ export default function PlayButtonExtend({ gameId, onLaunch, disabled }: Props):
               checked={prefs.runAsAdmin}
               onChange={(e) => setPrefs({ ...prefs, runAsAdmin: e.target.checked })}
             />
-            Play As Administrater
+            {t('管理者として実行')}
           </label>
 
           {/* Penpot's 291x1 divider is drawn as this row's top border. */}
@@ -157,7 +158,7 @@ export default function PlayButtonExtend({ gameId, onLaunch, disabled }: Props):
               checked={prefs.keepSetting}
               onChange={(e) => setPrefs({ ...prefs, keepSetting: e.target.checked })}
             />
-            Keep Setting
+            {t('設定を保持する')}
           </label>
 
           {/* Overlays the play button above — this is the same control. */}

@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GameImage, GameWithStats } from '../../../shared/db-types'
-import { mediaUrl } from '../../../shared/media-url'
+import { isVideoPath, mediaUrl } from '../../../shared/media-url'
 import { WHEEL_NOTCH, useWheelStepper } from '../useWheelStepper'
 import ConfirmDialog from './ConfirmDialog'
+import ContextMenu from './ContextMenu'
+import { useContextMenuDismiss } from '../context-menu'
+import { motionOff } from '../motion'
 import './AddThumbnail.css'
+import { t } from '../../../shared/i18n'
 
 interface Props {
   game: GameWithStats
@@ -18,6 +22,15 @@ interface Props {
    numbers stable as images are added. */
 const COLUMNS = 5
 const ROWS = 5
+
+/** Penpot: the content column's own width, which the right-click menu's
+    placement is measured off the way every other menu in the app is. */
+const BOARD_WIDTH = 1585
+/** Penpot: Right Click Menu — 201 wide, and about this tall at three rows.
+    The plate is pulled back inside the board by them, so a press near an edge
+    does not put half of it past one. */
+const MENU_WIDTH = 201
+const MENU_HEIGHT = 160
 const PAGE_SIZE = COLUMNS * ROWS
 
 /** Delay between the diagonals the pictures flip in along, in milliseconds. */
@@ -81,12 +94,21 @@ export default function AddThumbnail({
   // page is opened, so the flip is held back until they are decoded: the
   // animation itself is untouched, it just no longer competes with the decode.
   const decoded = useRef(new Set<string>())
-  // What the selection falls back to when a click turns out to be a double.
-  const restoreSelection = useRef<number | null>(null)
   const [, setDecodedPass] = useState(0)
-  const [faded, setFaded] = useState(false)
+  /* True from the first frame while the Setting board's アニメーション row is
+     off: what this waits out is the board's own fade, and there is not one. */
+  const [faded, setFaded] = useState(() => motionOff())
+  /* Where a right-click landed, in the board's own design pixels, and which
+     picture it landed on. */
+  const [menu, setMenu] = useState<{ image: GameImage; x: number; y: number } | null>(null)
+  const menuOpener = useContextMenuDismiss(menu !== null, () => setMenu(null))
+  /* What the menu is positioned in, and therefore what its pointer position is
+     measured against: the two have to be the same box. The grid inside it
+     scrolls, so it is the section rather than the container. */
+  const sectionRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
+    if (motionOff()) return
     const id = window.setTimeout(() => setFaded(true), FADE_COVER_MS)
     return () => window.clearTimeout(id)
   }, [])
@@ -112,7 +134,14 @@ export default function AddThumbnail({
   const pageCount = Math.max(1, Math.ceil(images.length / PAGE_SIZE))
   const current = Math.min(page, pageCount)
   const visible = images.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
-  const ready = faded && visible.every((image) => decoded.current.has(image.filePath))
+  /* The grid's pictures are turned face down until this is true, so it is what
+     says the page may be seen. The decode is waited out only because the flip
+     is: a page of pictures being decoded on the frame a 3D transform starts is
+     what made it stutter. With the arrivals off there is no flip to protect,
+     and holding a page of pictures back for a decode nobody is watching is the
+     one thing the row is asked not to do. */
+  const ready =
+    motionOff() || (faded && visible.every((image) => decoded.current.has(image.filePath)))
   const visibleKey = visible.map((image) => image.id).join(',')
 
   useEffect(() => {
@@ -120,6 +149,12 @@ export default function AddThumbnail({
     let cancelled = false
     void Promise.all(
       visible.map(async (image) => {
+        // A clip has nothing to decode here: what the cell draws is its own
+        // first frame, which the element fetches for itself.
+        if (isVideoPath(image.filePath)) {
+          decoded.current.add(image.filePath)
+          return
+        }
         const preload = new Image()
         preload.src = mediaUrl(image.filePath)
         // One that fails to load must not hold the rest of the page back.
@@ -219,6 +254,17 @@ export default function AddThumbnail({
     onGamesChanged()
   }
 
+  /* The menu's own 「メインサムネイルに設定」. It writes the thumbnail there and
+     then rather than only marking the cell: APPLY is the design's button and
+     still applies whatever is marked, but the row was asked to *set* it. The
+     mark follows, so the ring on the grid still says which picture the game's
+     Main Image is. */
+  async function makeThumbnail(image: GameImage): Promise<void> {
+    setSelectedId(image.id)
+    await window.library.setThumbnail(game.id, image.filePath)
+    onGamesChanged()
+  }
+
   async function apply(): Promise<void> {
     const image = images.find((candidate) => candidate.id === selectedId)
     if (!image) return
@@ -227,7 +273,7 @@ export default function AddThumbnail({
   }
 
   return (
-    <section className="add-thumbnail">
+    <section className="add-thumbnail" ref={sectionRef}>
       {/* Penpot: Image Container — 1585x885, 35px top / 50px side padding */}
       <div className="thumb-container" ref={gridRef} onWheel={onWheel}>
         {!loaded ? null : images.length === 0 ? (
@@ -237,46 +283,78 @@ export default function AddThumbnail({
             {visible.map((image, index) => (
               <div
                 key={image.id}
-                className={`thumb-cell ${selectedId === image.id ? 'selected' : ''}`}
+                /* The cell stays up while its own menu is open. The plate is
+                   drawn at the pointer, so the pointer is then on the plate
+                   rather than on the cell and the hover it was raised by is
+                   gone — it shrank back under the menu it had just put up. */
+                className={`thumb-cell${selectedId === image.id ? ' selected' : ''}${
+                  menu?.image.id === image.id ? ' is-open' : ''
+                }`}
               >
-                {/* One click selects, two open it full screen. */}
+                {/* **One click opens it full screen**, which is the one thing a
+                    picture in a grid is looked at for. What used to be here —
+                    a click that only moved a selection — said nothing on the
+                    screen but a ring, and the ring now says something better:
+                    which picture is the game's Main Image. Everything a cell
+                    can be *made* to do is on the right press. */}
                 <button
                   className="thumb-cell-image"
-                  onClick={(event) => {
-                    // `detail` is the platform's own click count, so only the
-                    // opening click of a double ever moves the selection.
-                    if (event.detail !== 1) return
-                    restoreSelection.current = selectedId
-                    setSelectedId(image.id)
-                  }}
-                  onDoubleClick={() => {
-                    // Opening a picture full screen is not choosing it.
-                    setSelectedId(restoreSelection.current)
-                    setViewing(images.findIndex((i) => i.id === image.id))
+                  onClick={() => setViewing(images.findIndex((i) => i.id === image.id))}
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    // The cell is what a second right-click on it toggles off.
+                    menuOpener.current = event.currentTarget
+                    const box = sectionRef.current?.getBoundingClientRect()
+                    if (!box || box.width <= 0) return
+                    /* The section is the board's own 1585 wide, which is what
+                       recovers the shell's scale — the conversion every other
+                       menu in the app makes against its own width. */
+                    const scale = box.width / BOARD_WIDTH
+                    const height = box.height / scale
+                    setMenu({
+                      image,
+                      x: Math.min((event.clientX - box.left) / scale, BOARD_WIDTH - MENU_WIDTH),
+                      y: Math.min((event.clientY - box.top) / scale, height - MENU_HEIGHT)
+                    })
                   }}
                   aria-pressed={selectedId === image.id}
                 >
                   {/* Flips in along the grid's anti-diagonals: top-left first,
-                      then the pair below/right of it, and so on. */}
-                  <img
-                    src={mediaUrl(image.filePath)}
-                    alt=""
-                    decoding="async"
-                    style={{
-                      animationDelay: `${
-                        (Math.floor(index / COLUMNS) + (index % COLUMNS)) * FLIP_STAGGER
-                      }ms`
-                    }}
-                  />
-                </button>
+                      then the pair below/right of it, and so on.
 
-                <button
-                  className="thumb-cell-delete"
-                  onClick={() => setDeleting(image)}
-                  title="この画像を削除"
-                  aria-label="この画像を削除"
-                >
-                  <i className="fa-solid fa-trash" />
+                      **A clip runs in its own cell**, silently and on a loop:
+                      a page of a gallery is looked at to find something in it,
+                      and a still frame of a clip is often the one part of it
+                      that says nothing. It playing is also what says it is a
+                      clip, so nothing is drawn over it to say so. The sound is
+                      the full-screen viewer's, where one clip is the only
+                      thing on the screen. */}
+                  {isVideoPath(image.filePath) ? (
+                    <video
+                      src={mediaUrl(image.filePath)}
+                      muted
+                      autoPlay
+                      loop
+                      playsInline
+                      preload="auto"
+                      style={{
+                        animationDelay: `${
+                          (Math.floor(index / COLUMNS) + (index % COLUMNS)) * FLIP_STAGGER
+                        }ms`
+                      }}
+                    />
+                  ) : (
+                    <img
+                      src={mediaUrl(image.filePath)}
+                      alt=""
+                      decoding="async"
+                      style={{
+                        animationDelay: `${
+                          (Math.floor(index / COLUMNS) + (index % COLUMNS)) * FLIP_STAGGER
+                        }ms`
+                      }}
+                    />
+                  )}
                 </button>
               </div>
             ))}
@@ -295,7 +373,7 @@ export default function AddThumbnail({
             className="thumb-button apply"
             onClick={apply}
             disabled={selectedId === null}
-            title={selectedId === null ? '画像を選択してください' : undefined}
+            title={selectedId === null ? t('画像を選択してください') : undefined}
           >
             APPLY
           </button>
@@ -328,6 +406,55 @@ export default function AddThumbnail({
         </div>
       </div>
 
+      {menu && (
+        <ContextMenu
+          style={{ top: `${menu.y}px`, left: `${menu.x}px` }}
+          items={[
+            /* **A clip cannot be the game's Main Image.** What a thumbnail is
+               read by — the side panel's row, the Home board's cards and
+               spines, the Add Game dialog's own slot — draws a picture and
+               nothing else, so the row is simply not offered on a clip rather
+               than offered and then breaking those. It is also the only way a
+               cell is marked, which is what keeps APPLY honest: what is
+               selected can only ever be a picture. */
+            ...(isVideoPath(menu.image.filePath)
+              ? []
+              : [
+                  {
+                    label: t('メインサムネイルに設定'),
+                    onSelect: (): void => {
+                      void makeThumbnail(menu.image)
+                      setMenu(null)
+                    }
+                  }
+                ]),
+            {
+              label: t('ファイルの場所を開く'),
+              onSelect: () => {
+                /* The picture the row means is the file it was added *from* —
+                   the one the player has, where they keep it. What the gallery
+                   draws is the app's own copy, under `userData` with a UUID
+                   for a name, and it stands in only once the original is gone
+                   from disk. */
+                void window.library.showItemInFolder(
+                  menu.image.sourcePath ?? menu.image.filePath,
+                  menu.image.filePath
+                )
+                setMenu(null)
+              }
+            },
+            {
+              label: t('削除'),
+              danger: true,
+              onSelect: () => {
+                setDeleting(menu.image)
+                setMenu(null)
+              }
+            }
+          ]}
+        />
+      )}
+
       {viewing !== null && images.length > 0 && (
         <div
           className="image-viewer"
@@ -335,7 +462,13 @@ export default function AddThumbnail({
           onClick={(e) => {
             // Anywhere but the picture itself and the controls closes it.
             const target = e.target as HTMLElement
-            if (target.tagName !== 'IMG' && !target.closest('button')) setViewing(null)
+            if (
+              target.tagName !== 'IMG' &&
+              target.tagName !== 'VIDEO' &&
+              !target.closest('button')
+            ) {
+              setViewing(null)
+            }
           }}
         >
           <div className="viewer-stage">
@@ -348,7 +481,22 @@ export default function AddThumbnail({
                   className="viewer-slot"
                   style={{ transform: viewerSlotTransform(offset) }}
                 >
-                  <img src={mediaUrl(image.filePath)} alt="" />
+                  {/* Opened, a clip is the one thing on the screen and is
+                      played as one: the platform's own controls, and it starts
+                      by itself — it was opened to be watched. Only the middle
+                      slot does; the two beside it are the neighbours waiting
+                      offstage. */}
+                  {isVideoPath(image.filePath) ? (
+                    <video
+                      src={mediaUrl(image.filePath)}
+                      controls={offset === 0}
+                      autoPlay={offset === 0}
+                      playsInline
+                      preload="metadata"
+                    />
+                  ) : (
+                    <img src={mediaUrl(image.filePath)} alt="" />
+                  )}
                 </div>
               )
             })}
@@ -358,7 +506,7 @@ export default function AddThumbnail({
             className="viewer-arrow prev"
             onClick={() => stepViewer(-1)}
             disabled={images.length <= 1}
-            aria-label="前の画像"
+            aria-label={t('前の画像')}
           >
             <svg viewBox="0 0 43.29 86.58">
               <path d="M43.29,0 L43.29,86.58 L0,43.29 Z" fill="#B1B2B5" />
@@ -369,7 +517,7 @@ export default function AddThumbnail({
             className="viewer-arrow next"
             onClick={() => stepViewer(1)}
             disabled={images.length <= 1}
-            aria-label="次の画像"
+            aria-label={t('次の画像')}
           >
             <svg viewBox="0 0 43.29 86.58">
               <path d="M0,0 L0,86.58 L43.29,43.29 Z" fill="#B1B2B5" />
@@ -379,8 +527,8 @@ export default function AddThumbnail({
           <button
             className="viewer-back"
             onClick={() => setViewing(null)}
-            title="一覧に戻る"
-            aria-label="一覧に戻る"
+            title={t('一覧に戻る')}
+            aria-label={t('一覧に戻る')}
           >
             <i className="fa-solid fa-angles-left" />
           </button>
@@ -390,7 +538,7 @@ export default function AddThumbnail({
       {deleting && (
         <ConfirmDialog
           title="delete image"
-          message="この画像を削除しますか？"
+          message={t('この画像を削除しますか？')}
           onCancel={() => setDeleting(null)}
           onConfirm={confirmDelete}
         />

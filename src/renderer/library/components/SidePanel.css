@@ -534,7 +534,16 @@
   z-index: 1;
 }
 
-/* Penpot: Contents — 335x59, flex row, 15px column gap, 1px/5px padding */
+/* Penpot: Contents — 335x59, flex row, 15px column gap, 1px/5px padding.
+
+   **The row's side air is 15, and the row's own padding is the whole of it.**
+   Penpot's 5 of padding plus the icon's own 20 of margin came to 25 on the
+   left against 5 on the right; three fifths of that 25 is 15, and the same is
+   asked of the other side, so the padding carries it and the icon's margin
+   goes. That also settles where a title that is too long ends: `.game-name`
+   fills what the row leaves, so the ellipsis is drawn at the end of its box,
+   which is now the padding's own edge — it stops where the air starts rather
+   than being written into it. */
 .contents {
   position: relative;
   width: 100%;
@@ -543,7 +552,7 @@
   align-items: center;
   justify-content: flex-start;
   gap: 15px;
-  padding: 1px 5px;
+  padding: 1px 15px;
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -561,21 +570,30 @@
 }
 
 /* Penpot: Game icon — 35x35, fill #B1B2B5, stroke #1da1f2 2px inner, r5, 20px left margin */
+/* Penpot draws this 35 square. It is 45 here: it is the one picture a row
+   carries and the row is 59 tall, so 45 leaves 7 above and below and still
+   reads as an icon rather than a thumbnail. It carries no margin of its own:
+   the row's padding is what holds it off the edge (see `.contents`).
+
+   **The frame is the game's group, in that group's own colour** — the colour
+   the name is written in wherever it is listed — and a game filed under
+   nothing has none: `border-color` arrives inline from `groupInk`, and the
+   accent the design draws is gone with it, a colour every row shared saying
+   nothing about any of them. */
 .game-icon {
-  width: 35px;
-  height: 35px;
-  margin-left: 20px;
+  width: 45px;
+  height: 45px;
   flex-shrink: 0;
   background: var(--color-border);
-  border: 2px solid var(--color-accent);
+  border: 2px solid transparent;
   border-radius: 5px;
   overflow: hidden;
 }
 
-/* A game with no icon shows nothing at all — frame included. */
+/* A game with no icon shows nothing at all — the plate goes, and the frame is
+   whatever its group made it. */
 .game-icon.empty {
   background: transparent;
-  border-color: transparent;
 }
 
 .game-icon img {

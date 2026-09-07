@@ -12,7 +12,9 @@ import type {
   GameImage,
   GameWithStats,
   Group,
+  HomeColumns,
   HomeLayout,
+  HomeSpines,
   LaunchPrefs,
   NewGameInput,
   NewGroupInput,
@@ -23,7 +25,14 @@ import type {
   Session,
   Tag
 } from '../shared/db-types'
-import { GRAPH_PERIODS } from '../shared/db-types'
+import { t } from '../shared/i18n'
+import {
+  GRAPH_PERIODS,
+  HOME_COLUMNS,
+  HOME_SPINES,
+  OVERLAY_CORNERS,
+  OVERLAY_SIZES
+} from '../shared/db-types'
 
 let db: Database.Database
 
@@ -61,6 +70,7 @@ export function initDb(): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
       file_path TEXT NOT NULL,
+      source_path TEXT,
       source TEXT NOT NULL DEFAULT 'manual',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -137,6 +147,12 @@ export function initDb(): void {
         WHERE game_images.game_id = games.id AND game_images.file_path = games.thumbnail_path
       )
   `)
+
+  addMissingColumns('game_images', {
+    // The file the picture was copied *from*, which is what its row in the
+    // gallery opens the folder on. Null on every row made before it existed.
+    source_path: 'TEXT'
+  })
 
   addMissingColumns('launch_prefs', {
     record_time: 'INTEGER NOT NULL DEFAULT 1'
@@ -304,6 +320,7 @@ export function listGameImages(gameId: number): GameImage[] {
     id: number
     game_id: number
     file_path: string
+    source_path: string | null
     source: string
     created_at: string
   }[]
@@ -312,21 +329,33 @@ export function listGameImages(gameId: number): GameImage[] {
     id: row.id,
     gameId: row.game_id,
     filePath: row.file_path,
-    source: row.source === 'screenshot' ? 'screenshot' : 'manual',
+    sourcePath: row.source_path ?? null,
+    source:
+      row.source === 'screenshot' || row.source === 'recording' ? row.source : 'manual',
     createdAt: row.created_at
   }))
 }
 
+/**
+ * Files pictures in a game's gallery.
+ *
+ * Each is the app's own copy under `userData` — that is what the grid draws
+ * and what `fvn-media:` will serve — and `sourcePath` is where the copy was
+ * taken from, which is the file the player themselves has. Nothing else in the
+ * app reads it; 「ファイルの場所を開く」 does.
+ */
 export function addGameImages(
   gameId: number,
-  filePaths: string[],
+  files: { filePath: string; sourcePath?: string | null }[],
   source: GameImage['source'] = 'manual'
 ): GameImage[] {
-  const insert = db.prepare('INSERT INTO game_images (game_id, file_path, source) VALUES (?, ?, ?)')
-  const tx = db.transaction((paths: string[]) => {
-    for (const filePath of paths) insert.run(gameId, filePath, source)
+  const insert = db.prepare(
+    'INSERT INTO game_images (game_id, file_path, source_path, source) VALUES (?, ?, ?, ?)'
+  )
+  const tx = db.transaction((rows: typeof files) => {
+    for (const row of rows) insert.run(gameId, row.filePath, row.sourcePath ?? null, source)
   })
-  tx(filePaths)
+  tx(files)
   return listGameImages(gameId)
 }
 
@@ -572,9 +601,47 @@ const DEFAULT_SETTINGS: AppSettings = {
   audioFormat: 'mp3',
   // The face the design draws; the other one is the toggle's to ask for.
   homeLayout: 'grid',
+  // And the five cards a row the design draws, the other two being what the
+  // same button asks for once that face is the one that is on.
+  homeColumns: '5',
+  // And the 25 spines across the design's Bookshelf Container.
+  homeSpines: '25',
+  // Nothing confirmed: the row stands for whatever today's plans are.
+  noticeSeen: '',
   // Penpot writes THIS WEEK into the Period Setting field, so that is the
   // period the graph opens on until SET DEFAULT is pressed on another row.
-  graphPeriod: 'this-week'
+  graphPeriod: 'this-week',
+  // Where the panel has always opened: the bottom right of the primary
+  // display's work area.
+  overlayCorner: 'bottom-right',
+  overlayDisplay: 'primary',
+  // The app's arrivals are what it already does, so they stay on.
+  animations: 'on',
+  // Off, so an install that predates this row keeps writing a screenshot to
+  // one place only — the file it is offered to save.
+  screenshotToGallery: 'off',
+  // The same for a recording, and off for the same reason.
+  videoToGallery: 'off',
+  // The design's own size; the other two are the player's to ask for.
+  overlaySize: 'medium',
+  // Both sounds are already made, so the rows that turn them off start on.
+  crackerSound: 'on',
+  balloonSound: 'on',
+  // The panel has never made a sound of its own, so it goes on not making one
+  // until a number is picked.
+  screenshotSound: 'off',
+  videoSound: 'off',
+  audioSound: 'off',
+  // The window the app has always opened at, and no backup until one is asked
+  // for and told where to go.
+  launchWindowMode: 'window',
+  backupOnLaunch: 'off',
+  backupDirectory: '',
+  backupRestorePath: '',
+  // Nothing saved yet, so each dialog opens where it always did.
+  lastSaveScreenshot: '',
+  lastSaveVideo: '',
+  lastSaveAudio: ''
 }
 
 /** A stored value only counts if this build knows it; anything else is the
@@ -582,6 +649,12 @@ const DEFAULT_SETTINGS: AppSettings = {
     board rather than putting an unreadable value on it. */
 function oneOf<T extends string>(value: string | undefined, allowed: readonly T[], fallback: T): T {
   return allowed.includes(value as T) ? (value as T) : fallback
+}
+
+/** A stored effect sound: `off`, or the number a file in `recorderpanel_SE`
+    is named for. */
+function soundKey(value: string | undefined): string {
+  return value && /^\d{1,3}$/.test(value) ? value : 'off'
 }
 
 export function getSettings(): AppSettings {
@@ -600,7 +673,68 @@ export function getSettings(): AppSettings {
     videoFormat: oneOf(stored.get('videoFormat'), ['mp4', 'mov'], DEFAULT_SETTINGS.videoFormat),
     audioFormat: oneOf(stored.get('audioFormat'), ['mp3', 'wav'], DEFAULT_SETTINGS.audioFormat),
     homeLayout: oneOf(stored.get('homeLayout'), ['grid', 'shelf'], DEFAULT_SETTINGS.homeLayout),
-    graphPeriod: oneOf(stored.get('graphPeriod'), GRAPH_PERIODS, DEFAULT_SETTINGS.graphPeriod)
+    homeColumns: oneOf(stored.get('homeColumns'), HOME_COLUMNS, DEFAULT_SETTINGS.homeColumns),
+    homeSpines: oneOf(stored.get('homeSpines'), HOME_SPINES, DEFAULT_SETTINGS.homeSpines),
+    /* A day rather than a value out of a list, like `overlayDisplay`: anything
+       that is not a local date key is nothing confirmed. */
+    noticeSeen: /^\d{4}-\d{2}-\d{2}$/.test(stored.get('noticeSeen') ?? '')
+      ? (stored.get('noticeSeen') as string)
+      : DEFAULT_SETTINGS.noticeSeen,
+    graphPeriod: oneOf(stored.get('graphPeriod'), GRAPH_PERIODS, DEFAULT_SETTINGS.graphPeriod),
+    overlayCorner: oneOf(
+      stored.get('overlayCorner'),
+      OVERLAY_CORNERS,
+      DEFAULT_SETTINGS.overlayCorner
+    ),
+    /* The one setting whose values are not a list this build knows: a display
+       id is whatever the system gives it. Anything that is not a run of
+       digits is the primary display, which is also what an id that is no
+       longer on the desktop comes to when the panel is placed. */
+    overlayDisplay: /^\d+$/.test(stored.get('overlayDisplay') ?? '')
+      ? (stored.get('overlayDisplay') as string)
+      : DEFAULT_SETTINGS.overlayDisplay,
+    animations: oneOf(stored.get('animations'), ['on', 'off'], DEFAULT_SETTINGS.animations),
+    screenshotToGallery: oneOf(
+      stored.get('screenshotToGallery'),
+      ['on', 'off'],
+      DEFAULT_SETTINGS.screenshotToGallery
+    ),
+    videoToGallery: oneOf(
+      stored.get('videoToGallery'),
+      ['on', 'off'],
+      DEFAULT_SETTINGS.videoToGallery
+    ),
+    overlaySize: oneOf(stored.get('overlaySize'), OVERLAY_SIZES, DEFAULT_SETTINGS.overlaySize),
+    crackerSound: oneOf(stored.get('crackerSound'), ['on', 'off'], DEFAULT_SETTINGS.crackerSound),
+    balloonSound: oneOf(stored.get('balloonSound'), ['on', 'off'], DEFAULT_SETTINGS.balloonSound),
+    /* Like `overlayDisplay`, these two hold a value that is not a list this
+       build knows: a sound is named by the number its file begins with, and
+       the folder is what says which numbers there are. Anything that is not
+       `off` or a run of digits is `off`; a number with no file behind it is
+       caught where the file is looked up (`soundEffectFile`). */
+    screenshotSound: soundKey(stored.get('screenshotSound')),
+    /* `recordingSound` was the one row these two came out of. It is read as
+       the fallback for both so an install that chose a sound before the split
+       keeps it, on the screen recording and on the audio alike. */
+    videoSound: soundKey(stored.get('videoSound') ?? stored.get('recordingSound')),
+    audioSound: soundKey(stored.get('audioSound') ?? stored.get('recordingSound')),
+    launchWindowMode: oneOf(
+      stored.get('launchWindowMode'),
+      ['window', 'fullscreen'],
+      DEFAULT_SETTINGS.launchWindowMode
+    ),
+    backupOnLaunch: oneOf(
+      stored.get('backupOnLaunch'),
+      ['on', 'off'],
+      DEFAULT_SETTINGS.backupOnLaunch
+    ),
+    /* A path is whatever the player named, so there is nothing to check it
+       against here; what it comes to is checked where it is written to. */
+    backupDirectory: stored.get('backupDirectory') ?? DEFAULT_SETTINGS.backupDirectory,
+    backupRestorePath: stored.get('backupRestorePath') ?? DEFAULT_SETTINGS.backupRestorePath,
+    lastSaveScreenshot: stored.get('lastSaveScreenshot') ?? DEFAULT_SETTINGS.lastSaveScreenshot,
+    lastSaveVideo: stored.get('lastSaveVideo') ?? DEFAULT_SETTINGS.lastSaveVideo,
+    lastSaveAudio: stored.get('lastSaveAudio') ?? DEFAULT_SETTINGS.lastSaveAudio
   }
 }
 
@@ -672,14 +806,14 @@ export function setHomeImage(
   const column = face === 'shelf' ? 'home_spine_image' : 'home_card_image'
   db.prepare(`UPDATE games SET ${column} = ? WHERE id = ?`).run(filePath, gameId)
   const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
-  if (!row) throw new Error(`ゲームが見つかりません (id=${gameId})`)
+  if (!row) throw new Error(t('ゲームが見つかりません (id={0})', gameId))
   return rowToGameWithStats(row)
 }
 
 export function setThumbnail(gameId: number, filePath: string): GameWithStats {
   db.prepare('UPDATE games SET thumbnail_path = ? WHERE id = ?').run(filePath, gameId)
   const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
-  if (!row) throw new Error(`ゲームが見つかりません (id=${gameId})`)
+  if (!row) throw new Error(t('ゲームが見つかりません (id={0})', gameId))
   return rowToGameWithStats(row)
 }
 
@@ -711,8 +845,22 @@ export function setProgress(
   ).run(state, kept, clearedAt, clearPlaySeconds, gameId)
 
   const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
-  if (!row) throw new Error(`ゲームが見つかりません (id=${gameId})`)
+  if (!row) throw new Error(t('ゲームが見つかりません (id={0})', gameId))
   return rowToGameWithStats(row)
+}
+
+/**
+ * Takes one session off a game, which is what a row of the Play log is.
+ *
+ * Every total the app writes is `SUM(duration_seconds)` over this table — the
+ * game's own, the footer's, the Calender board's days, the graph's period — so
+ * the time goes with the row and nothing else has to be adjusted. The one
+ * figure that does not follow it is a route's banked `play_seconds`: a session
+ * is banked on whichever route was active and does not record which, so there
+ * is nothing here to take it off.
+ */
+export function deleteSession(gameId: number, sessionId: number): void {
+  db.prepare('DELETE FROM sessions WHERE id = ? AND game_id = ?').run(sessionId, gameId)
 }
 
 export function listGames(): GameWithStats[] {
@@ -781,7 +929,7 @@ export function updateGame(gameId: number, input: NewGameInput): GameWithStats {
   setGameTags(gameId, input.tagNames ?? [])
 
   const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
-  if (!row) throw new Error(`ゲームが見つかりません (id=${gameId})`)
+  if (!row) throw new Error(t('ゲームが見つかりません (id={0})', gameId))
   return rowToGameWithStats(row)
 }
 
@@ -1036,6 +1184,17 @@ export function addPlan(input: NewPlanInput): Plan {
   return toPlan(row)
 }
 
+/** A plan written again from the editor the Plan Detail board opens. The day
+    is written with it: the editor is opened on the day the panel is on, and
+    that is the day the plan belongs to. */
+export function updatePlan(planId: number, input: NewPlanInput): Plan {
+  db.prepare(
+    'UPDATE plans SET date = ?, name = ?, description = ?, color = ?, notify = ? WHERE id = ?'
+  ).run(input.date, input.name, input.description, input.color, input.notify ? 1 : 0, planId)
+  const row = db.prepare('SELECT * FROM plans WHERE id = ?').get(planId) as PlanRow
+  return toPlan(row)
+}
+
 export function deletePlan(planId: number): void {
   db.prepare('DELETE FROM plans WHERE id = ?').run(planId)
 }
@@ -1080,4 +1239,356 @@ export function getPlaytimeByDayAndGame(fromDate: string, toDate: string): DayGa
   }
 
   return [...totals.values()]
+}
+
+/*
+ * **A backup is the database and the files it points at.** The rows carry
+ * paths, and every one of those paths that the app itself made is under
+ * `userData`: the gallery's own copies (`game-images`), the pictures a Home
+ * cell was given (`home-images`), and the icon and thumbnail an added game was
+ * filed with (`icons`, `images`). A backup of the database alone restores
+ * every row and none of the pictures, which on the same machine is invisible —
+ * the files never went anywhere — and on a *different* machine is a library of
+ * empty frames. So these travel with it.
+ *
+ * What does not: `screenshots`, `videos` and `audio` are where a capture is
+ * written before the save dialog moves it somewhere the player chose. Nothing
+ * in the database points into them, and what is left there is a capture that
+ * was thrown away.
+ */
+const BACKUP_MEDIA_DIRS = ['game-images', 'home-images', 'icons', 'images']
+
+/* What says a folder is one of this app's own backups rather than somewhere a
+   `.sqlite3` happens to be. It is written beside the database, so a restore
+   can tell a complete backup from a bare database file — which is what every
+   backup made before this was — by looking next to what it was handed. */
+const BACKUP_MANIFEST = 'from-visual-novel-backup.json'
+
+/*
+ * **How long a backup is kept depends on what it stands for.** Every launch
+ * makes one and the folder would otherwise grow without end, so each is filed
+ * as the day's, the week's, the month's or the year's, and each of those is
+ * kept for a different length of time:
+ *
+ *   day    — a week
+ *   week   — three months
+ *   month  — a year
+ *   year   — forever
+ *
+ * **Which one a backup is, is decided by what is not there yet.** The week's is
+ * simply the first backup of that week, the month's the first of that month and
+ * the year's the first of that year — so a Sunday the app was not opened on is
+ * answered by the next day it *was*, and the same for a first of the month. A
+ * backup that stands for the year stands for its month and its week as well,
+ * which is why the test is by rank rather than by name.
+ *
+ * **And it is written into the folder's name** (`library-2026-09-07-week`), so
+ * what a backup is kept for can be read off it without opening anything — and
+ * so this can work it out again on the next launch from the folder alone.
+ * A folder from before the tiers existed carries no tag and is read as a day's.
+ */
+type BackupTier = 'year' | 'month' | 'week' | 'day'
+const TIER_RANK: Record<BackupTier, number> = { year: 3, month: 2, week: 1, day: 0 }
+const BACKUP_NAME = /^library-(\d{4})-(\d{2})-(\d{2})(?:-(year|month|week|day))?$/
+
+interface KeptBackup {
+  name: string
+  /** The local midnight of the day it was taken for. */
+  date: Date
+  tier: BackupTier
+}
+
+const midnight = (at: Date): Date => new Date(at.getFullYear(), at.getMonth(), at.getDate())
+
+function daysBefore(at: Date, days: number): Date {
+  const out = midnight(at)
+  out.setDate(out.getDate() - days)
+  return out
+}
+
+function monthsBefore(at: Date, months: number): Date {
+  const out = midnight(at)
+  out.setMonth(out.getMonth() - months)
+  return out
+}
+
+/** The Sunday the given day's week begins on — `getDay()` is 0 there. */
+function weekStart(at: Date): Date {
+  const out = midnight(at)
+  out.setDate(out.getDate() - out.getDay())
+  return out
+}
+
+/** Every folder in the backup directory this app made, oldest first. */
+function keptBackups(directory: string): KeptBackup[] {
+  let names: string[]
+  try {
+    names = fs.readdirSync(directory)
+  } catch {
+    return []
+  }
+  const out: KeptBackup[] = []
+  for (const name of names) {
+    const match = BACKUP_NAME.exec(name)
+    if (!match) continue
+    if (!fs.statSync(path.join(directory, name)).isDirectory()) continue
+    out.push({
+      name,
+      date: new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
+      tier: (match[4] as BackupTier) ?? 'day'
+    })
+  }
+  return out.sort((a, b) => a.date.getTime() - b.date.getTime())
+}
+
+/**
+ * What today's backup stands for: the first of its year, of its month, of its
+ * week, or nothing beyond the day.
+ *
+ * Anything already dated today is left out of the question — a second launch on
+ * the same day is the same backup being taken again, and counting it would have
+ * it find its own week already covered and file the replacement a rank lower.
+ */
+function tierFor(today: Date, kept: KeptBackup[]): BackupTier {
+  const others = kept.filter((one) => one.date.getTime() !== midnight(today).getTime())
+  const covered = (rank: number, from: Date): boolean =>
+    others.some((one) => TIER_RANK[one.tier] >= rank && one.date >= from)
+
+  if (!covered(TIER_RANK.year, new Date(today.getFullYear(), 0, 1))) return 'year'
+  if (!covered(TIER_RANK.month, new Date(today.getFullYear(), today.getMonth(), 1))) return 'month'
+  if (!covered(TIER_RANK.week, weekStart(today))) return 'week'
+  return 'day'
+}
+
+/** Whether a backup has outlived what its tier is kept for. */
+function expired(one: KeptBackup, today: Date): boolean {
+  if (one.tier === 'year') return false
+  if (one.tier === 'month') return one.date < monthsBefore(today, 12)
+  if (one.tier === 'week') return one.date < monthsBefore(today, 3)
+  return one.date < daysBefore(today, 7)
+}
+
+/**
+ * Copies the library into the folder the Setting board's 起動時にバックアップ
+ * を作成 row names, once, as the app starts.
+ *
+ * **One folder a day, named for the day and for what it stands for**, holding
+ * `library.sqlite3`, a copy of each media folder, and the manifest that says
+ * what it is. A backup per launch would fill the folder for anyone who opens
+ * the app twice, and a single fixed name would leave one bad day with nothing
+ * behind it. A second launch on the same day takes the day's folder away and
+ * writes it again from scratch, so it is the library as it stands rather than
+ * the two runs mixed together. Whatever has outlived its tier goes with it.
+ *
+ * The database is taken with `better-sqlite3`'s own `backup` rather than by
+ * copying the file: it is in WAL mode, so the `.sqlite3` on its own is not the
+ * whole of it — a copy taken while a write is in flight is a copy of half of
+ * one. This drives SQLite's own backup API, which takes a consistent snapshot.
+ *
+ * What comes back is the path of the database inside that folder, which is what
+ * the 読み込み row is pointed at.
+ */
+export async function backupDatabase(directory: string): Promise<string> {
+  const now = new Date()
+  const stamp = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0')
+  ].join('-')
+
+  fs.mkdirSync(directory, { recursive: true })
+  const kept = keptBackups(directory)
+  const tier = tierFor(now, kept)
+
+  /* **One backup a day.** Whatever this day already has goes — under whatever
+     tag it was filed with, since the tag is worked out again from what the rest
+     of the folder holds and can come out differently from one launch to the
+     next. */
+  for (const one of kept) {
+    if (one.date.getTime() === midnight(now).getTime()) {
+      fs.rmSync(path.join(directory, one.name), { recursive: true, force: true })
+    }
+  }
+
+  const folder = path.join(directory, `library-${stamp}-${tier}`)
+  fs.mkdirSync(folder, { recursive: true })
+
+  const target = path.join(folder, 'library.sqlite3')
+  fs.rmSync(target, { force: true })
+  await db.backup(target)
+
+  const root = app.getPath('userData')
+  const carried: string[] = []
+  for (const name of BACKUP_MEDIA_DIRS) {
+    const from = path.join(root, name)
+    if (!fs.existsSync(from)) continue
+    const to = path.join(folder, name)
+    fs.rmSync(to, { recursive: true, force: true })
+    fs.cpSync(from, to, { recursive: true })
+    carried.push(name)
+  }
+
+  fs.writeFileSync(
+    path.join(folder, BACKUP_MANIFEST),
+    JSON.stringify(
+      { app: 'from-visual-novel', createdAt: now.toISOString(), tier, media: carried },
+      null,
+      2
+    )
+  )
+
+  /* And the ones that have outlived what their own tier is kept for. Done after
+     the day's is written rather than before it: what is swept is read off the
+     folder, and the folder is not what it will be until this launch's backup is
+     in it. Today's own is never a candidate. */
+  for (const one of keptBackups(directory)) {
+    if (one.date.getTime() === midnight(now).getTime()) continue
+    if (expired(one, now)) {
+      fs.rmSync(path.join(directory, one.name), { recursive: true, force: true })
+    }
+  }
+  return target
+}
+
+/**
+ * Clears `userData/icons` of every file no game is pointing at.
+ *
+ * The folder is written by the Add Game dialog's own preview — the icon pulled
+ * out of the chosen executable — so it fills with the ones a dialog was
+ * cancelled on, the ones a game was deleted with, and (before the file was
+ * named for the executable rather than the occasion) another copy for every
+ * time that box was ticked. What a game is actually using is one column, so
+ * what is not in it is not being used by anything.
+ *
+ * Swept as the app starts, before any window: nothing is choosing an icon yet,
+ * so a file that has just been written and not yet saved to a row cannot be
+ * caught by it. Two games launched from one executable share a file now, which
+ * is why the test is "no row points at it" rather than anything per game.
+ */
+export function pruneUnusedIcons(userDataDir: string): void {
+  const dir = path.join(userDataDir, 'icons')
+  let names: string[]
+  try {
+    names = fs.readdirSync(dir)
+  } catch {
+    // Made on the first extraction; there may be none.
+    return
+  }
+  const used = new Set(
+    (
+      db
+        .prepare("SELECT icon_path FROM games WHERE icon_path IS NOT NULL AND icon_path <> ''")
+        .all() as { icon_path: string }[]
+    ).map((row) => path.resolve(row.icon_path).toLowerCase())
+  )
+  for (const name of names) {
+    const file = path.join(dir, name)
+    if (used.has(path.resolve(file).toLowerCase())) continue
+    try {
+      fs.rmSync(file, { force: true })
+    } catch {
+      // A file that will not go is a file that stays; this is housekeeping.
+    }
+  }
+}
+
+/**
+ * Puts every setting back to what it opens as.
+ *
+ * The rows are simply dropped rather than written back as the defaults: an
+ * unwritten key already reads as its default (`getSettings`), so an empty table
+ * *is* the untouched state — and a build that adds a row later finds nothing
+ * stale sitting under it.
+ *
+ * The library itself is untouched. This table holds nothing about the games.
+ */
+export function resetSettings(): AppSettings {
+  db.prepare('DELETE FROM settings').run()
+  return getSettings()
+}
+
+/** What a SQLite file begins with. A wrong file read back over the library
+    would be worse than no restore at all, so this is checked first. */
+const SQLITE_MAGIC = Buffer.from('SQLite format 3\0', 'latin1')
+
+/** Whether a path is a file this build would read back: it is there, and it
+    begins the way a SQLite database does. */
+export function isBackupFile(source: string): boolean {
+  try {
+    if (!fs.statSync(source).isFile()) return false
+    const head = Buffer.alloc(SQLITE_MAGIC.length)
+    const handle = fs.openSync(source, 'r')
+    try {
+      fs.readSync(handle, head, 0, head.length, 0)
+    } finally {
+      fs.closeSync(handle)
+    }
+    return head.equals(SQLITE_MAGIC)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Reads a backup back over the live database.
+ *
+ * The connection is closed first and the WAL and shared-memory files go with
+ * it: they belong to the database that is being replaced, and left behind they
+ * would be replayed over the one that arrives. The caller restarts the app —
+ * every query in this process is against a handle that is now closed.
+ */
+export function restoreDatabase(source: string): void {
+  const head = Buffer.alloc(SQLITE_MAGIC.length)
+  const handle = fs.openSync(source, 'r')
+  try {
+    fs.readSync(handle, head, 0, head.length, 0)
+  } finally {
+    fs.closeSync(handle)
+  }
+  if (!head.equals(SQLITE_MAGIC)) {
+    throw new Error(t('SQLite のデータベースファイルではありません'))
+  }
+
+  /* **The files come back before the database does.** A backup folder is what
+     it is by the manifest lying beside the database it was pointed at — a bare
+     `.sqlite3`, which is what every backup made before this is, has none, and
+     then only the database is read back, exactly as it always was. The media is
+     restored first because it is the step that can still be undone: nothing
+     about the database has been touched yet, so a failure leaves the app
+     running on the library it already had. */
+  const folder = path.dirname(source)
+  if (fs.existsSync(path.join(folder, BACKUP_MANIFEST))) {
+    restoreMedia(folder)
+  }
+
+  const target = path.join(app.getPath('userData'), 'library.sqlite3')
+  db.close()
+  for (const suffix of ['-wal', '-shm']) {
+    fs.rmSync(target + suffix, { force: true })
+  }
+  fs.copyFileSync(source, target)
+}
+
+/* Puts each media folder back as the backup has it. **The one it replaces is
+   moved aside rather than deleted**, and put back if the copy fails partway:
+   what is being replaced is the only copy of those pictures this machine has,
+   and half of it is worse than either. */
+function restoreMedia(folder: string): void {
+  const root = app.getPath('userData')
+  for (const name of BACKUP_MEDIA_DIRS) {
+    const from = path.join(folder, name)
+    if (!fs.existsSync(from)) continue
+    const to = path.join(root, name)
+    const aside = `${to}.restoring`
+    fs.rmSync(aside, { recursive: true, force: true })
+    if (fs.existsSync(to)) fs.renameSync(to, aside)
+    try {
+      fs.cpSync(from, to, { recursive: true })
+    } catch (error) {
+      fs.rmSync(to, { recursive: true, force: true })
+      if (fs.existsSync(aside)) fs.renameSync(aside, to)
+      throw error
+    }
+    fs.rmSync(aside, { recursive: true, force: true })
+  }
 }

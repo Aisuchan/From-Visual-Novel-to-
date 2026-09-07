@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { playSound } from '../../playSound'
+import { playIfOn } from '../sound'
 import './Balloons.css'
 
 interface Props {
@@ -76,7 +76,7 @@ export default function Balloons({ leaving }: Props): React.JSX.Element {
   function burst(id: number): void {
     setPopped((ids) => {
       if (ids.includes(id)) return ids
-      playSound('./balloon.mp3', 0.3)
+      playIfOn('balloon', './balloon.mp3', 0.3)
       return [...ids, id]
     })
   }

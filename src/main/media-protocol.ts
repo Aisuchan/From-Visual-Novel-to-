@@ -41,6 +41,15 @@ export function registerMediaProtocol(): void {
   protocol.handle(MEDIA_SCHEME, (request) => {
     const filePath = resolveMediaPath(request.url)
     if (!filePath) return new Response(null, { status: 404 })
-    return net.fetch(pathToFileURL(filePath).toString())
+    /* The Range header is carried through. Chromium's own file loader answers
+       one, and a `<video>` asks for exactly that: the gallery holds clips now,
+       and without it a clip could only be played from its start — every seek
+       would be a fresh read of the whole file. Nothing else is forwarded; a
+       picture never asks for a range and would not notice either way. */
+    const range = request.headers.get('range')
+    return net.fetch(
+      pathToFileURL(filePath).toString(),
+      range ? { headers: { range } } : undefined
+    )
   })
 }

@@ -8,16 +8,19 @@ import type {
   GameWithStats,
   Group,
   HomeLayout,
+  Language,
   LaunchPrefs,
   NewGameInput,
   NewGroupInput,
   NewPlanInput,
   NewRouteInput,
+  OverlayCorner,
   Plan,
   ProgressState,
   Route,
   RoutePatch,
-  ScreenshotFormat,
+  ScreenDisplay,
+  SoundEffect,
   Session,
   Tag
 } from './db-types'
@@ -49,17 +52,28 @@ export const IpcChannels = {
   TagsList: 'tags:list',
   SettingsGet: 'settings:get',
   SettingsSet: 'settings:set',
+  DisplaysList: 'displays:list',
+  SoundEffectsList: 'sound-effects:list',
+  BackupPickDirectory: 'backup:pick-directory',
+  ShellShowItem: 'shell:show-item',
+  SettingsReset: 'settings:reset',
+  BackupPickFile: 'backup:pick-file',
+  BackupCheck: 'backup:check',
+  BackupRestore: 'backup:restore',
   GamesFooterStats: 'games:footer-stats',
   LaunchPrefsGet: 'launch-prefs:get',
   LaunchPrefsSet: 'launch-prefs:set',
   SessionsList: 'sessions:list',
+  SessionsDelete: 'sessions:delete',
   SessionsPlaytimeByDay: 'sessions:playtime-by-day',
   SessionsPlaytimeByDayAndGame: 'sessions:playtime-by-day-and-game',
   PlansList: 'plans:list',
   PlansAdd: 'plans:add',
+  PlansUpdate: 'plans:update',
   PlansDelete: 'plans:delete',
   SessionStart: 'session:start',
   SessionEnded: 'session:ended',
+  SessionFailed: 'session:failed',
   SessionScreenshot: 'session:screenshot',
   SessionToggleVideo: 'session:toggle-video',
   SessionToggleAudio: 'session:toggle-audio',
@@ -67,6 +81,7 @@ export const IpcChannels = {
   OverlayTick: 'overlay:tick',
   OverlayCaptureState: 'overlay:capture-state',
   OverlaySetWidth: 'overlay:set-width',
+  OverlayPlayRecordEffect: 'overlay:play-record-effect',
   /* The hidden capture window is a worker: the main process sends it commands
      and it answers on the other two channels. */
   CaptureReady: 'capture:ready',
@@ -89,6 +104,17 @@ export interface StartSessionRequest {
 export interface StartSessionResult {
   sessionId: number
   gameTitle: string
+}
+
+/* A launch that could not be made. The check that can be made before anything
+   is started — is the file still there — is answered by the call itself, so
+   this is the other half: a spawn that failed once the session was already
+   under way, which is asynchronous and cannot be thrown back to the caller. */
+/** Which of the two recordings a sound is being asked for. */
+export type RecordingKind = 'video' | 'audio'
+
+export interface SessionFailedPayload {
+  message: string
 }
 
 export interface SessionEndedPayload {
@@ -133,10 +159,10 @@ export type CaptureTrack = 'video' | 'audio'
  * files, the worker owns the streams.
  */
 export type CaptureCommand =
-  /* The two formats the Setting board can change reach the worker as part of
-     the command: it is the worker that encodes, and the setting is read once
-     per capture so a change takes on the next one without a restart. */
-  | { id: number; kind: 'screenshot'; format: ScreenshotFormat }
+  /* The audio format reaches the worker as part of the command: it is the
+     worker that encodes, and the setting is read once per capture so a change
+     takes on the next one without a restart. A screenshot is not here — it is
+     taken in the main process, off `desktopCapturer`. */
   | { id: number; kind: 'start-video' }
   | { id: number; kind: 'stop-video' }
   | { id: number; kind: 'start-audio'; format: AudioFormat }
@@ -145,8 +171,6 @@ export type CaptureCommand =
 export interface CaptureResultPayload {
   id: number
   error?: string
-  /** `screenshot` only: the encoded image, written out by the main process. */
-  image?: Uint8Array
 }
 
 export interface CaptureChunkPayload {
@@ -223,8 +247,37 @@ export interface LibraryApi {
      settings, the way the routes and images APIs answer with a whole list. */
   getSettings(): Promise<AppSettings>
   setSettings(patch: Partial<AppSettings>): Promise<AppSettings>
+  /* The desktop's displays, which the Recorder Panel's own row lists a corner
+     of each of. Read when the Setting board opens rather than held: a display
+     can be plugged in or unplugged while the app is running. */
+  listDisplays(): Promise<ScreenDisplay[]>
+  /* The Recorder Panel's effect sounds, read off the folder they are served
+     from, so a file dropped in is an option without a build. */
+  listSoundEffects(): Promise<SoundEffect[]>
+  /* Names the folder the launch backup is written to. Answers with the path
+     chosen, or null if the dialog was closed — the row keeps what it had. */
+  pickBackupDirectory(): Promise<string | null>
+  /* Reads a backup back over the library and restarts. Asks first, in the
+     main process, and answers false if that was declined or the file was not
+     a database. */
+  restoreBackup(filePath: string): Promise<boolean>
+  /** Names the backup file to read back. Null if the dialog was closed. */
+  pickBackupFile(): Promise<string | null>
+  /** Puts every row back to what it opens as. `null` if it was not confirmed. */
+  resetSettings(): Promise<AppSettings | null>
+  /** Whether that path is a file this build would read back — it exists and
+      begins the way a SQLite database does. The 読み込み button is dead until
+      it answers true. */
+  checkBackup(filePath: string): Promise<boolean>
   /** The game's sessions, newest first — the Play Log board's source. */
   listSessions(gameId: number): Promise<Session[]>
+  /* Takes one session off the game. Every total in the app is a sum over that
+     table, so the time it carried goes with it. */
+  deleteSession(gameId: number, sessionId: number): Promise<void>
+  /** Shows a file where it lives, in the system's own file browser. */
+  /** Opens the folder with `filePath` picked out, or `fallback`'s folder when
+      that file is no longer there. */
+  showItemInFolder(filePath: string, fallback?: string | null): Promise<void>
   /** Recorded play time per local day over an inclusive "YYYY-MM-DD" range —
       what the Calender board's cells carry while "Show Playtime" is on. */
   getPlaytimeByDay(fromDate: string, toDate: string): Promise<DayPlaytime[]>
@@ -235,12 +288,15 @@ export interface LibraryApi {
      and reads them again after a write, the way the game list does. */
   listPlans(fromDate: string, toDate: string): Promise<Plan[]>
   addPlan(input: NewPlanInput): Promise<Plan>
+  /** What a plan opened out of the Plan Detail board writes back. */
+  updatePlan(planId: number, input: NewPlanInput): Promise<Plan>
   deletePlan(planId: number): Promise<void>
   getFooterStats(): Promise<FooterStats>
   getLaunchPrefs(gameId: number): Promise<LaunchPrefs>
   setLaunchPrefs(prefs: LaunchPrefs): Promise<void>
   startSession(req: StartSessionRequest): Promise<StartSessionResult>
   onSessionEnded(cb: (payload: SessionEndedPayload) => void): () => void
+  onSessionFailed(cb: (payload: SessionFailedPayload) => void): () => void
   minimizeWindow(): void
   toggleMaximizeWindow(): void
   closeWindow(): void
@@ -248,8 +304,33 @@ export interface LibraryApi {
 }
 
 export interface OverlayApi {
+  /* The corner the panel was opened in, and whether the app's arrivals run.
+     Both are the Setting board's, and both come in on the window's own
+     command line rather than over IPC: they decide which way round the panel
+     is drawn, so a round trip would paint a frame of the wrong one. Neither
+     changes while the panel is up — the corner is its *initial* position. */
+  corner: OverlayCorner
+  animate: boolean
+  /* The file each of the panel's three effect sounds is, or '' for none. The
+     main process resolves the Setting board's stored number to a name, so the
+     page has nothing to look up. */
+  shotSound: string
+  videoSound: string
+  audioSound: string
+  /* How large the panel is drawn — the Setting board's レコーダーパネルのサイズ
+     row. The page keeps the design's own figures and scales itself as a whole,
+     the way the library window does, and the width it reports back is in those
+     same design pixels: the main process scales what it is given. */
+  scale: number
+  /** The 言語/language row, for the panel's own runs. */
+  language: Language
   onTick(cb: (payload: OverlayTickPayload) => void): () => void
   onCaptureState(cb: (state: CaptureState) => void): () => void
+  /* Fired as a recording's save dialog comes up, which is when its effect
+     sound is played: the recorder has stopped and the file is closed by then,
+     so the sound lands after the last byte rather than in it, and the player
+     hears it as the dialog arrives rather than once they have answered it. */
+  onPlayRecordEffect(cb: (kind: RecordingKind) => void): () => void
   takeScreenshot(): Promise<ScreenshotResult>
   /** Starts or stops recording the game window, in the Setting board's format. */
   toggleVideo(): Promise<CaptureToggleResult>
@@ -257,9 +338,10 @@ export interface OverlayApi {
   toggleAudio(): Promise<CaptureToggleResult>
   togglePause(): Promise<{ paused: boolean }>
   /**
-   * Sets the panel window's width, holding its right edge. Called once per
-   * animation frame while the panel collapses, so the desktop behind is
-   * uncovered as the strip slides rather than all at once at the end.
+   * Sets the panel window's width, holding the edge the panel is anchored to
+   * — its right in a right-hand corner, its left in a left-hand one. Called
+   * once per animation frame while the panel collapses, so the desktop behind
+   * is uncovered as the strip slides rather than all at once at the end.
    */
   setWidth(width: number): void
 }

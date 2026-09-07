@@ -1,5 +1,5 @@
 import { Mp3Encoder } from '@breezystack/lamejs'
-import type { AudioFormat, ScreenshotFormat } from '../../shared/db-types'
+import type { AudioFormat } from '../../shared/db-types'
 import type { CaptureCommand, CaptureTrack } from '../../shared/ipc-types'
 
 /*
@@ -94,6 +94,12 @@ let audioRecording: AudioRecording | null = null
 /**
  * The source is whatever the main process queued for this call — the request
  * itself asks for nothing in particular.
+ *
+ * **The mouse pointer cannot be asked away here**, which is why nothing tries:
+ * `getDisplayMedia` composites it into every frame and this runtime ignores
+ * every shape of the constraint that should stop it. See the deferred list in
+ * CLAUDE.md for what was measured. A screenshot is unaffected — it is taken in
+ * the main process off `desktopCapturer`, which composites no pointer at all.
  */
 function openStream(): Promise<MediaStream> {
   return navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
@@ -106,40 +112,6 @@ function stopStream(stream: MediaStream): void {
 /** The first codec the runtime actually supports, or the container default. */
 function pickMimeType(candidates: string[]): string | undefined {
   return candidates.find((type) => MediaRecorder.isTypeSupported(type))
-}
-
-/** JPEG quality, which is only asked for when the Setting board says jpg. */
-const JPEG_QUALITY = 0.92
-
-async function screenshot(format: ScreenshotFormat): Promise<Uint8Array> {
-  const stream = await openStream()
-  try {
-    const video = document.createElement('video')
-    video.srcObject = stream
-    video.muted = true
-    await video.play()
-    // `play()` resolves before anything has been painted, and a canvas drawn
-    // from a video with no frame yet comes out blank.
-    await new Promise<void>((resolve) => video.requestVideoFrameCallback(() => resolve()))
-
-    const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    const context = canvas.getContext('2d')
-    if (!context) throw new Error('キャンバスを準備できませんでした')
-    context.drawImage(video, 0, 0)
-
-    // The canvas is the encoder for both formats the Setting board offers, so
-    // the choice is one argument rather than a second path.
-    const type = format === 'jpg' ? 'image/jpeg' : 'image/png'
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, type, format === 'jpg' ? JPEG_QUALITY : undefined)
-    )
-    if (!blob) throw new Error(`${format.toUpperCase()} に変換できませんでした`)
-    return new Uint8Array(await blob.arrayBuffer())
-  } finally {
-    stopStream(stream)
-  }
 }
 
 async function startRecording(track: CaptureTrack): Promise<void> {
@@ -347,8 +319,6 @@ async function stopAudio(): Promise<void> {
 
 async function run(command: CaptureCommand): Promise<{ image?: Uint8Array }> {
   switch (command.kind) {
-    case 'screenshot':
-      return { image: await screenshot(command.format) }
     case 'start-video':
       await startRecording('video')
       return {}

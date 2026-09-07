@@ -3,6 +3,7 @@ import type { NewGroupInput } from '../../../shared/db-types'
 import { HEX, SWATCHES } from '../color'
 import ColorPicker from './ColorPicker'
 import './NewGroupSetting.css'
+import { t } from '../../../shared/i18n'
 
 /** The design draws Red Selected, so red is the colour a new group opens on. */
 const DEFAULT_COLOR = '#e01f1f'
@@ -48,7 +49,7 @@ export default function NewGroupSetting({ onCancel, onSubmit }: Props): React.JS
                 autoFocus
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && submit()}
-                aria-label="グループ名"
+                aria-label={t('グループ名')}
               />
             </div>
           </div>
@@ -69,7 +70,7 @@ export default function NewGroupSetting({ onCancel, onSubmit }: Props): React.JS
                     onChange={(e) =>
                       setColor(e.target.value.replace(/[^#0-9a-fA-F]/g, '').slice(0, 7))
                     }
-                    aria-label="カラーコード"
+                    aria-label={t('カラーコード')}
                   />
                   {/* The colour itself, read off the end of the field it is
                       written in. */}

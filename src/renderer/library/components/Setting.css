@@ -78,6 +78,67 @@
   white-space: nowrap;
 }
 
+/* Not in the design: the board's four tabs, at the Top's right end. They are
+   set on the heading's own Under Line — `align-self: flex-end` against the
+   Top's `flex-start`, so the row sits at the bottom of the 84 the heading
+   makes — which is what puts them at the board's top right without a figure of
+   their own. */
+.setting-tabs {
+  align-self: flex-end;
+  display: flex;
+  align-items: flex-end;
+  column-gap: 30px;
+}
+
+/* The word and the mark under it, in a column so the mark spans the word
+   exactly. The mark stands under the tab that is up and is hidden rather than
+   taken out of the flow on the others, so no word moves when the tab changes —
+   the same thing the Calender board's hidden "▼" marks do. */
+.setting-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  row-gap: 8px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* The rows' own names are 45; a tab names a group of them and is set under
+   that, at the 32 the board's controls are read at. 0.8 for the reason
+   `.setting-name` takes it: this build's Girassol sets the ink shorter than
+   the design's raster of it, and 0.8 is what makes the box the ink. */
+.setting-tab-word {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 0.8;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+  transition: color 0.14s ease;
+}
+
+.setting-tab:hover .setting-tab-word {
+  color: var(--color-text-muted);
+}
+
+.setting-tab.is-current .setting-tab-word {
+  color: var(--color-text);
+}
+
+/* Half the heading's own 8px rule: it says which tab is up, not what the board
+   is. The accent is how the app marks where you are — the lit HOME plate, the
+   lit footer gear, the row an OptionMenu stands on. */
+.setting-tab-mark {
+  height: 4px;
+  background: var(--color-accent);
+  visibility: hidden;
+}
+
+.setting-tab.is-current .setting-tab-mark {
+  visibility: visible;
+}
+
 /* Penpot: Under Line — 483x8: a 351px bar then a 132px taper, the same rule the
    Game board's title carries. */
 .setting-underline {
@@ -118,6 +179,21 @@
   flex-direction: column;
   box-shadow: inset 0 0 0 1px var(--color-text-dim);
   overflow-y: auto;
+  /* The rows are remounted on a tab, so this runs again for each one. It is
+     the board slot's own fade at the length a handful of rows needs — what is
+     being answered is a press, and a tab that took as long as a board to
+     arrive would read as the board having changed. */
+  animation: setting-rows-in 160ms ease-out;
+}
+
+@keyframes setting-rows-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* Penpot: Setting Column — 1585x141 with 30px of block and 35px of inline
@@ -155,10 +231,17 @@
   white-space: nowrap;
 }
 
-/* Penpot: "Setting description..." — Girassol 40px, #aab8c2 */
+/* Penpot: "Setting description..." — Girassol 40px, #aab8c2, set at 30 here.
+   The design's own 40 is a description of four words under a name of two; the
+   rows the board actually carries write a sentence under a short name — the
+   longest of them, 「レコーダーパネルから取ったスクリーンショットをサムネイル
+   に追加する」, comes to 1240px at 40 against the 1288 the row leaves beside
+   its controls — and at nearly the name's own size the two read as one run of
+   equal weight rather than as a name and a note on it. 30 is two thirds of the
+   45px name, which is the proportion the pair is read in. */
 .setting-description {
   font-family: var(--font-display);
-  font-size: 40px;
+  font-size: 30px;
   line-height: 0.7;
   color: var(--color-text-muted);
   white-space: nowrap;
@@ -168,6 +251,23 @@
      holding ink that is taller than it, and `overflow` clips both axes. */
   padding: 0.3em 0;
   margin: -0.3em 0;
+}
+
+/* Not in the design, which draws one control per row: the Recorder Panel's own
+   row asks two questions — which display, and which corner of it — and they
+   are two boxes rather than one list of every corner of every display, which
+   was four times as long as it had to be. The pair is laid out from the row's
+   right edge the way a single box is, so the second of them lands exactly
+   where every other row's control does; 20px between them is not the design's
+   figure, there being no row in it with two.
+
+   A row with one box is this container with one child, so nothing about the
+   other six rows moves. */
+.setting-selects {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  column-gap: 20px;
 }
 
 /* Penpot: Select Box — 207x59, the value's 167 box and the 40px arrow beside
@@ -252,12 +352,21 @@
   border-radius: 0 15px 15px 0;
 }
 
-/* Penpot: "▼" — Girassol 20px, #e1e8ed */
+/* Penpot: "▼" — Girassol 20px, #e1e8ed. Not in the design: it turns over while
+   its own list is out, so the mark says which way the press goes rather than
+   only that there is one — the same thing the Recorder Panel's chevron does on
+   its fold, and on the app's own 0.14s clock. One glyph turned rather than
+   swapped for "▲": a swap would have nothing to animate between. */
 .setting-select-caret {
   font-family: var(--font-display);
   font-size: 20px;
   line-height: 0.7;
   color: var(--color-text);
+  transition: transform 0.14s ease;
+}
+
+.setting-select[aria-expanded='true'] .setting-select-caret {
+  transform: rotate(180deg);
 }
 
 /* Penpot: On / Off Button — 207x59, the two halves rounded 15px at the pair's
@@ -278,10 +387,22 @@
   align-items: flex-start;
   background: var(--color-strip);
   box-shadow: inset 0 0 0 2px var(--color-text-muted);
+  /* Each half is a button: the design draws the pair as one shape with one of
+     them filled, and which one that is is the whole of what the row says. */
+  border: none;
+  cursor: pointer;
 }
 
 .setting-switch-half.chosen {
   background: var(--color-accent);
+}
+
+/* Not in the design, which draws no hover for it: the half that is *not* on is
+   the one there is anything to press, so it takes the same 0.1 white lift the
+   Calender board's own buttons do — laid over the plate as a gradient rather
+   than in its place, so the fill underneath is still what it was. */
+.setting-switch-half:not(.chosen):hover {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
 }
 
 .setting-switch-half.on {
@@ -301,4 +422,118 @@
   line-height: 0.7;
   color: var(--color-text);
   white-space: nowrap;
+}
+
+/* Not in the design, which writes a sentence where this row writes a place:
+   the 起動時にバックアップを作成 row's description slot is the folder the copy
+   goes in, typed or picked. It sits where a description would, so the row is
+   still a name over a line with a control at its end. */
+.setting-path {
+  display: flex;
+  align-items: center;
+  column-gap: 10px;
+  /* Twice the 20 `.setting-explain` puts between a name and what is under it,
+     and the extra 20 is taken back off the bottom so the block is exactly as
+     tall as it was in layout. The row is a fixed 141 either way, so what this
+     changes is where the field sits inside it: the name stays where the row
+     centres it and the field moves down into the air it had underneath, which
+     is where the room was. */
+  margin-top: 10px;
+  margin-bottom: -10px;
+}
+
+/* The board's own plate and stroke at the size its descriptions are set, less
+   the two it gives up to the box around the run. */
+.setting-path-field {
+  width: 760px;
+  height: 44px;
+  padding: 0 14px;
+  background: var(--color-strip);
+  border: none;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 2px var(--color-text-dim);
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--color-text-muted);
+}
+
+.setting-path-field::placeholder {
+  color: var(--color-text-dim);
+}
+
+.setting-path-field:focus {
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
+  color: var(--color-text);
+}
+
+/* A path is long and a field is short, so the button is what most players will
+   use; it takes the board's brighter ink to say so. */
+.setting-path-browse {
+  height: 44px;
+  flex-shrink: 0;
+  padding: 0 22px;
+  background: var(--color-strip);
+  border: none;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.setting-path-browse:hover {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
+}
+
+/* Not in the design, which draws no button on a row: the Setting board's one
+   action takes the Select Box's own 207x59 and its plate, so it stands exactly
+   where every other row's control does. Rounded 15 all round, where a box is
+   rounded 15 at its two outer ends, this one having no half to square against.
+*/
+.setting-action {
+  width: 207px;
+  height: 59px;
+  flex-shrink: 0;
+  padding: 0;
+  background: var(--color-strip);
+  border: none;
+  border-radius: 15px;
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+/* A row whose act cannot be undone takes the app's own red for its plate — the
+   same one a paused session puts on the Recorder Panel's stroke and a plan's
+   notify mark carries — with the word and the ring around it in white, the way
+   the Add Game button carries the accent. It is the one filled plate on a board
+   of empty ones, which is what says the button is not like the others. */
+.setting-action.danger {
+  background: var(--color-danger);
+  color: var(--color-text-bright);
+  box-shadow: inset 0 0 0 2px var(--color-text-bright);
+}
+
+.setting-action:hover:not(:disabled) {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
+}
+
+/* A filled plate is lifted rather than recoloured, the way every other filled
+   plate in the app is: a second red on it would say something the first does
+   not. */
+.setting-action.danger:hover:not(:disabled) {
+  background-image: none;
+  filter: brightness(1.2);
+}
+
+/* Nothing to read back: the word and the stroke go to the ink the board writes
+   an unchosen thing in, and the plate is left as it is. */
+.setting-action:disabled {
+  color: var(--color-text-dim);
+  box-shadow: inset 0 0 0 2px var(--color-text-dim);
+  cursor: default;
 }

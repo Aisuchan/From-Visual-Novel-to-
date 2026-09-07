@@ -68,7 +68,12 @@
   border: none;
   border-radius: 5px;
   padding: 10px 20px;
-  text-align: right;
+  /* Penpot sets the run against the field's right end. A score is one to three
+     figures in a box that holds three, so what is typed sits in the middle of
+     it rather than crowding one side — and the placeholder, which is wider than
+     anything that replaces it, is centred rather than pressed against the
+     edge. */
+  text-align: center;
   font-family: var(--font-display);
   font-size: 24px;
   line-height: 1.2;

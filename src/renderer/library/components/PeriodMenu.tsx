@@ -3,6 +3,7 @@ import type { GraphPeriod } from '../../../shared/db-types'
 import { PERIOD_ROWS } from '../period'
 import OptionMenu from './OptionMenu'
 import './PeriodMenu.css'
+import { t } from '../../../shared/i18n'
 
 /* Penpot: Setting Period (9b87421c-4b34-8035-8008-813a0596f964), 291x688 —
    the board the PlayTime Graph's Period Setting row drops out of. It is not
@@ -118,7 +119,6 @@ export default function PeriodMenu({
               type="button"
               className={`period-menu-default${defaultKey === row.key ? ' is-default' : ''}`}
               onClick={() => onSetDefault(row.key)}
-              title="この期間を既定にする"
             >
               SET DEFAULT
             </button>
@@ -137,7 +137,6 @@ export default function PeriodMenu({
             type="button"
             className="period-menu-specify-caret"
             onClick={() => setSpecifying((was) => !was)}
-            aria-label={specifying ? '期間指定を閉じる' : '期間指定を開く'}
           >
             {specifying ? '▼' : '▲'}
           </button>

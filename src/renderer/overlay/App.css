@@ -31,38 +31,48 @@ body {
  *
  * Both the panel and the strip are anchored to the right edge — the one that
  * never moves — and both stay 227 wide whatever the window is doing, so the
- * strip's position on screen depends only on how far it has slid. The window
- * is transparent, so the desktop is uncovered by the slide itself; the width
- * follows in a single step once the strip has settled (see
- * `handleToggleShrink`), where it displaces nothing.
+ * strip's position on screen depends only on how far it has slid. That is
+ * what lets the window travel with the strip: it is resized every frame of
+ * the fold (see `handleToggleShrink`) holding that same right edge, so the
+ * resize moves nothing that is drawn.
  *
  * The window is taller and, once shrunk, wider than the panel: Windows will
  * not make a transparent window smaller than 64x64 (see `OVERLAY_MIN` in
- * windows.ts). The panel therefore sits in the window's top left corner, and
- * the main process puts that corner where the panel belongs — so parked in
- * the bottom-right of the desktop, the 34px under it and the 13px past it
- * hang off the screen instead of sitting on it.
+ * windows.ts). The panel therefore sits in the window's bottom right corner —
+ * the corner both resting states are anchored to — and the main process cuts
+ * the slack above and left of it off the window itself with `setShape`, so
+ * nothing is drawn there and a press goes through to the desktop. That is
+ * what the right edge anchoring below is for: shrunk, the panel's 227 hangs
+ * off the left of a 64px viewport and its visible 51 land exactly on the
+ * shape, at the window's own right edge.
  */
 .overlay-panel {
   -webkit-app-region: no-drag;
   position: fixed;
-  top: 0;
-  left: 0;
+  right: 0;
+  bottom: 0;
   width: 227px;
   height: 30px;
   overflow: hidden;
   font-family: var(--font-display);
 }
 
-/* At the floor the window is 64 wide and only the strip's 51 are panel, and
-   the left edge is no longer the panel's: pull it back until its right edge
-   lands 51px in from the window's, which is where the strip already is, and
-   the 13px of slack goes past the screen edge with the rest of the window.
-   176 = 227 - 51, the same distance the strip itself slides. */
-@media (max-width: 100px) {
-  .overlay-panel {
-    left: -176px;
-  }
+/*
+ * The Setting board's レコーダーパネルの初期位置 row: which corner of which
+ * display the panel opens in. The window is put in that corner and the panel
+ * in the same corner of the window, so these two say which of the viewport's
+ * edges the page is held against — and they must agree with `overlaySide` and
+ * `overlayTop` in windows.ts, which is what the shape is cut against and what
+ * edge a fold holds.
+ */
+.overlay-panel.at-top {
+  top: 0;
+  bottom: auto;
+}
+
+.overlay-panel.at-left {
+  left: 0;
+  right: auto;
 }
 
 .overlay-strip {
@@ -303,4 +313,87 @@ body {
   background: rgba(9, 14, 23, 0.96);
   color: var(--color-text-bright);
   font-size: 11px;
+}
+
+/*
+ * A panel in a left-hand corner runs the other way: the Move Button is the
+ * corner the strip slides under either way, so in a left corner it is on the
+ * left and every board is laid out from it — Move, Convinient Button, Play
+ * Time, Strech / Shrink — and the fold takes the strip left rather than right.
+ *
+ * It is written as offsets from the other edge rather than as a `scaleX(-1)`
+ * over the whole panel: a mirrored transform would turn the elapsed time and
+ * the glyphs over with it. Each rule below is the rule above it turned round,
+ * and nothing about the design's own spacing changes — the boards keep the
+ * design's 0 / 30 / 120, measured in from the corner the panel is in.
+ */
+.overlay-panel.at-left .overlay-strip {
+  right: auto;
+  left: 0;
+}
+
+.overlay-panel.at-left.is-shrunk .overlay-strip {
+  transform: translateX(-176px);
+}
+
+.overlay-panel.at-left .overlay-plate {
+  border-radius: 0 5px 5px 0;
+}
+
+.overlay-panel.at-left .overlay-shrink,
+.overlay-panel.at-left .overlay-play-time,
+.overlay-panel.at-left .overlay-convenient {
+  left: auto;
+  /* Each board's own run of controls is turned round with it: the design reads
+     from the panel's outer corner inwards, and that corner has moved. */
+  flex-direction: row-reverse;
+}
+
+.overlay-panel.at-left .overlay-shrink {
+  right: 1px;
+}
+
+.overlay-panel.at-left .overlay-play-time {
+  right: 31px;
+}
+
+.overlay-panel.at-left .overlay-convenient {
+  right: 121px;
+}
+
+.overlay-panel.at-left .overlay-shrink-button {
+  padding: 0 7px 0 5px;
+  border-radius: 0 4px 4px 0;
+}
+
+/* The chevron points the way the fold goes, which is now the other way: it
+   rests turned over and comes back as the panel shrinks. */
+.overlay-panel.at-left .overlay-shrink-button > i {
+  transform: rotateY(180deg);
+}
+
+.overlay-panel.at-left.is-shrunk .overlay-shrink-button > i {
+  transform: none;
+}
+
+.overlay-panel.at-left .overlay-move {
+  right: auto;
+  left: 0;
+  border-left: 1px solid var(--color-bg-alt);
+  border-right: none;
+}
+
+/*
+ * The Setting board's アニメーション row, off. The chevron's turn and the
+ * fold's own slide are the panel's only movements — the slide is the
+ * renderer's (see `handleToggleShrink`), and this is the turn.
+ */
+:root[data-animations='off'] *,
+:root[data-animations='off'] *::before,
+:root[data-animations='off'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
 }

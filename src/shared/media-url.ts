@@ -19,3 +19,26 @@ export function mediaUrl(filePath: string): string {
   const encoded = filePath.replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/')
   return `${MEDIA_SCHEME}://${MEDIA_HOST}/${encoded}`
 }
+
+/**
+ * What the Add Thumbnail gallery takes. The pictures are what it has always
+ * held; the clips are new, and the list is exactly what this runtime can play
+ * back — mp4/m4v and mov (both ISO-BMFF, which is what the Recorder Panel's
+ * own recordings are), webm and ogv. Matroska and AVI are deliberately left
+ * off: the dialog would take them and nothing would draw them.
+ */
+export const GALLERY_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp']
+export const GALLERY_VIDEO_EXTENSIONS = ['mp4', 'm4v', 'mov', 'webm', 'ogv']
+
+/**
+ * Whether a gallery entry is a clip rather than a picture.
+ *
+ * It is read off the name rather than stored: the extension is what the dialog
+ * filtered on and what the copy under `userData` keeps, so nothing else has to
+ * be written down and every row made before clips existed answers correctly.
+ */
+export function isVideoPath(filePath: string): boolean {
+  const dot = filePath.lastIndexOf('.')
+  if (dot < 0) return false
+  return GALLERY_VIDEO_EXTENSIONS.includes(filePath.slice(dot + 1).toLowerCase())
+}

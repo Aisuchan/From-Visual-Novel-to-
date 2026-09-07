@@ -168,6 +168,65 @@
   background-image: linear-gradient(rgba(225, 232, 237, 0.07), rgba(225, 232, 237, 0.07));
 }
 
+/* Not in the design: the grid is read into when the board arrives and again
+   whenever the cells are given another face — each cell takes the hover it
+   would take under the pointer, one after the next from the top left in the
+   days' own order, on the delay Calendar.tsx puts on it.
+
+   **Two names for one flash.** The wave has to run again on a board that is
+   already standing, and an animation only restarts when its *name* changes;
+   the grid is keyed on neither, so a remount is not an option — the open Plan
+   panel holds the cell it was opened on, and remounting would leave it holding
+   one that is no longer in the document. So the run's parity picks the name.
+
+   Its 0% and 100% are the cell's own resting state, so a cell that is hovered
+   or open while the wave passes is left exactly as it was once it has.
+
+   **The duration is set on the cell rather than here**, at ten of the wave's
+   own steps (`WAVE_STEP_MS * WAVE_CELLS_LIT`, with the delay): that is what
+   holds the wave to ten cells lit at a time — a cell is back to its resting
+   state on the frame the tenth one after it comes up — and it is one figure
+   rather than the same one written in two places. The peak sits one step in,
+   which is a tenth of the flash, so a cell is at its brightest as the next one
+   lights and the nine behind it are letting go. */
+.calendar-day.wave-a {
+  animation-name: calendar-day-wave-a;
+  animation-timing-function: linear;
+  animation-fill-mode: backwards;
+}
+
+.calendar-day.wave-b {
+  animation-name: calendar-day-wave-b;
+  animation-timing-function: linear;
+  animation-fill-mode: backwards;
+}
+
+@keyframes calendar-day-wave-a {
+  from,
+  to {
+    box-shadow: inset 0 0 0 1px var(--color-text-dim);
+    background-image: linear-gradient(rgba(225, 232, 237, 0), rgba(225, 232, 237, 0));
+  }
+
+  10% {
+    box-shadow: inset 0 0 0 1px var(--color-text-muted);
+    background-image: linear-gradient(rgba(225, 232, 237, 0.07), rgba(225, 232, 237, 0.07));
+  }
+}
+
+@keyframes calendar-day-wave-b {
+  from,
+  to {
+    box-shadow: inset 0 0 0 1px var(--color-text-dim);
+    background-image: linear-gradient(rgba(225, 232, 237, 0), rgba(225, 232, 237, 0));
+  }
+
+  10% {
+    box-shadow: inset 0 0 0 1px var(--color-text-muted);
+    background-image: linear-gradient(rgba(225, 232, 237, 0.07), rgba(225, 232, 237, 0.07));
+  }
+}
+
 /* Penpot: Top — 184x47, 10 in from the cell's left and flush with its top. */
 .calendar-day-top {
   position: absolute;
@@ -226,6 +285,16 @@
   height: 64px;
 }
 
+/* A chip is 18 tall for a 16px run, so the mark it carries is the smallest of
+   the three — and its ring with it. The rule itself is `.plan-notify-dot` in
+   PlanPanel.css. */
+.calendar-plan .plan-notify-dot {
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  box-shadow: 0 0 0 1.5px var(--color-text-bright);
+}
+
 /* Penpot: Plan1/2/3 — 50x18 chips, 5px radius, 3px apart, the name set in
    Girassol 16px at a 0.8 line height on 5px of left-hand padding. A plan's
    name is as long as it is, so a chip runs out to the slot's own width and
@@ -276,6 +345,41 @@
    belongs to as the number above it does. */
 .calendar-day.outside .calendar-day-playtime {
   color: var(--color-text-dim);
+}
+
+/* Whatever a cell holds arrives as the wave reaches that cell — the cell takes
+   the new face there rather than on the press — so what it takes fades in
+   where it stands rather than counting out a delay of its own.
+
+   **Both faces are drawn at all times and the one that is not on is held at
+   nothing**, rather than the face being what is mounted. A face that is simply
+   unmounted has nothing left to animate, so the switch was a fade in one
+   direction only: the new chips came up and the play time it replaced had
+   already gone. Held instead, the same transition runs both ways and a face
+   leaves on exactly the reverse of what it arrives on — which is also what
+   crossfades the two, each cell at its own moment in the wave.
+
+   The "+n" pill is one of them: it belongs to the plans it counts, so it is on
+   the cell only where the plans are and it goes and comes back with them.
+
+   They are laid over one another, so the play time and the chips both take the
+   slot entire; a cell carrying nothing yet — the wave has not reached it, or
+   the month has only just come up — holds both at nothing. */
+.calendar-day-playtime,
+.calendar-day-plans,
+.calendar-day-more {
+  transition: opacity 200ms ease-out;
+}
+
+.calendar-day-playtime.is-away,
+.calendar-day-plans.is-away,
+.calendar-day-more.is-away {
+  opacity: 0;
+}
+
+.calendar-day-plans {
+  position: absolute;
+  inset: 0;
 }
 
 /* Penpot: Bottom — 1585x120 under the grid, holding the two month steps and

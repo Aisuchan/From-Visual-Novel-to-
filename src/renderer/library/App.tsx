@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { toDateKey } from './format'
+import { setLanguage, t } from '../../shared/i18n'
 import type {
   AppSettings,
   FooterStats,
   GameWithStats,
   Group,
+  Plan,
   Tag,
   NewGameInput,
   NewGroupInput,
@@ -17,6 +20,7 @@ import AddThumbnail from './components/AddThumbnail'
 import Setting from './components/Setting'
 import Home from './components/Home'
 import Calendar from './components/Calendar'
+import CalendarFlip, { FLIP_TOTAL_MS } from './components/CalendarFlip'
 import PlaytimeGraph from './components/PlaytimeGraph'
 import FooterBar from './components/FooterBar'
 import AddGameDialog from './components/AddGameDialog'
@@ -33,6 +37,10 @@ type MainView =
   | 'home'
   | 'calendar'
   | 'graph'
+
+/** How long a board takes to fade in. Kept in step with `board-fade-in` in
+    App.css, which is what the Calender board's own cells wait out. */
+const BOARD_FADE_MS = 300
 
 export default function App(): React.JSX.Element {
   const [games, setGames] = useState<GameWithStats[]>([])
@@ -60,13 +68,69 @@ export default function App(): React.JSX.Element {
     videoFormat: 'mp4',
     audioFormat: 'mp3',
     homeLayout: 'grid',
-    graphPeriod: 'this-week'
+    homeColumns: '5',
+    homeSpines: '25',
+    noticeSeen: '',
+    graphPeriod: 'this-week',
+    overlayCorner: 'bottom-right',
+    overlayDisplay: 'primary',
+    animations: 'on',
+    screenshotToGallery: 'off',
+    videoToGallery: 'off',
+    overlaySize: 'medium',
+    crackerSound: 'on',
+    balloonSound: 'on',
+    screenshotSound: 'off',
+    videoSound: 'off',
+    audioSound: 'off',
+    launchWindowMode: 'window',
+    backupOnLaunch: 'off',
+    backupDirectory: '',
+    backupRestorePath: '',
+    lastSaveScreenshot: '',
+    lastSaveVideo: '',
+    lastSaveAudio: ''
   })
+  /* The アニメーション row, written onto the document rather than passed down:
+     the stylesheet's own kill switch is keyed on it, and so is `motion.ts`,
+     which is what the movements the app times itself read.
+
+     Written during the render rather than from an effect on purpose. A child's
+     effects run before its parent's, so a board mounting in the same commit
+     that turned the row off would set its own clocks against the attribute as
+     it was before the shell had touched it. */
+  /* The 言語/language row. Written during the render for the same reason the
+     attribute below it is: `t` is a plain function read at the moment a run is
+     drawn, so it has to be right before any child draws one. Changing the row
+     re-renders the whole tree — the settings are the shell's state — which is
+     what puts the new language on the screen without a Context or a restart. */
+  setLanguage(settings.language)
+
+  document.documentElement.dataset.animations = settings.animations
+  const animate = settings.animations === 'on'
+  /* The 音声 tab's two rows, written the same way and read by `sound.ts`: both
+     of these sounds are fired from inside an effect's own closure, where a
+     prop would be the one that effect was set up with. */
+  document.documentElement.dataset.crackerSound = settings.crackerSound
+  document.documentElement.dataset.balloonSound = settings.balloonSound
+  /* Today's own plans that asked to be notified. Nothing raises a notification
+     yet — the flag is stored and read — but the footer's Notification row
+     stands for these: a mark while there are any, and a press that puts the
+     day up. Read again every minute, which is what carries it over midnight as
+     well as picking up a plan written anywhere else. */
+  const [duePlans, setDuePlans] = useState<Plan[]>([])
+  /* The day those plans are for, read beside them so that a confirmation — which
+     is about a day — can be compared against it. The minute the two disagree is
+     midnight, and the mark comes back with the new day's own plans. */
+  const [dueDay, setDueDay] = useState('')
   const [editingGame, setEditingGame] = useState<GameWithStats | null>(null)
   /* The game the side panel has asked to delete. Deleting one takes its
      sessions, routes and images with it, so it is asked after first — the same
      board the Route panel asks with. */
   const [deletingGameId, setDeletingGameId] = useState<number | null>(null)
+  /* Why a launch could not be made, which is a notice rather than a question:
+     the Play button was pressed and nothing ran. */
+  const [launchError, setLaunchError] = useState<string | null>(null)
   const [playingGameId, setPlayingGameId] = useState<number | null>(null)
   // The finale covers the whole window — header, footer and side panel with it
   // — so it is the shell's to run rather than the board's.
@@ -76,6 +140,12 @@ export default function App(): React.JSX.Element {
   // Which board fills the content column: Penpot's "Game", "Add Thumbnail",
   // "Setting", "Home" or "Calender".
   const [mainView, setMainView] = useState<MainView>('game')
+  /* The run of pages the Calender board is arrived at through, or null while
+     none is turning. It is the run's own number rather than a flag so that
+     coming back to the board while the last one is still going restarts it:
+     the overlay is keyed on this, and a new number is a new run. */
+  const [calendarFlip, setCalendarFlip] = useState<number | null>(null)
+  const calendarFlips = useRef(0)
   const shellRef = useRef<HTMLDivElement | null>(null)
 
   useUiScale(shellRef)
@@ -107,21 +177,59 @@ export default function App(): React.JSX.Element {
     setFooterStats(await window.library.getFooterStats())
   }
 
+  async function refreshDuePlans(): Promise<void> {
+    const today = toDateKey(new Date())
+    const rows = await window.library.listPlans(today, today)
+    setDueDay(today)
+    setDuePlans(rows.filter((plan) => plan.notify))
+  }
+
   useEffect(() => {
     refreshGames()
     refreshGroups()
     refreshTags()
     refreshSettings()
     refreshFooterStats()
+    refreshDuePlans()
+    const due = setInterval(refreshDuePlans, 60000)
 
     const unsubscribe = window.library.onSessionEnded(() => {
       setPlayingGameId(null)
       refreshGames()
       refreshFooterStats()
     })
-    return unsubscribe
+    /* The other half of the same news: a spawn that failed once the session was
+       already under way, which is asynchronous and so cannot come back as the
+       call's own error. The session's end is reported beside it, so the board
+       is already back to itself by the time this is read. */
+    const unfailed = window.library.onSessionFailed(({ message }) => {
+      setPlayingGameId(null)
+      setLaunchError(message)
+    })
+    return () => {
+      clearInterval(due)
+      unsubscribe()
+      unfailed()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /* The Calender board is turned to rather than simply shown: the two months
+     before it are flicked away by their top-right corners, and the board fades
+     up once they are gone. It is mounted under those pages from the first
+     frame, so they are what its own read happens behind — the same thing the
+     board slot's fade does for the boards that arrive without them. Leaving
+     the board puts a run that is still going away with it. */
+  useEffect(() => {
+    // The pages are the board's own arrival, so the アニメーション row turned
+    // off is a board that is simply there — and nothing for its cells to wait.
+    if (mainView !== 'calendar' || !animate) {
+      setCalendarFlip(null)
+      return
+    }
+    calendarFlips.current += 1
+    setCalendarFlip(calendarFlips.current)
+  }, [mainView, animate])
 
   const selectedGame = games.find((g) => g.id === selectedGameId) ?? null
 
@@ -242,7 +350,7 @@ export default function App(): React.JSX.Element {
       await window.library.setProgress(gameId, state, score)
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error('進行状況を保存できませんでした', err)
+      console.error(t('進行状況を保存できませんでした'), err)
       return
     }
     await refreshGames()
@@ -251,6 +359,15 @@ export default function App(): React.JSX.Element {
   async function handleReorder(orderedIds: number[]): Promise<void> {
     await window.library.reorderGames(orderedIds)
     await refreshGames()
+  }
+
+  /* An error thrown inside an `ipcMain.handle` reaches the renderer wrapped in
+     the channel's own name — "Error invoking remote method 'session:start':
+     Error: ..." — and what is worth reading is the sentence at the end of it. */
+  function launchMessage(err: unknown): string {
+    const text = err instanceof Error ? err.message : String(err)
+    const at = text.lastIndexOf('Error: ')
+    return at < 0 ? text : text.slice(at + 'Error: '.length)
   }
 
   async function handleLaunch(opts: {
@@ -264,8 +381,11 @@ export default function App(): React.JSX.Element {
       await window.library.startSession({ gameId: selectedGame.id, ...opts })
     } catch (err) {
       setPlayingGameId(null)
-      // eslint-disable-next-line no-console
-      console.error(err)
+      /* A launch that could not be made is said rather than logged: the button
+         was pressed and nothing happened, and the reason — most often that the
+         file has been moved or deleted since the game was registered — is the
+         one thing that makes it fixable. */
+      setLaunchError(launchMessage(err))
     }
   }
 
@@ -283,6 +403,14 @@ export default function App(): React.JSX.Element {
           layout={settings.homeLayout}
           onLayoutChange={async (homeLayout) =>
             setSettings(await window.library.setSettings({ homeLayout }))
+          }
+          columns={settings.homeColumns}
+          onColumnsChange={async (homeColumns) =>
+            setSettings(await window.library.setSettings({ homeColumns }))
+          }
+          spines={settings.homeSpines}
+          onSpinesChange={async (homeSpines) =>
+            setSettings(await window.library.setSettings({ homeSpines }))
           }
           onSelect={(gameId) => {
             setSelectedGameId(gameId)
@@ -302,6 +430,8 @@ export default function App(): React.JSX.Element {
         <PlaytimeGraph
           games={games}
           defaultPeriod={settings.graphPeriod}
+          tags={tags}
+          groups={groups}
           onSetDefaultPeriod={async (graphPeriod) =>
             setSettings(await window.library.setSettings({ graphPeriod }))
           }
@@ -312,7 +442,17 @@ export default function App(): React.JSX.Element {
     // The month is the app's own too, so this board likewise stands with no
     // game selected.
     if (view === 'calendar') {
-      return <Calendar onOpenGraph={() => setMainView('graph')} />
+      /* The board is held back behind the pages being turned off the column
+         and the fade that follows them, so that is what its own cells wait out
+         before they are read into. */
+      return (
+        <Calendar
+          games={games}
+          onPlansChanged={refreshDuePlans}
+          onOpenGraph={() => setMainView('graph')}
+          arriveDelay={animate ? FLIP_TOTAL_MS + BOARD_FADE_MS : 0}
+        />
+      )
     }
     if (view === 'setting') {
       return (
@@ -323,7 +463,7 @@ export default function App(): React.JSX.Element {
       )
     }
     if (!selectedGame) {
-      return <div className="empty-state">「Add Game +」からゲームを登録してください</div>
+      return <div className="empty-state">{t('「Add Game +」からゲームを登録してください')}</div>
     }
     if (view === 'add-thumbnail') {
       return (
@@ -355,6 +495,7 @@ export default function App(): React.JSX.Element {
           setCelebration('clear')
           setFinishing(false)
         }}
+        onGamesChanged={refreshGames}
       />
     )
   }
@@ -413,11 +554,26 @@ export default function App(): React.JSX.Element {
           <div
             className={`board-slot ${
               mainView === 'add-thumbnail' || mainView === 'graph' ? 'slow-fade' : ''
-            }`}
+            }${mainView === 'calendar' ? ' after-flip' : ''}`}
+            /* The Calender board's own pages are turned off an empty column,
+               so its fade waits the whole run out and the board arrives once
+               they are gone. */
+            style={
+              mainView === 'calendar' && animate
+                ? { animationDelay: `${FLIP_TOTAL_MS}ms` }
+                : undefined
+            }
             key={mainView}
           >
             {renderBoard(mainView)}
           </div>
+
+          {/* The pages are turned over the Main Display alone, so they hang
+              off the column rather than off the shell the way the finale
+              does. */}
+          {calendarFlip !== null && (
+            <CalendarFlip key={calendarFlip} onDone={() => setCalendarFlip(null)} />
+          )}
         </div>
       </div>
 
@@ -428,6 +584,17 @@ export default function App(): React.JSX.Element {
           setMainView((current) => (current === 'setting' ? 'game' : 'setting'))
         }
         settingOpen={mainView === 'setting'}
+        /* What the footer's own "Notification▲" row stands for. The row puts
+           Penpot's "Notification" board up over itself, so the plans go down
+           rather than only their count; opening or closing it is the row's own
+           business and is held there. */
+        duePlans={duePlans}
+        /* Whether today's have been confirmed on the board itself, which is
+           what takes the mark off the row without taking the plans away. */
+        dueSeen={dueDay !== '' && settings.noticeSeen === dueDay}
+        onDueSeen={async () =>
+          setSettings(await window.library.setSettings({ noticeSeen: dueDay }))
+        }
       />
 
       {celebration && (
@@ -471,10 +638,18 @@ export default function App(): React.JSX.Element {
         <NewGroupSetting onCancel={() => setShowNewGroup(false)} onSubmit={handleAddGroup} />
       )}
 
+      {launchError !== null && (
+        <ConfirmDialog
+          title="launch failed"
+          message={launchError}
+          onConfirm={() => setLaunchError(null)}
+        />
+      )}
+
       {deletingGameId !== null && (
         <ConfirmDialog
           title="delete game"
-          message="このゲームを削除しますか？"
+          message={t('このゲームを削除しますか？')}
           onCancel={() => setDeletingGameId(null)}
           onConfirm={() => {
             const gameId = deletingGameId

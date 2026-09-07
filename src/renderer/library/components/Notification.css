@@ -1,0 +1,152 @@
+/* All values below are literal Penpot values from board "Notification"
+   (9b0b99e8-c629-809a-8008-98b94e863f65), 272x206 on the 1920x1080 canvas.
+
+   **Where it stands is the one thing the design does not draw.** It belongs to
+   the footer's "Notification▲" row, so it is put against that row rather than
+   at a literal x: it hangs off `.footer-notification-slot`, which is the row's
+   own box stretched to the footer's full height, so
+
+   - `bottom: 100%` puts the board's bottom edge on the slot's top, which is the
+     footer's content edge — the underside of its 4px top rule. The board's own
+     3px stroke therefore lands *in* that rule and the two read as one line,
+     exactly as the PlayTime Graph's two plates do against the same rule.
+   - `left: 50%` with the half-width taken back centres it on the slot, whatever
+     the footer's `space-between` has done with the row — and then by whatever
+     the slot's own `--notice-shift` is, which is what centres it on the *word*
+     rather than on the row. The row carries the red mark to the left of the run
+     while it is standing for something (10 wide with 8 of margin), so the run's
+     middle is 9 to the right of the box's; confirmed, the mark goes and the two
+     are the same point again.
+
+   Penpot's 3px stroke is an inner one, so it is an inset shadow rather than a
+   border, for the reason every other inner stroke in this app is: a border
+   comes out of the box and would take the 272 to 266 and the padding with it.
+
+   The design's 206 is what its two sample plates come to. A day carries as many
+   plans as it carries, so the height is the content's — with a ceiling, past
+   which the list scrolls rather than running off the top of the window. */
+.notification-board {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(calc(-50% + var(--notice-shift, 0px)));
+  box-sizing: border-box;
+  width: 272px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  /* Penpot: 15 of padding all round, the plates 10 apart — and the head takes
+     the same 10 above the first of them. */
+  row-gap: 10px;
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 3px var(--color-text-dim);
+  /* Over the board it is drawn against, under the dialogs, which stand at 50. */
+  z-index: 40;
+  /* It comes out of the row it belongs to, and the row is under it — so it is
+     uncovered from its own bottom edge, which is `OptionMenu`'s own rule for a
+     list that has nowhere to open but up, on the same clock. */
+  animation: notification-rise 0.06s ease-out;
+}
+
+@keyframes notification-rise {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* Not in the design: the day these plans are for, and the mark that says they
+   have been read. It takes the plates' own row of 10 under it.
+
+   The scroll is the list's rather than the board's, and that is not a detail: a
+   board that clips would clip the Plan Detail hanging off its side with it —
+   and naming one axis `hidden` or `auto` turns the other into `auto`, so there
+   is no clipping only downwards. */
+.notification-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notification-list {
+  flex: 0 1 auto;
+  min-height: 0;
+  /* As many plates as the day holds, up to what the board can stand on the
+     footer without running off the top of the window; past that it scrolls. */
+  max-height: 600px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  row-gap: 10px;
+}
+
+/* The plates' own 28, so the head reads as belonging to the list under it. */
+.notification-date {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Font Awesome's check, at the run's own height and in the board's dim ink
+   until it is offered — the same way every mark in this app that is a control
+   rather than a label answers the pointer. */
+.notification-confirm {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.notification-confirm:hover {
+  color: var(--color-text-bright);
+}
+
+/* Penpot: Content — a 242-wide plate at a 15px radius carrying the name over
+   its description, 10 in from the plate's left and 5 down. The design draws its
+   two in #3875a0 and #a28f45 at their own opacities; a plan carries its own
+   colour here, the way it does on the Plan panel's own list. */
+.notification-plan {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border-radius: 15px;
+  display: flex;
+  flex-direction: column;
+  /* Not in the design: a plate answers the pointer the way the Plan panel's own
+     does — it comes up, and it puts the Plan Detail board up beside it. */
+  transition: filter 0.15s ease;
+}
+
+.notification-plan:hover {
+  filter: brightness(1.2);
+}
+
+/* Penpot: "PLAN1" — Girassol 28px, #e1e8ed. */
+.notification-plan-name {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* Penpot: "PLAN DESCRIPTION" — Girassol 18px, #aab8c2. */
+.notification-plan-note {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}

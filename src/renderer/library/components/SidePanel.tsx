@@ -8,15 +8,23 @@ import OptionMenu from './OptionMenu'
 import { filterGames, suggestsGroup } from '../filter'
 import TagChip from './TagChip'
 import {
+  DEFAULT_DIRECTION,
   DEFAULT_SORT,
+  directionLabel,
   displayName,
+  hasDirection,
   MANUAL_SORT,
+  parseSortOption,
   sortGames,
   sortLabel,
-  SORTS,
+  SORT_OPTIONS,
+  sortOptionLabel,
+  sortOptionId,
+  type SortDirection,
   type SortKey
 } from '../sort'
 import './SidePanel.css'
+import { t } from '../../../shared/i18n'
 
 interface Props {
   games: GameWithStats[]
@@ -60,10 +68,33 @@ const GAME_COLUMN_HEIGHT = 60
    Search Box row, then the Select Group row the Sort row follows. */
 const GROUP_MENU_TOP = 110
 const SORT_MENU_TOP = 165
-/** The add row and the five groups the design draws, before the list scrolls. */
-const GROUP_MENU_ROWS = 6
+/** The groups that stand before the list scrolls. The design draws five; eight
+    is what was asked for, and the row that adds one stands over them. */
+const GROUP_MENU_ROWS = 8
+/* The Sort menu's own count. Every order but 50音順 is offered twice, which
+   makes fifteen rows, and the panel has no room for them: the menu drops at 165
+   of a container that itself begins 390 down, so ten rows (405 with its
+   paddings) end at 960 and leave the shortest window the shell is laid out for
+   its own room underneath. Past that it scrolls, and the rules down the left
+   say so — and the list opens brought to the row it stands on. */
+const SORT_MENU_ROWS = 10
 /** The key the add row answers to, which is no group's id. */
 const ADD_GROUP_KEY = 'add-group'
+
+/**
+ * The colour a game's frame takes: its group's own, or nothing at all.
+ *
+ * A game carries its group by *name* (`games.group_name` is free text and
+ * always was), so the list is what turns that into a colour — and a name no
+ * group answers to, which is what a name typed before the group existed is,
+ * comes back transparent rather than picking one.
+ */
+function groupInk(name: string | null | undefined, groups: Group[]): string {
+  const term = (name ?? '').trim().toLowerCase()
+  if (!term) return 'transparent'
+  const found = groups.find((group) => group.name.trim().toLowerCase() === term)
+  return found ? found.color : 'transparent'
+}
 
 export default function SidePanel({
   games,
@@ -103,6 +134,7 @@ export default function SidePanel({
      narrowed to what has been typed and without the row that adds to it. */
   const [openMenu, setOpenMenu] = useState<'none' | 'group' | 'group-suggest' | 'sort'>('none')
   const [sortKey, setSortKey] = useState<SortKey>(DEFAULT_SORT)
+  const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION[DEFAULT_SORT])
   /* The chips Add Tag puts out. They are a filter over the list and nothing
      more: a chip is a piece of text, the row belongs to this panel alone, and
      taking one off narrows nothing further — it never touches a tag on a game.
@@ -139,13 +171,23 @@ export default function SidePanel({
   /* Penpot draws Way of Sort 144 wide, which is the room "Sort..." needs. The
      orders it names are sentences, so the label steps down just far enough to
      fit, the way the date above it does. The field is only there while the
-     search options are out, so its mounting is one of the triggers. */
+     search options are out, so its mounting is one of the triggers.
+
+     **The padding comes out of both figures before they are compared.** A
+     field's `scrollWidth` and `clientWidth` both carry it, and it does not
+     scale with the type, so scaling by their bare ratio undershoots by however
+     much padding there is — measured with the direction mark's 24 added on the
+     right, 「プレイ時間順」 came out at 19px and still ran 6px past the box. */
   useEffect(() => {
     const el = sortFieldRef.current
     if (!el) return
     el.style.fontSize = '24px'
-    if (el.scrollWidth > el.clientWidth) {
-      el.style.fontSize = `${Math.floor(24 * (el.clientWidth / el.scrollWidth))}px`
+    const style = getComputedStyle(el)
+    const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+    const available = el.clientWidth - padding
+    const run = el.scrollWidth - padding
+    if (run > available && available > 0) {
+      el.style.fontSize = `${Math.floor(24 * (available / run))}px`
     }
   }, [sortKey, searchOptionsOpen])
 
@@ -155,14 +197,22 @@ export default function SidePanel({
     setNewTagId(id)
   }
 
-  /** What a chip was left holding. Nothing in it takes the chip away. */
+  /* The name a chip was left holding. Nothing in it takes the chip away —
+     **and so does a name the row already carries**: a tag is one condition on
+     the list, and the same one twice narrows nothing further while standing
+     there as though it did. Case is ignored because the match ignores it
+     (`filterGames` lowercases both sides), so "RPG" over "rpg" would have been
+     the one condition written twice. */
   function commitTag(id: number, text: string): void {
+    const trimmed = text.trim()
     setNewTagId((current) => (current === id ? null : current))
-    setTagFilters((list) =>
-      text.trim() === ''
-        ? list.filter((chip) => chip.id !== id)
-        : list.map((chip) => (chip.id === id ? { ...chip, text: text.trim() } : chip))
-    )
+    setTagFilters((list) => {
+      const repeats = list.some(
+        (chip) => chip.id !== id && chip.text.toLowerCase() === trimmed.toLowerCase()
+      )
+      if (trimmed === '' || repeats) return list.filter((chip) => chip.id !== id)
+      return list.map((chip) => (chip.id === id ? { ...chip, text: trimmed } : chip))
+    })
   }
 
   /** Takes the chip off the row. The tag itself is the games' and stays. */
@@ -193,9 +243,17 @@ export default function SidePanel({
      only ever changed by the drag handle — so it is the one face of the list
      that can be dragged; every other one is a view over it, and the handle is
      not drawn at all under those. */
-  const ordered = useMemo(() => sortGames(filtered, sortKey), [filtered, sortKey])
+  const ordered = useMemo(
+    () => sortGames(filtered, sortKey, sortDir),
+    [filtered, sortKey, sortDir]
+  )
   const canReorder = sortKey === MANUAL_SORT
-
+  /* Which of the menu's rows the list stands on, which is the pair rather than
+     the order alone. */
+  const currentSortId = sortOptionId(sortKey, sortDir)
+  /* The field is 144 for a label of six Japanese characters, so what it writes
+     is the order's name and nothing else; the direction is said here, where a
+     word costs no room. */
   // While dragging, the list renders `dragOrder` so rows swap under the cursor;
   // the real reorder is only committed on release.
   const rows = useMemo(() => {
@@ -240,7 +298,10 @@ export default function SidePanel({
         // A search may be narrowing the list, so only the slots the filtered
         // games occupy are rewritten; everything else keeps its position.
         const moved = new Set(dragOrder)
-        const queue = [...dragOrder]
+        /* Under 降順 the rows are the stored order turned round, so what is
+           written back has to be turned round again: `games` is in the stored
+           order and the queue fills the slots it left in that same order. */
+        const queue = sortDir === 'desc' ? [...dragOrder].reverse() : [...dragOrder]
         onReorder(games.map((g) => (moved.has(g.id) ? (queue.shift() as number) : g.id)))
       }
     }
@@ -262,7 +323,7 @@ export default function SidePanel({
       .filter((group) => openMenu === 'group' || suggestsGroup(group.name, groupQuery))
       .map((group) => ({ key: String(group.id), label: group.name, color: group.color }))
     return openMenu === 'group'
-      ? [{ key: ADD_GROUP_KEY, label: 'グループを追加 ＋' }, ...rows]
+      ? [{ key: ADD_GROUP_KEY, label: t('グループを追加 ＋') }, ...rows]
       : rows
   }, [groups, openMenu, groupQuery])
 
@@ -300,7 +361,7 @@ export default function SidePanel({
       <button
         className={`clock${calendarOpen ? ' is-open' : ''}`}
         onClick={onCalendar}
-        title={calendarOpen ? 'カレンダーを閉じる' : 'カレンダーを開く'}
+        title={calendarOpen ? t('カレンダーを閉じる') : t('カレンダーを開く')}
         aria-pressed={calendarOpen}
       >
         <span className="clock-date" ref={dateRef}>
@@ -314,7 +375,7 @@ export default function SidePanel({
         onClick={() => {
           if (!homeOpen) onHome()
         }}
-        title={homeOpen ? undefined : 'ライブラリを一覧する'}
+        title={homeOpen ? undefined : t('ライブラリを一覧する')}
         aria-pressed={homeOpen}
       >
         <span className="home-button-diamond">♦</span>
@@ -338,8 +399,8 @@ export default function SidePanel({
           <button
             className="search-submit"
             onClick={() => setQuery(searchInput.trim())}
-            title="検索"
-            aria-label="検索"
+            title={t('検索')}
+            aria-label={t('検索')}
           >
             <i className="fa-brands fa-sistrix" />
           </button>
@@ -399,8 +460,8 @@ export default function SidePanel({
                         setGroupFilter('')
                         setOpenMenu('none')
                       }}
-                      title="グループの絞り込みを解除"
-                      aria-label="グループの絞り込みを解除"
+                      title={t('グループの絞り込みを解除')}
+                      aria-label={t('グループの絞り込みを解除')}
                     >
                       <i className="fa-solid fa-xmark" />
                     </button>
@@ -410,8 +471,8 @@ export default function SidePanel({
                 <button
                   className="select-caret"
                   onClick={() => setOpenMenu((menu) => (menu === 'group' ? 'none' : 'group'))}
-                  title="グループ一覧"
-                  aria-label="グループ一覧"
+                  title={t('グループ一覧')}
+                  aria-label={t('グループ一覧')}
                   aria-expanded={openMenu.startsWith('group')}
                 >
                   ▼
@@ -428,20 +489,23 @@ export default function SidePanel({
                   value={sortLabel(sortKey)}
                   readOnly
                   onClick={() => setOpenMenu((menu) => (menu === 'sort' ? 'none' : 'sort'))}
-                  aria-label="並び順"
                 />
+                {/* Penpot: Show Way of Sort — drops the Menu below the row.
+                    The direction is one of that menu's own rows rather than a
+                    mark out here: the row comes to 333 of the panel's 335 and
+                    has nothing left to give a second control. */}
                 <button
                   className="select-caret sort"
                   onClick={() => setOpenMenu((menu) => (menu === 'sort' ? 'none' : 'sort'))}
-                  title="並び順一覧"
-                  aria-label="並び順一覧"
+                  title={t('並び順一覧')}
+                  aria-label={t('並び順一覧')}
                   aria-expanded={openMenu === 'sort'}
                 >
                   ▼
                 </button>
                 {/* Penpot: Add Tag — 111x40. What it puts out is the row of
                     chips below, which the design does not draw. */}
-                <button className="add-tag" onClick={addTag} title="タグで絞り込む">
+                <button className="add-tag" onClick={addTag}>
                   Add Tag
                 </button>
               </div>
@@ -474,7 +538,10 @@ export default function SidePanel({
           <OptionMenu
             options={groupOptions}
             top={GROUP_MENU_TOP}
-            maxRows={GROUP_MENU_ROWS}
+            /* The groups are what the count is of; the row that adds one stands
+               over them and is not one of them, and the suggestions leave it
+               off entirely. */
+            maxRows={GROUP_MENU_ROWS + (groupOptions[0]?.key === ADD_GROUP_KEY ? 1 : 0)}
             onPick={(key) => {
               setOpenMenu('none')
               if (key === ADD_GROUP_KEY) {
@@ -492,15 +559,26 @@ export default function SidePanel({
           />
         )}
 
-        {/* The Sort menu is the same board, dropped out of the row below. Its
-            list is fixed, so every row of it stands. */}
+        {/* The Sort menu is the same board, dropped out of the row below.
+            **Every order that can be turned round stands in it twice** — the
+            way its own name reads, and the same order the other way under it,
+            with the direction marked after the name — so the order and the way
+            it runs are picked in the one act. The row it stands on takes the
+            accent, and the list is opened brought to that row. */}
         {searchOptionsExpanded && openMenu === 'sort' && (
           <OptionMenu
-            options={SORTS.map((sort) => ({ key: sort.key, label: sort.label }))}
+            options={SORT_OPTIONS.map((sort) => ({
+              key: sort.id,
+              label: sortOptionLabel(sort),
+              current: sort.id === currentSortId
+            }))}
             top={SORT_MENU_TOP}
-            maxRows={SORTS.length}
-            onPick={(key) => {
-              setSortKey(key as SortKey)
+            maxRows={SORT_MENU_ROWS}
+            scrollToKey={currentSortId}
+            onPick={(id) => {
+              const picked = parseSortOption(id)
+              setSortKey(picked.key)
+              setSortDir(picked.direction)
               setOpenMenu('none')
             }}
             onDismiss={() => setOpenMenu('none')}
@@ -513,7 +591,6 @@ export default function SidePanel({
         <button
           className="search-strech"
           onClick={toggleSearchOptions}
-          title={searchOptionsExpanded ? '検索オプションを閉じる' : '検索オプションを開く'}
           aria-expanded={searchOptionsExpanded}
         >
           {/* One glyph turned over on the fold's own clock, rather than two
@@ -536,7 +613,15 @@ export default function SidePanel({
                 setMenu({ game, x, y })
               }}
             >
-              <span className={`game-icon ${game.iconPath ? '' : 'empty'}`}>
+              {/* The frame is the game's own group, in the colour that group
+                  is written in wherever it is listed. A game filed under
+                  nothing has no frame at all — the row says what it can, and
+                  a colour standing for no group would be a colour meaning
+                  nothing. */}
+              <span
+                className={`game-icon ${game.iconPath ? '' : 'empty'}`}
+                style={{ borderColor: groupInk(game.groupName, groups) }}
+              >
                 {game.iconPath ? <img src={mediaUrl(game.iconPath)} alt="" /> : null}
               </span>
               {/* The short name stands in only when the game opts into it. */}
@@ -548,7 +633,7 @@ export default function SidePanel({
               {canReorder && (
                 <span
                   className="drag-handle"
-                  title="ドラッグして並び替え"
+                  title={t('ドラッグして並び替え')}
                   onPointerDown={(e) => startDrag(e, game.id)}
                   onPointerMove={moveDrag}
                   onPointerUp={endDrag}
@@ -569,14 +654,14 @@ export default function SidePanel({
           style={{ left: menu.x, top: menu.y }}
           items={[
             {
-              label: '情報の変更',
+              label: t('情報の変更'),
               onSelect: () => {
                 onEditGame(menu.game)
                 setMenu(null)
               }
             },
             {
-              label: '削除',
+              label: t('削除'),
               danger: true,
               onSelect: () => {
                 onDeleteGame(menu.game.id)

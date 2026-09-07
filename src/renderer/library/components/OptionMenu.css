@@ -38,6 +38,24 @@
   }
 }
 
+/* A list with no room under its row stands over it instead, and then it is
+   uncovered the other way — from its own bottom edge, which is the edge the
+   row is on. The wipe is what says where the list came out of; run downward
+   from a board that is above the row, it came out of nothing. */
+.option-menu.is-above {
+  animation-name: option-menu-rise;
+}
+
+@keyframes option-menu-rise {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
 /* Penpot: border1 / border2 — 2px wide, #B1B2B5, 10px clear of the top and
    bottom. The first sits 10px in from the left edge, the second 5px after it. */
 .option-menu-rule {
@@ -91,6 +109,28 @@
   padding: 10px 0;
 }
 
+/* Not in the design: a row and the 試聴 button some rows carry, which are
+   siblings rather than one inside the other — a button cannot hold a button.
+   The row still fills the box, so its plate runs the menu's whole width and
+   the mark is laid over its right end. */
+.option-menu-row {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+}
+
+.option-menu-row > .option-menu-option {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Where a row has one, the label gives up the room it stands in rather than
+   running under it. 44 = the mark's own 34 and the 10 the row already keeps
+   between its label and whatever is at its end. */
+.option-menu-row.has-audition > .option-menu-option {
+  padding-right: 44px;
+}
+
 /* Penpot: Option1..5 — 135x51, the label at the left; 34 tall here, for the
    28px the label is set at. The design draws no hover state; a row is a
    control here, so it takes a plate under the pointer — and the plate is the
@@ -109,7 +149,9 @@
   transition: background 0.15s ease;
 }
 
-.option-menu-option:hover {
+/* Driven from the row rather than from the option itself, so the plate does
+   not blink out while the pointer is over the 試聴 mark laid on top of it. */
+.option-menu-row:hover > .option-menu-option {
   background: rgba(225, 232, 237, 0.14);
 }
 
@@ -123,7 +165,7 @@
 
 /* The same 0.14 lift the plain hover is, laid over the accent rather than put
    in its place. */
-.option-menu-option.is-current:hover {
+.option-menu-row:hover > .option-menu-option.is-current {
   background-image: linear-gradient(rgba(225, 232, 237, 0.14), rgba(225, 232, 237, 0.14));
 }
 
@@ -136,4 +178,32 @@
   line-height: 1.2;
   color: var(--color-text);
   white-space: nowrap;
+}
+
+/* The 試聴 mark, over the right end of the row it belongs to: the row's own
+   height, 10px clear of the menu's edge, and no plate of its own — the row's
+   is what is under it, and a second plate on top of the accent would say the
+   mark is the thing that is chosen. It comes up to the app's brightest ink
+   under the pointer, which is the whole of its answer. */
+.option-menu-audition {
+  position: absolute;
+  top: 0;
+  right: 10px;
+  bottom: 0;
+  width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.option-menu-audition:hover {
+  color: var(--color-text-bright);
 }

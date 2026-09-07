@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './TagChip.css'
+import { t } from '../../../shared/i18n'
 
 interface Props {
   name: string
@@ -100,14 +101,14 @@ export default function TagChip({
                 e.currentTarget.blur()
               }
             }}
-            aria-label="タグ名"
+            aria-label={t('タグ名')}
           />
         </span>
       ) : (
         <span
           className="tag-chip-name"
           onDoubleClick={renamable ? () => setReopened(true) : undefined}
-          title={renamable ? 'ダブルクリックで名前を変更' : undefined}
+          title={renamable ? t('ダブルクリックで名前を変更') : undefined}
         >
           {name}
         </span>
@@ -121,8 +122,8 @@ export default function TagChip({
              gone one way or another. */
           onMouseDown={(e) => e.preventDefault()}
           onClick={onDelete}
-          title="タグを削除"
-          aria-label={name ? `${name} を削除` : 'タグを削除'}
+          title={t('タグを削除')}
+          aria-label={name ? t('{0} を削除', name) : t('タグを削除')}
         >
           <i className="fa-solid fa-xmark" />
         </button>

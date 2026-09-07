@@ -20,6 +20,48 @@
   background: var(--color-bg);
 }
 
+/* Not in the design: everything above the Border — the headline, the four
+   filters and the count — is one block, and it **slides off the top of the
+   board while the list is being read down** so the games have the whole of it.
+
+   166 is what stands there: the Top's own 30 of margin and its 106, then the
+   count's 25 and the 5 under it (`HEAD_HEIGHT` in Home.tsx, which is the same
+   figure — the movement is driven from both ends and the two have to agree).
+
+   **The box collapses and what is in it travels, at the same rate.** The box's
+   height goes to nothing from its bottom edge while `.home-head-inner` is
+   taken up by the whole of that height, so the content's bottom edge and the
+   box's own stay exactly together: the head is not squashed and is not
+   uncovered from underneath — it leaves past the top of the board, and the
+   grid, which is `flex: 1`, rises into the room as it goes. Clipping it here
+   rather than letting it run past the board is what keeps it off the header:
+   the board itself cannot take an `overflow` of its own, the SORT and GROUP
+   menus being absolute children of it that are meant to hang past its edges.
+
+   It is a flex column so nothing inside it collapses its margins into the box
+   the way it would in a plain block — the Top's own 30 is air inside the head,
+   not air above it. */
+.home-head {
+  flex: 0 0 auto;
+  height: 166px;
+  overflow: hidden;
+  transition: height 0.24s ease;
+}
+
+.home-head-inner {
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.24s ease;
+}
+
+.home-head.hidden {
+  height: 0;
+}
+
+.home-head.hidden .home-head-inner {
+  transform: translateY(-166px);
+}
+
 /* Penpot: Top — 1515x106, i.e. 30px above and 35px either side of a 1585
    board, with the headline held left and the controls right. */
 .home-top {
@@ -487,20 +529,47 @@
    come to 1426.667 of the board's 1585, so the design's 80 either side becomes
    79.167. Written as one sum from the height, so the ratio is the thing stated
    and the padding follows from it. */
+/* **The row carries 4, 5 or 6 of them, and the air either side is the same
+   figure for all three.** The design's own padding is what that figure is —
+   79.167, which is what five 5:6 cards and their four 40s leave of the board's
+   1585 — so it is written here as the design derives it and the *card* is what
+   gives way to the count: whatever the padding and the gaps leave, divided by
+   the row's own number. Five of them comes back to the design's 253.333 x 304
+   exactly, which is the point of writing it this way round rather than as
+   three sets of figures. The height follows from the width at 5:6, as it
+   always did, and the row is that height plus the 55 the design leaves under a
+   thumbnail for its rule and title. */
 .home-grid {
-  --card-height: 304px;
-  --card-width: calc(var(--card-height) * 5 / 6);
+  --gap: 40px;
+  --side: calc((1585px - 5 * (304px * 5 / 6) - 4 * var(--gap)) / 2);
+  --card-height: calc(var(--card-width) * 6 / 5);
   display: grid;
-  grid-template-columns: repeat(5, var(--card-width));
-  grid-auto-rows: 359px;
-  column-gap: 40px;
+  grid-auto-rows: calc(var(--card-height) + 55px);
+  column-gap: var(--gap);
   row-gap: 50px;
   /* Penpot's own padding is 40/80/0/80 — its two rows fill the Container's 808
      exactly and it has no bottom padding to give. The board is 985 to the
      Container's 975, though, so the design does leave 10 under the last row;
      scrolled to the end, a third row would otherwise sit flush against the
      footer's rule, so that 10 is carried here. */
-  padding: 40px calc((1585px - 5 * var(--card-width) - 4 * 40px) / 2) 10px;
+  padding: 40px var(--side) 10px;
+}
+
+/* `repeat()` will not take a custom property for its count, so the three
+   patterns are three rules rather than one sum over a `--columns`. */
+.home-grid.cols-4 {
+  --card-width: calc((1585px - 2 * var(--side) - 3 * var(--gap)) / 4);
+  grid-template-columns: repeat(4, var(--card-width));
+}
+
+.home-grid.cols-5 {
+  --card-width: calc((1585px - 2 * var(--side) - 4 * var(--gap)) / 5);
+  grid-template-columns: repeat(5, var(--card-width));
+}
+
+.home-grid.cols-6 {
+  --card-width: calc((1585px - 2 * var(--side) - 5 * var(--gap)) / 6);
+  grid-template-columns: repeat(6, var(--card-width));
 }
 
 /* Penpot: Bookshelf Container — 1585x808, the board's other face in the same
@@ -514,16 +583,38 @@
    59.667 come to 1491.667 of the board's 1585, so the design's 80 either side
    becomes 46.667. The two are written as one sum from the height, so the
    ratio is the thing that is stated and the padding follows from it. */
+/* **And the row carries 20, 25 or 30 of them**, the same three-step the grid's
+   button makes and written the same way round: the design's own side padding —
+   46.667, which is what 25 spines of 358/6 leave of the board's 1585 — is the
+   figure that holds for every count, and the *spine* gives way to it. 25 comes
+   back to 59.667 x 358 exactly. There is nothing between them, so a row is the
+   whole of what the padding leaves; the height follows from the width at 1:6,
+   and the row keeps the design's own 1px under the spine. */
 .home-shelf {
-  --spine-height: 358px;
-  --spine-width: calc(var(--spine-height) / 6);
+  --side: calc((1585px - 25 * (358px / 6)) / 2);
+  --spine-height: calc(var(--spine-width) * 6);
   display: grid;
-  grid-template-columns: repeat(25, var(--spine-width));
-  grid-auto-rows: 359px;
+  grid-auto-rows: calc(var(--spine-height) + 1px);
   column-gap: 0;
   row-gap: 50px;
   /* The 10 the design leaves under the Container; see `.home-grid`. */
-  padding: 40px calc((1585px - 25 * var(--spine-width)) / 2) 10px;
+  padding: 40px var(--side) 10px;
+}
+
+/* Three rules rather than one sum, for the reason the grid's three are. */
+.home-shelf.spines-20 {
+  --spine-width: calc((1585px - 2 * var(--side)) / 20);
+  grid-template-columns: repeat(20, var(--spine-width));
+}
+
+.home-shelf.spines-25 {
+  --spine-width: calc((1585px - 2 * var(--side)) / 25);
+  grid-template-columns: repeat(25, var(--spine-width));
+}
+
+.home-shelf.spines-30 {
+  --spine-width: calc((1585px - 2 * var(--side)) / 30);
+  grid-template-columns: repeat(30, var(--spine-width));
 }
 
 /* Penpot: a spine is a plain rectangle on #B1B2B5 — the same plate a card
@@ -588,14 +679,13 @@
    together, so each is seen for what it is: the book is put down, then it is
    straightened.
 
-   Both turn on the same point, the spine's own bottom right corner: the corner
-   a book leaning right would be resting on, standing on the shelf line the
-   cell leaves under it (the cell being the 359 the design draws under its
-   358). So the foot stays in its own slot the whole way in and everything else
-   moves around it. The scale alone turned about the middle of the bottom edge
-   and read as a card being placed rather than a book being shelved; the
-   rotation alone had it arrive at its own size, with nowhere to have come
-   from.
+   Both turn on the same point, which is on the spine's own bottom edge — the
+   edge a book leaning right rests on, standing on the shelf line the cell
+   leaves under it (the cell being the 359 the design draws under its 358). So
+   the foot stays in its own slot the whole way in and everything else moves
+   around it. The scale alone turned about the middle of the bottom edge and
+   read as a card being placed rather than a book being shelved; the rotation
+   alone had it arrive at its own size, with nowhere to have come from.
 
    The halfway keyframe is the join, and the animation is `linear` so that the
    easing each half carries in its own keyframe is what governs it — an
@@ -603,15 +693,21 @@
    half and let the second crawl. 0.36s for the two, which is the 0.22 the
    single movement took plus what a second one needs to be read as its own.
 
-   **6 degrees, and the row has all but room for it.** A spine is 358 tall and
-   the lean is at its widest while the book is still over size, so the top
-   corner swings out `1.4 × 358 × sin θ` past the pivot: 52.4px at 6, against
-   the 46.667 of padding the row has at either end. Only the last book of a
-   full row of 25 is anywhere near that edge, and it goes 5.7px into the face's
-   own right edge on its first frame and is clear of it a few frames later, as
-   it shrinks and before it has begun to stand up. 5 (43.7px) clears it
-   outright; the rotation on its own, with no scale multiplying it, could
-   afford 7.
+   **6 degrees, and the pivot is what makes room for it.** The lean is at its
+   widest while the book is still over size, so the top corner swings out past
+   the pivot — and how far depends on where along the bottom edge that pivot
+   is: `s(h·sinθ − d·cosθ)`, d being how far in from the right corner it
+   stands. On the corner itself (d = 0) a 358-tall spine reaches 52.4 against
+   the 46.667 of padding the row has at either end, so the last book of a full
+   row went 5.7px into the face's own right edge for the few frames it was
+   still over size. **At 20 across a spine is 447.5 tall and no scale at all
+   would have fitted**: h·sinθ alone is 46.8, past the padding before anything
+   multiplies it. So the pivot is a fifth of the spine's width in from the
+   corner. Written as a percentage it is a fifth whatever the count makes the
+   spine, and every one of the three then clears the edge — 44.9, 35.9 and 30.0
+   against 46.667 — with the angle and the over-size scale both left alone. The
+   right corner of the foot dips `s·d·sinθ` below the shelf line for it (2.2px
+   at the widest), which falls in the 50 the design leaves between the rows.
 
    Later siblings paint over earlier ones and the row fills left to right, so
    the one being put away is the one in front, and it leans into the slot that
@@ -638,7 +734,7 @@
 }
 
 .home-shelf > .home-card-cell {
-  transform-origin: right bottom;
+  transform-origin: 80% bottom;
   animation: home-spine-in 0.36s linear backwards;
 }
 

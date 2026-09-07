@@ -3,7 +3,12 @@ import './ConfirmDialog.css'
 interface Props {
   title: string
   message: string
-  onCancel: () => void
+  /* A dialog with nothing to cancel is a notice rather than a question: OK is
+     the only way out of it, and the backdrop is that same way out. The board
+     is the same one — what is being said is still one sentence over a pair of
+     buttons — and the single button keeps its own 180 and stands in the middle
+     of the row rather than being stretched to fill it. */
+  onCancel?: () => void
   onConfirm: () => void
 }
 
@@ -18,9 +23,13 @@ export default function ConfirmDialog({
   onCancel,
   onConfirm
 }: Props): React.JSX.Element {
+  const notice = onCancel === undefined
   return (
-    <div className="dialog-backdrop" onClick={onCancel}>
-      <div className="delete-confirm" onClick={(e) => e.stopPropagation()}>
+    <div className="dialog-backdrop" onClick={onCancel ?? onConfirm}>
+      <div
+        className={`delete-confirm${notice ? ' notice' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Penpot: Top — 450x56, fill #2a2d31, stroke #657786 5px inner */}
         <div className="delete-confirm-top">{title}</div>
 
@@ -28,13 +37,15 @@ export default function ConfirmDialog({
         <div className="delete-confirm-sentence">{message}</div>
 
         {/* Penpot: OK and Cancel — 390x52, 30px gap, under a 390x1 rule */}
-        <div className="delete-confirm-actions">
+        <div className={`delete-confirm-actions${notice ? ' notice' : ''}`}>
           <button className="delete-confirm-ok" onClick={onConfirm} autoFocus>
             OK
           </button>
-          <button className="delete-confirm-cancel" onClick={onCancel}>
-            CANCEL
-          </button>
+          {onCancel && (
+            <button className="delete-confirm-cancel" onClick={onCancel}>
+              CANCEL
+            </button>
+          )}
         </div>
       </div>
     </div>

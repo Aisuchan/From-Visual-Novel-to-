@@ -5,6 +5,7 @@ import { clamp01, hexToHsv, hsvToHex, HEX, SWATCHES } from '../color'
 import ConfirmDialog from './ConfirmDialog'
 import PieChart from './PieChart'
 import './RoutePanel.css'
+import { t } from '../../../shared/i18n'
 
 interface Props {
   /** The game the routes belong to; changing it starts the list over. */
@@ -369,7 +370,7 @@ export default function RoutePanel({
                   className="rp-step left"
                   onClick={() => step(-1)}
                   disabled={routes.length === 0}
-                  aria-label="前のルート"
+                  aria-label={t('前のルート')}
                 >
                   <span>◀</span>
                 </button>
@@ -377,7 +378,7 @@ export default function RoutePanel({
                   {active ? (
                     <span style={{ color: active.color }}>{active.name}</span>
                   ) : (
-                    <span className="off">記録しない</span>
+                    <span className="off">{t('記録しない')}</span>
                   )}
                 </div>
                 <button
@@ -385,7 +386,7 @@ export default function RoutePanel({
                   className="rp-step right"
                   onClick={() => step(1)}
                   disabled={routes.length === 0}
-                  aria-label="次のルート"
+                  aria-label={t('次のルート')}
                 >
                   <span>▶</span>
                 </button>
@@ -437,7 +438,7 @@ export default function RoutePanel({
                         maxLength={40}
                         onChange={(e) => setForm({ ...form, name: e.target.value })}
                         onKeyDown={(e) => e.key === 'Enter' && addRoute()}
-                        aria-label="ルート名"
+                        aria-label={t('ルート名')}
                       />
                     </div>
                   </div>
@@ -461,7 +462,7 @@ export default function RoutePanel({
                                 color: e.target.value.replace(/[^#0-9a-fA-F]/g, '').slice(0, 7)
                               })
                             }
-                            aria-label="カラーコード"
+                            aria-label={t('カラーコード')}
                           />
                           {/* The colour itself, read off the end of the field it
                             is written in. */}
@@ -499,7 +500,7 @@ export default function RoutePanel({
                           max={359}
                           value={hue}
                           onChange={(e) => pickHue(Number(e.target.value))}
-                          aria-label="色相"
+                          aria-label={t('色相')}
                         />
                         <div
                           className="rp-sv"
@@ -548,7 +549,7 @@ export default function RoutePanel({
                           })
                         }
                         onBlur={() => form.hours === '' && setForm({ ...form, hours: '0' })}
-                        aria-label="規定プレイ時間（時）"
+                        aria-label={t('規定プレイ時間（時）')}
                       />
                       <div className="rp-time-colon">
                         <span>:</span>
@@ -565,7 +566,7 @@ export default function RoutePanel({
                           })
                         }
                         onBlur={() => form.minutes === '' && setForm({ ...form, minutes: '0' })}
-                        aria-label="規定プレイ時間（分）"
+                        aria-label={t('規定プレイ時間（分）')}
                       />
                     </div>
                   </div>
@@ -592,7 +593,7 @@ export default function RoutePanel({
                       tabIndex={0}
                       onClick={() => openEdit(route)}
                       onKeyDown={(e) => e.key === 'Enter' && openEdit(route)}
-                      title={`${route.name} を編集`}
+                      title={t('{0} を編集', route.name)}
                     >
                       <span className="rp-column-name" style={{ color: route.color }}>
                         {route.name}
@@ -605,8 +606,7 @@ export default function RoutePanel({
                           e.stopPropagation()
                           setDeleting(route)
                         }}
-                        title="このルートを削除"
-                        aria-label={`${route.name} を削除`}
+                        aria-label={t('{0} を削除', route.name)}
                       >
                         <i className="fa-solid fa-trash" />
                       </button>
@@ -675,7 +675,7 @@ export default function RoutePanel({
         {deleting ? (
           <ConfirmDialog
             title="delete route"
-            message="このルートを削除しますか？"
+            message={t('このルートを削除しますか？')}
             onCancel={() => setDeleting(null)}
             onConfirm={() => {
               deleteRoute(deleting.id)

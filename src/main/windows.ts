@@ -1,7 +1,10 @@
 import { BrowserWindow, Menu, screen, shell } from 'electron'
 import path from 'node:path'
 import { is } from './env'
+import { getSettings } from './db'
+import { soundEffectFile } from './sound-effects'
 import { IpcChannels } from '../shared/ipc-types'
+import { OVERLAY_SCALES } from '../shared/db-types'
 
 let libraryWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
@@ -31,6 +34,10 @@ export function createLibraryWindow(): BrowserWindow {
     // widen the window to 1066 to satisfy it.
     width: 1280,
     height: 720,
+    /* The Setting board's 起動時のウインドウサイズ row. Full screen keeps the
+       ratio too: it lands on the work area, which is 16:9 whenever the
+       display is, and the shell scales by width either way. */
+    fullscreen: getSettings().launchWindowMode === 'fullscreen',
     minWidth: 960,
     minHeight: 540,
     backgroundColor: '#14171a',
@@ -90,19 +97,79 @@ const OVERLAY_HEIGHT = 30
  * inside a window the OS had made 64x64, and the 13px column and 34px band no
  * one painted came back black.
  *
- * So the window is at least the floor and the page is told the truth, and the
- * slack — 34px under the panel, and 13px past it once shrunk — is put where
- * the screen is not: the window is positioned by the panel's own top left
- * corner, so parked in the bottom-right of the desktop the slack hangs off the
- * two edges it is flush against. `.overlay-panel` pulls itself left by
- * `OVERLAY_WIDTH - OVERLAY_SHRUNK_WIDTH` at the floor to keep that true (see
- * the media query in App.css).
+ * So the window is at least the floor in both axes and the page is told the
+ * truth. What is left over — 34px of height always, and 13px of width once
+ * shrunk — is not hidden: it is cut off the window with `setShape`, which is
+ * the region the system permits drawing and mouse events inside. Outside it
+ * nothing is painted and every press falls through to whatever is behind.
+ *
+ * That replaces an earlier arrangement which put the slack "where the screen
+ * is not" — the window was positioned by the panel's own top left corner, so
+ * parked in the bottom-right of the desktop the slack hung off the two edges
+ * it was flush against. That bet the slack's invisibility on the window being
+ * allowed off the screen, and it came back: the 34px band under the panel and
+ * the 13px column past it were both on screen and both black.
  */
 const OVERLAY_MIN = 64
-const OVERLAY_WINDOW_HEIGHT = Math.max(OVERLAY_HEIGHT, OVERLAY_MIN)
+
+/*
+ * The Setting board's レコーダーパネルのサイズ row. The page keeps the design's
+ * own figures and is scaled as a whole — the library window's own arrangement —
+ * so everything the main process measures in panel pixels is scaled by the same
+ * factor here, and the page goes on sending and receiving the design's numbers.
+ * Read once, as the window is made: the panel's size is not something to change
+ * under a recording that is running.
+ */
+let overlayScale = 1
+const panelWidth = (): number => Math.round(OVERLAY_WIDTH * overlayScale)
+const panelHeight = (): number => Math.round(OVERLAY_HEIGHT * overlayScale)
+const panelShrunkWidth = (): number => Math.round(OVERLAY_SHRUNK_WIDTH * overlayScale)
+/** The floor still bites at every size: 30 x 1.25 is 38, well under Windows' 64. */
+const windowHeight = (): number => Math.max(panelHeight(), OVERLAY_MIN)
 
 /** The panel's own width, which is not the window's once the floor bites. */
 let overlayPanelWidth = OVERLAY_WIDTH
+
+/*
+ * Which corner of the window the panel is put in, which is the corner of the
+ * display it was opened in: the slack goes to the other two sides. Held here
+ * rather than read per call, because it is the panel's *initial* position —
+ * the Move Button drags the window anywhere afterwards, and the panel stays
+ * in the same corner of it.
+ */
+let overlaySide: 'left' | 'right' = 'right'
+let overlayTop = false
+
+/**
+ * Clips the window to the panel, which sits in the corner of it the panel was
+ * opened in: the slack is on the other two sides — above or below it always,
+ * and beside it once shrunk.
+ *
+ * The region is in window coordinates and does not follow a resize, so this
+ * has to be applied again after every `setBounds`.
+ */
+function applyOverlayShape(win: BrowserWindow, width: number): void {
+  const windowWidth = Math.max(OVERLAY_MIN, width)
+  win.setShape([
+    {
+      x: overlaySide === 'right' ? windowWidth - width : 0,
+      y: overlayTop ? 0 : windowHeight() - panelHeight(),
+      width,
+      height: panelHeight()
+    }
+  ])
+}
+
+/**
+ * The display the Setting board's row names, or the primary one — which is
+ * also where a display that has since been unplugged comes back to, rather
+ * than opening the panel on a desktop that is no longer there.
+ */
+function overlayDisplay(id: string): Electron.Display {
+  if (id === 'primary') return screen.getPrimaryDisplay()
+  const named = screen.getAllDisplays().find((display) => String(display.id) === id)
+  return named ?? screen.getPrimaryDisplay()
+}
 
 export function createOverlayWindow(): BrowserWindow {
   if (overlayWindow) {
@@ -110,30 +177,62 @@ export function createOverlayWindow(): BrowserWindow {
     return overlayWindow
   }
 
-  // Flush into the bottom-right corner of the usable desktop (the work area,
-  // so the taskbar does not sit on top of it).
-  const { workArea } = screen.getPrimaryDisplay()
+  /* Flush into the corner the Setting board names, of the display it names, of
+     the usable desktop (the work area, so the taskbar does not sit on top of
+     it). The window is wholly inside it — the panel is in the window's own
+     corner of the same name, and the slack on the other two sides is shaped
+     away rather than pushed off the screen. */
+  const settings = getSettings()
+  overlayScale = OVERLAY_SCALES[settings.overlaySize]
+  overlayPanelWidth = panelWidth()
+  const corner = settings.overlayCorner
+  overlaySide = corner.endsWith('left') ? 'left' : 'right'
+  overlayTop = corner.startsWith('top')
+  const { workArea } = overlayDisplay(settings.overlayDisplay)
 
   const win = new BrowserWindow({
-    // Penpot "Recorder Panel" board is 225x28 plus its 1px outer stroke.
-    width: OVERLAY_WIDTH,
-    height: OVERLAY_WINDOW_HEIGHT,
-    // The panel's top left corner, not the window's — the window keeps going
-    // for another 34px, off the bottom of the screen.
-    x: workArea.x + workArea.width - OVERLAY_WIDTH,
-    y: workArea.y + workArea.height - OVERLAY_HEIGHT,
+    // Penpot "Recorder Panel" board is 225x28 plus its 1px outer stroke; the
+    // height is the floor, the panel taking 30 of it at the corner's own end.
+    width: panelWidth(),
+    height: windowHeight(),
+    x: overlaySide === 'right' ? workArea.x + workArea.width - panelWidth() : workArea.x,
+    y: overlayTop ? workArea.y : workArea.y + workArea.height - windowHeight(),
     frame: false,
     transparent: true,
+    // A frameless transparent panel has nothing to cast one, and a shadow is
+    // drawn outside the shape where it would read as an edge on the slack.
+    hasShadow: false,
     resizable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, '../preload/overlay.js'),
-      sandbox: false
+      sandbox: false,
+      /* The page has to know which way round to draw itself on its very first
+         frame — a left-hand corner turns the panel around — so the corner
+         comes in on the command line rather than over IPC, where the answer
+         would arrive a frame or two after the panel had been painted. */
+      additionalArguments: [
+        '--overlay-corner=' + corner,
+        '--overlay-animate=' + settings.animations,
+        /* The stored number is resolved to a file here rather than in the
+           page: the folder is the main process's to read, and the page is
+           handed the one thing it needs. */
+        '--overlay-shot-se=' + (soundEffectFile(settings.screenshotSound) ?? ''),
+        '--overlay-video-se=' + (soundEffectFile(settings.videoSound) ?? ''),
+        '--overlay-audio-se=' + (soundEffectFile(settings.audioSound) ?? ''),
+        /* The page is drawn at the design's own figures and scaled as a whole,
+           so this is the one number it needs about its size. */
+        '--overlay-scale=' + String(overlayScale),
+        /* The 言語/language row. On the command line with the rest for the same
+           reason: the panel's own runs have to be right on its first frame. */
+        '--overlay-language=' + settings.language
+      ]
     }
   })
 
+  applyOverlayShape(win, panelWidth())
   win.setAlwaysOnTop(true, 'screen-saver')
   // Keeps the panel out of every capture — this app's own screenshots and
   // recordings included — while leaving it perfectly visible on screen.
@@ -147,38 +246,45 @@ export function createOverlayWindow(): BrowserWindow {
 
   loadRenderer(win, 'overlay.html')
   overlayWindow = win
-  overlayPanelWidth = OVERLAY_WIDTH
+  overlayPanelWidth = panelWidth()
   return win
 }
 
 /**
- * Collapses towards the right edge: the panel's right edge stays put while its
- * left one moves, so a panel parked in the bottom-right corner stays in the
- * corner. Read from the current bounds so a panel the user dragged keeps its
- * place.
+ * Collapses towards the corner the panel is in: the panel's outer edge is the
+ * window's outer edge, so holding the window's keeps a panel parked in a
+ * corner in it. Read from the current bounds so a panel the user dragged
+ * keeps its place.
  *
- * `width` is the panel's width, which the window only matches while it is
- * above the floor; below it the window keeps growing to the right, past the
- * screen edge the panel is flush against.
+ * `width` is the panel's width **in the design's own pixels** — the page has no
+ * idea what size it is being drawn at — so it is scaled here, and the window
+ * only matches it while it is above the floor; below that the window keeps its
+ * 64 and the shape moves in from the other side instead.
  *
- * Called once per toggle, not once per frame: the panel is transparent, so
- * the slide alone uncovers the desktop, and the width changes only where the
- * strip has already settled and the resize is invisible.
+ * Called once per frame while the panel folds, so the window and the shape
+ * clipped out of it travel with the strip rather than catching up with it
+ * once it has stopped. That is only safe because the page is anchored to the
+ * same edge this holds — so a resize landing a frame late moves nothing that
+ * is drawn. Anchored to the moving edge, as it was, the Move Button rode it
+ * and jittered between the two clocks.
  */
 export function setOverlayWidth(width: number): void {
   const win = overlayWindow
   if (!win) return
-  const next = Math.round(Math.min(OVERLAY_WIDTH, Math.max(OVERLAY_SHRUNK_WIDTH, width)))
+  const next = Math.round(
+    Math.min(panelWidth(), Math.max(panelShrunkWidth(), width * overlayScale))
+  )
   if (next === overlayPanelWidth) return
-  const { x, y } = win.getBounds()
-  const panelRight = x + overlayPanelWidth
+  const bounds = win.getBounds()
+  const nextWidth = Math.max(OVERLAY_MIN, next)
   overlayPanelWidth = next
   win.setBounds({
-    x: panelRight - next,
-    y,
-    width: Math.max(OVERLAY_MIN, next),
-    height: OVERLAY_WINDOW_HEIGHT
+    x: overlaySide === 'right' ? bounds.x + bounds.width - nextWidth : bounds.x,
+    y: bounds.y,
+    width: nextWidth,
+    height: windowHeight()
   })
+  applyOverlayShape(win, next)
 }
 
 export function closeOverlayWindow(): void {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { playSound } from '../../playSound'
+import { playIfOn } from '../sound'
 import './Confetti.css'
 
 /**
@@ -152,7 +152,7 @@ export default function Confetti({ clip, onFinishing, onEnded }: Props): React.J
       lastTime = at
       while (cue < cues.length && cues[cue] <= at) {
         cue++
-        playSound(cracker++ % 2 === 0 ? './cracker1.mp3' : './cracker2.mp3', 0.65)
+        playIfOn('cracker', cracker++ % 2 === 0 ? './cracker1.mp3' : './cracker2.mp3', 0.65)
       }
 
       schedule()

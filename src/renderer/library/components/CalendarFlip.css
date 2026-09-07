@@ -1,0 +1,184 @@
+/* Not in the design: what the Calender board is arrived at through. The two
+   months before the one the board opens on are drawn over the Main Display —
+   the column the board itself stands in, and nothing outside it — as pages of
+   a wall calendar, and flicked away by their top-right corners one after the
+   other.
+
+   A page is the board's own Top and grid, figure for figure and in the same
+   1585 slot, so what is turned past stands exactly on the page under it, and
+   the last of them lifts off the board itself without anything shifting. */
+
+.calendar-flip {
+  position: absolute;
+  inset: 0;
+  /* The page swings out past the top-right corner and is gone there. */
+  overflow: hidden;
+  /* A flourish rather than a modal: nothing here takes the pointer, so the
+     clock can be pressed again while the page is still turning. */
+  pointer-events: none;
+  /* Over the boards, the menus and the panels (40), and under the dialogs
+     (50) — a dialog put up while this runs still stands over it. */
+  z-index: 45;
+  /* The fold is the top-right corner, so that is where the vanishing point is
+     put: the page lifts towards the reader out of that corner rather than
+     being tipped about a point in the middle of the board. It is also what
+     keeps the turn inside its own half of the board — a perspective origin on
+     the fold line scales every point radially from a point on that line, so
+     the page's projection never crosses it. */
+  perspective: 3500px;
+  perspective-origin: 100% 0;
+}
+
+/* The fold is the 45° line through the board's top-right corner: the whole
+   page lies on one side of it, so it turns as one about that corner and sweeps
+   up and to the right, uncovering what is under it from the bottom-left corner
+   first.
+
+   **A page needs no back face.** Past 90° its projection is wholly on the far
+   side of the fold line, which does not meet the board's own rectangle at all,
+   so the overlay's `overflow` has it — there is nothing there to see.
+
+   `forwards`: at the end of its turn a page is out of the frame, and without
+   the fill it would drop back over the board on its last frame. */
+.calendar-flip-sheet {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  transform-origin: 100% 0;
+  backface-visibility: hidden;
+  /* Slow off the mark and quick over the corner: the page is lifted, and then
+     its own weight takes it the rest of the way. */
+  animation: calendar-flip-turn 340ms cubic-bezier(0.45, 0, 0.75, 0.35) forwards;
+}
+
+@keyframes calendar-flip-turn {
+  from {
+    transform: rotate3d(1, 1, 0, 0deg);
+  }
+
+  to {
+    transform: rotate3d(1, 1, 0, 180deg);
+  }
+}
+
+/* The page turning away from the light. It is a plate over the page rather
+   than a `filter` on it, a filter on something whose back face is hidden being
+   the kind of thing a browser flattens; `inherit` takes the sheet's own delay,
+   so the shade falls exactly as the page lifts.
+
+   It is full by the time a page is halfway over, because that is as much of
+   the turn as there is to see: past 90° the page stands wholly outside the
+   board and the overlay's `overflow` has it. */
+.calendar-flip-sheet::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  animation: calendar-flip-shade 340ms linear forwards;
+  animation-delay: inherit;
+}
+
+@keyframes calendar-flip-shade {
+  from {
+    opacity: 0;
+  }
+
+  55% {
+    opacity: 0.5;
+  }
+
+  to {
+    opacity: 0.5;
+  }
+}
+
+/* Penpot: Top — the year at one end and the month at the other, on the board's
+   own 147 and at its own sizes. */
+.calendar-flip-top {
+  position: relative;
+  flex: 0 0 147px;
+}
+
+.calendar-flip-year,
+.calendar-flip-month {
+  position: absolute;
+  font-family: var(--font-display);
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.calendar-flip-year {
+  left: 80px;
+  top: 20px;
+  font-size: 80px;
+}
+
+.calendar-flip-month {
+  right: 80px;
+  top: 27px;
+  font-size: 100px;
+}
+
+/* Penpot: Calender — the board's own grid, seven 204px columns in its own 79
+   on the left and 78 on the right, a 38px row of weekday plates over six rows
+   of days. The rows stretch with the column exactly as the board's do, so the
+   a page's cells stand on the cells of the page under it. */
+.calendar-flip-grid {
+  flex: 1 1 722px;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 204px);
+  grid-template-rows: 38px repeat(6, 1fr);
+  padding: 0 78px 0 79px;
+}
+
+/* Penpot: Bottom — the board's own 117, kept empty here. Nothing on that bar
+   belongs on a page being turned past, but the room it takes does: without it
+   the grid would stand where the board's does not. */
+.calendar-flip-bottom {
+  flex: 0 0 117px;
+}
+
+/* Penpot: Sun … Sat — fill #2a2d31 under a 1px inner stroke, the name in
+   Girassol 36 and centred both ways. An inner stroke is an inset shadow here,
+   for the reason the board's own are. */
+.calendar-flip-weekday {
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 1px var(--color-text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text-bright);
+}
+
+.calendar-flip-weekday.sun {
+  color: #f75252;
+}
+
+.calendar-flip-weekday.sat {
+  color: var(--color-accent);
+}
+
+/* Penpot: DAY — no fill, a 1px inner stroke, the number in Girassol 36 at the
+   Top strip's own 10 in from the cell's left. */
+.calendar-flip-day {
+  box-shadow: inset 0 0 0 1px var(--color-text-dim);
+  min-width: 0;
+  overflow: hidden;
+  padding-left: 10px;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.calendar-flip-day.outside {
+  color: var(--color-text-dim);
+}

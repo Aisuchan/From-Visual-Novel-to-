@@ -10,12 +10,11 @@
 
 .plan-panel {
   position: absolute;
-  /* Penpot draws the board 319 wide, its plates 269 and 25 in from either
-     side. The panel is widened to 353 so those 25 become 42 and the day steps
-     have a margin of their own to sit in: a 30-wide arrow with 6 of air either
-     side comes to exactly that 42, and the plates, the rules and the fields
-     all keep the design's own widths. */
-  width: 353px;
+  /* Penpot's own 319, with its plates 269 and 25 in from either side. The day
+     steps are hung outside that box rather than given a margin inside it, so
+     nothing here is widened to make room for them: every figure below is the
+     design's own. */
+  width: 319px;
   height: 637px;
   background: var(--color-bg);
   box-shadow: inset 0 0 0 5px var(--color-text-dim);
@@ -23,6 +22,22 @@
   z-index: 40;
   display: flex;
   flex-direction: column;
+}
+
+/* `DayTimeCard` — the same frame with a day's play time in it, which is as
+   tall as that list makes it: the design's 637 is the most it can be, past
+   which the list scrolls, rather than what it always is. */
+.plan-panel.is-playtime {
+  height: auto;
+  max-height: 637px;
+}
+
+/* It follows the pointer rather than being opened on a cell, so it takes no
+   pointer events: it is drawn over the very cells it reports on, and a card
+   that could be pointed at would take the hover from the cell it belongs to
+   and flicker. */
+.plan-panel.is-following {
+  pointer-events: none;
 }
 
 /* Penpot: Day — 309x76 at the panel's own 5, holding the date and the mark
@@ -41,7 +56,7 @@
    that. */
 .plan-panel-date {
   position: absolute;
-  left: 47px;
+  left: 30px;
   top: 20px;
   font-family: var(--font-display);
   font-size: 42px;
@@ -57,7 +72,7 @@
    face, there being no list under it. */
 .plan-panel-close {
   position: absolute;
-  right: 47px;
+  right: 30px;
   top: 20px;
   width: 46px;
   height: 44px;
@@ -91,7 +106,7 @@
    and again below it. */
 .plan-panel-rule {
   flex: 0 0 2px;
-  margin: 0 42px;
+  margin: 0 25px;
   background: var(--color-border);
 }
 
@@ -102,7 +117,7 @@
   flex: 1 1 463px;
   min-height: 0;
   overflow-y: auto;
-  padding: 10px 42px;
+  padding: 10px 25px;
   display: flex;
   flex-direction: column;
   row-gap: 10px;
@@ -128,6 +143,17 @@
   border-radius: 15px;
   display: flex;
   flex-direction: column;
+  /* Not in the design: the plate is a control — it puts the Plan Detail board
+     up beside the panel while it is under the pointer, and opens the editor on
+     a double-click. A double-click on a run selects it, which is not what the
+     gesture is for here. */
+  cursor: pointer;
+  user-select: none;
+  transition: filter 0.15s ease;
+}
+
+.plan-panel-plan:hover {
+  filter: brightness(1.2);
 }
 
 /* Penpot draws a hidden 44x44 Delete Button on every plan, parked at the
@@ -165,6 +191,23 @@
 
 
 
+/* Not in the design: the mark a plan carries when it has asked to be notified
+   — the footer's own Notification dot, given a white ring so it stands on a
+   plate that is already in the plan's own colour. It is drawn inside the run
+   it belongs to rather than beside it, so it sits before the first line of the
+   name and wraps with it. Each place that writes a plan's name sets its own
+   size against the run it is set in; this is the Plan panel's. */
+.plan-notify-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--color-danger-bright);
+  box-shadow: 0 0 0 2px var(--color-text-bright);
+  vertical-align: middle;
+}
+
 /* Penpot: "PLAN1" — Girassol 28px, #e1e8ed. */
 .plan-panel-plan-name {
   font-family: var(--font-display);
@@ -187,7 +230,7 @@
    10px radius, 15 below the rule and 20 above the panel's own bottom. */
 .plan-panel-add {
   flex: 0 0 54px;
-  margin: 15px 42px 20px;
+  margin: 15px 25px 20px;
   padding: 0;
   border: none;
   border-radius: 10px;
@@ -213,10 +256,9 @@
   flex: 1 1 463px;
   min-height: 0;
   /* Penpot's fields are 242 in a 319 board — 38.5 in from either side against
-     the plates' 25, so 13.5 further in than they are. That relationship is
-     kept against the widened margin: 42 + 13.5. */
+     the plates' 25, so 13.5 further in than they are. */
   overflow-y: auto;
-  padding: 10px 55.5px;
+  padding: 10px 38.5px;
   display: flex;
   flex-direction: column;
 }
@@ -382,7 +424,7 @@
    2px inner stroke in #e1e8ed, 10 apart, in the slot ADD PLAN stands in. */
 .plan-panel-change {
   flex: 0 0 54px;
-  margin: 15px 42px 20px;
+  margin: 15px 25px 20px;
   display: flex;
   column-gap: 10px;
 }
@@ -421,6 +463,58 @@
   color: var(--color-text-dim);
 }
 
+/* Not in the design: the PlayTime face — what the day was played for, per
+   game, where the plans would be. The frame is as tall as this list makes it
+   (`.plan-panel.is-playtime` above): a list of one game in a 637px frame would be
+   a frame with nothing in most of it. */
+.plan-panel-times {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 25px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  row-gap: 5px;
+}
+
+/* One row per game, largest first, each in the colour its rank gives it — the
+   same colours the PlayTime Graph's ring and bars would draw it in. */
+.plan-panel-legend-row {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  column-gap: 8px;
+  min-width: 0;
+}
+
+.plan-panel-legend-dot {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+}
+
+.plan-panel-legend-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-panel-legend-time {
+  flex: 0 0 auto;
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+}
+
 /* Not in the design: a day with nothing on it says so, in the ink the footer's
    own runs are set in. The list centres it rather than stacking it at the top,
    there being nothing for it to be the first of. */
@@ -436,69 +530,120 @@
   color: var(--color-text-dim);
 }
 
-/* Not in the design: the step to the day either side, in the panel's own 42 of
-   left- and right-hand margin. It is the side panel's Strech / Shrink Search
-   Option bar turned a quarter round — the same #222326 plate under a 1px inner
-   #aab8c2 stroke, rounded only on the two corners that fall on the panel's own
-   edge so it reads as a tab hanging off its side, and lit by the same
-   brightness rather than by a colour of its own.
+/* Not in the design: the step to the day either side. It stands *outside* the
+   panel, so the panel keeps Penpot's own 319 and nothing inside it gives up
+   any width to make room. It is **the Game board's own carousel arrow** — the
+   same 43.29x86.58 path in #B1B2B5 with no plate of its own, coming up to
+   #f5f8fa under the pointer — turned to point the way the step goes, so the
+   two things in the app that step through a list one item at a time are the
+   one mark.
 
-   It runs the Plan Container's own 83..546, so the whole side of the list is
-   the step and is met wherever the pointer is beside it rather than only at a
-   mark in the middle. It stops clear of the head above and the button below,
-   both of which have their own controls. */
+   Centred on the Plan Container's own 83..546, so it stands against the list
+   rather than against the panel as a whole, and clear of the head above and
+   the button below, both of which have their own controls. */
 .plan-panel-step {
   position: absolute;
-  /* Thinner than the 30 the panel's margin would give it, and shorter than the
-     list it runs beside: 18 in the 42, which leaves 12 of air outside it and 12
-     inside before the plates, and 400 of the Plan Container's own 463, centred
-     on it so it still ends well clear of the head above and the button below. */
-  top: 114.5px;
-  width: 18px;
-  height: 400px;
+  /* Centred on the panel itself rather than at a literal offset: the PlayTime
+     face is only as tall as its list, and an arrow placed for the design's 637
+     stood well below a short one. On the plans face this is the panel's own
+     middle at 318.5 against the Plan Container's 314.5 — four pixels from
+     where the container would have put it. */
+  top: 50%;
+  transform: translateY(-50%);
+  width: 43.29px;
+  height: 86.58px;
   padding: 0;
   border: none;
-  background: var(--color-strip);
-  box-shadow: inset 0 0 0 1px var(--color-text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* The bar's caret is 10 in its own 15 of thickness; this one keeps that
-     proportion against the 30 the panel's margin gives it. */
-  font-family: 'Segoe UI Symbol', sans-serif;
-  font-size: 16px;
-  line-height: 1;
-  color: var(--color-text);
+  background: transparent;
   cursor: pointer;
-  transition: filter 0.15s ease;
+  /* Not drawn until the panel is under the pointer. They stand outside the
+     frame, on the grid rather than on the panel, and a pair of arrows sitting
+     there while the panel is only being read is two marks on the board that
+     nothing is asking about. The pointer being anywhere on the panel is what
+     shows them — they are its own controls — and that includes the arrows
+     themselves, which are its children however far outside it they are drawn. */
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
 
-/* 12 of air outside the arrow and 12 inside it before the plates, which is the
-   42 of margin the panel was widened for. */
+.plan-panel:hover .plan-panel-step {
+  opacity: 1;
+}
+
+/* Held 12 clear of the panel — the same air the Plan Detail board hangs off
+   the other side at. The 12 and the arrow's own 43.29 together are
+   `PLAN_STEP_SPACE`, which is what the board leaves beside the panel when it
+   places one. */
 .plan-panel-step.prev {
-  left: 12px;
-  border-radius: 10px 0 0 10px;
+  left: -55.29px;
 }
 
 .plan-panel-step.next {
-  right: 12px;
-  border-radius: 0 10px 10px 0;
+  right: -55.29px;
 }
 
-.plan-panel-step:hover {
-  filter: brightness(1.6);
+.plan-panel-step svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-/* The bar's own caret, turned to point the way the step goes — which is the
-   whole of what turning the design a quarter round means. */
-.plan-panel-step-glyph {
-  display: inline-block;
+.plan-panel-step path {
+  transition: fill 0.15s ease;
 }
 
-.plan-panel-step.prev .plan-panel-step-glyph {
-  transform: rotate(90deg);
+.plan-panel-step:hover path {
+  fill: var(--color-text-bright);
 }
 
-.plan-panel-step.next .plan-panel-step-glyph {
-  transform: rotate(-90deg);
+/* Not in the design: every control on this board answers the pointer, the way
+   the app's own do. A filled plate is lifted rather than recoloured — a plan's
+   plate carries a colour of its own and the ADD PLAN and OK buttons carry the
+   accent, and none of them can be given a second colour without saying
+   something the design does not. */
+.plan-panel-add,
+.plan-panel-cancel,
+.plan-panel-ok,
+.plan-panel-swatch,
+.plan-panel-code,
+.plan-panel-notify {
+  transition:
+    filter 0.15s ease,
+    box-shadow 0.15s ease,
+    color 0.15s ease;
+}
+
+.plan-panel-add:hover,
+.plan-panel-cancel:hover,
+.plan-panel-ok:not(:disabled):hover {
+  filter: brightness(1.2);
+}
+
+/* A swatch is small and already carries a stroke, so it is the stroke that
+   comes up — the one that is picked keeps the accent it is marked with. */
+.plan-panel-swatch:hover {
+  filter: brightness(1.2);
+  box-shadow: inset 0 0 0 2px var(--color-text-bright);
+}
+
+.plan-panel-swatch.is-picked:hover {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+/* The code field is a control the pointer lands in rather than presses, so its
+   own stroke is what comes up, and it stays up while the caret is in it. */
+.plan-panel-code:hover,
+.plan-panel-code:focus-within {
+  box-shadow: inset 0 0 0 1px var(--color-text-muted);
+}
+
+/* The whole row is the switch's label, so the word comes up with the mark. */
+.plan-panel-notify:hover {
+  color: var(--color-text-bright);
+}
+
+/* The bin stands only while the head's mark is on, and comes up in the app's
+   own red there. The mark that turns that face on keeps its own hover. */
+.plan-panel-trash:hover {
+  color: var(--color-text-bright);
 }

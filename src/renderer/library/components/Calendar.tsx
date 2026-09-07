@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { formatPlaytime, toDateKey } from '../format'
 import OptionMenu from './OptionMenu'
-import PlanPanel, { PLAN_PANEL_HEIGHT, PLAN_PANEL_WIDTH } from './PlanPanel'
-import type { NewPlanInput, Plan } from '../../../shared/db-types'
+import PlanPanel, { PLAN_PANEL_HEIGHT, PLAN_PANEL_WIDTH, PLAN_STEP_SPACE } from './PlanPanel'
+import DayTimeCard from './DayTimeCard'
+import { colorForRank } from '../color'
+import { displayName } from '../sort'
+import type { GameWithStats, NewPlanInput, Plan } from '../../../shared/db-types'
+import { motionMs } from '../motion'
 import './Calendar.css'
+import { t } from '../../../shared/i18n'
 
 /** Penpot writes the month out in full at the top of the board and names the
     month either side of it on the Bottom bar. */
-const MONTH_NAMES = [
+export const MONTH_NAMES = [
   'January',
   'February',
   'March',
@@ -24,7 +29,7 @@ const MONTH_NAMES = [
 
 /** Penpot: the seven weekday plates, the two ends of the week in their own
     ink and the five between them in #f5f8fa. */
-const WEEKDAYS = [
+export const WEEKDAYS = [
   { label: 'Sun.', tone: 'sun' },
   { label: 'Mon.', tone: '' },
   { label: 'Tue.', tone: '' },
@@ -69,7 +74,29 @@ const LAST_YEAR = 2100
     whatever is past that is counted on the Top strip's "+n" pill instead. */
 const PLAN_ROWS = 3
 
+/* Not in the design: the grid is read into rather than simply shown. Each cell
+   takes the hover it would take under the pointer, one after the next from the
+   top left in the days' own order — the board saying what it is a grid *of*
+   before anything is asked of it. This is the wait between one cell and the
+   next; the flash itself is `calendar-day-wave` in Calendar.css.
+
+   **The flash lasts exactly as many of these steps as there are cells meant
+   to be lit at once**, which is the whole of what holds the wave to that
+   many: a cell goes out on the frame the tenth one after it comes up. */
+const WAVE_STEP_MS = 30
+const WAVE_CELLS_LIT = 10
+
 interface Props {
+  /** The library, which is what a day's own play time is broken down by while
+      the PlayTime face is the one on. */
+  games: GameWithStats[]
+  /** Fired after a plan is written, so the shell can read today's own again. */
+  onPlansChanged: () => void
+  /** How long the board waits before the cells are read into — the pages that
+      are turned off the column and the fade that follows them, which the shell
+      holds this board back behind. A press on Show Playtime runs the same wave
+      from nothing. */
+  arriveDelay: number
   /** "See Playtime on Graph" — the PlayTime Graph board stands in this same
       slot, so it is a screen of its own rather than a face of this one: the
       shell is what swaps it in, which is what puts it in the history the
@@ -77,7 +104,12 @@ interface Props {
   onOpenGraph: () => void
 }
 
-export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
+export default function Calendar({
+  games,
+  onPlansChanged,
+  onOpenGraph,
+  arriveDelay
+}: Props): React.JSX.Element {
   const today = new Date()
   /** Which month the grid is showing. The board opens on the one the clock
       that put it up is in. */
@@ -87,7 +119,34 @@ export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
   }))
   /* Penpot draws Plans and PlayTime as two faces of the same slot in a day,
      and the Bottom bar's "Show Playtime" is what turns one into the other. */
+  /* The face the cells are settled on. It is not what a press on Show
+     Playtime sets: the press starts a wave, and each cell takes the new face
+     as that wave reaches it (`swapping` / `swapIndex` below), which is what
+     this is finally set to once the last one has. */
   const [showPlaytime, setShowPlaytime] = useState(false)
+  /* What the wave is carrying across the cells, and how many of them it has
+     reached. Two things ride it: **a face** being switched to (`face`), which a
+     cell takes as the wave arrives — until then it keeps the one it is on —
+     and **a month** that has just come up (`face: null`), whose cells carry
+     nothing at all until the wave reaches them. Null while the cells are
+     settled. A press or a step is answered by the grid rather than by this
+     state, so a second one while a wave is running is not taken — there is
+     already one on its way across the cells. */
+  const [carry, setCarry] = useState<{ face: boolean | null; delay: number } | null>(() => ({
+    // The board's own arrival is a wave like any other, and it carries the
+    // grid: the cells stand bare through the pages being turned off the column
+    // and the fade behind them, and are filled in as the wave reaches them.
+    face: null,
+    delay: arriveDelay
+  }))
+  const [waveIndex, setWaveIndex] = useState(0)
+  /* The wave over the cells: which run it is, and what it waits before the
+     first cell. The run's number is what restarts it — a cell's animation is
+     named for the run's parity, and changing an animation's name is what makes
+     it run again without the grid being remounted (which would leave the open
+     panel holding a cell that is no longer in the document). */
+  const [wave, setWave] = useState(() => ({ run: 0, delay: arriveDelay }))
+  const waveName = wave.run % 2 === 0 ? 'wave-a' : 'wave-b'
   const [playtime, setPlaytime] = useState<Map<string, number>>(new Map())
   /* Every plan the 42 cells carry, read in one call and read again after a
      write — the way the game list is. Grouped by day for the cells and for the
@@ -104,8 +163,31 @@ export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
   /* The day the Plan panel is open on, and where it sits in the board's own
      design pixels. Not in the design, which draws the panel and not where it
      is put: it is placed against the cell it belongs to. */
-  const [planFor, setPlanFor] = useState<{ key: string; top: number; left: number } | null>(null)
+  /* Where the panel stands: the day it is on, the left the board worked out
+     for it, and — for the vertical — the cell's own middle and the room there
+     is, since the panel is not always the design's 637 tall and is the only
+     one that knows which it is. */
+  const [planFor, setPlanFor] = useState<{
+    key: string
+    middle: number
+    left: number
+    boardHeight: number
+  } | null>(null)
+  /* What each of the 42 days was played for, per game — what the card that
+     follows the pointer reports. Read for the whole grid in one call rather
+     than a day at a time: the card is answered by a pointer moving across the
+     cells, and a read per cell is a round trip per cell. */
+  const [dayGames, setDayGames] = useState<{ date: string; gameId: number; seconds: number }[]>([])
+  /* The cell the pointer is on and where the pointer is, in the board's own
+     design pixels — the card is placed off it and follows it. Only the PlayTime
+     face has one: a day is then a question about play time, which is answered
+     by pointing at it rather than by opening anything. */
+  const [timeHover, setTimeHover] = useState<{ key: string; x: number; y: number } | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
+  /* The board's own height in design pixels. The rows stretch with the window,
+     so it is measured rather than written down — the card that follows the
+     pointer is held inside it. */
+  const [boardSize, setBoardSize] = useState({ height: 988 })
   const anchorRef = useRef<HTMLButtonElement | null>(null)
   const cellRef = useRef<HTMLButtonElement | null>(null)
   /** The day a step has asked for that the grid was not showing: the month is
@@ -122,6 +204,74 @@ export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
   )
   const firstKey = toDateKey(cells[0])
   const lastKey = toDateKey(cells[CELLS - 1])
+
+  /* The card's own source, read for the 42 cells the grid draws and only while
+     the PlayTime face is the one on. */
+  useEffect(() => {
+    if (!showPlaytime) {
+      setDayGames([])
+      setTimeHover(null)
+      return
+    }
+    let live = true
+    window.library.getPlaytimeByDayAndGame(firstKey, lastKey).then((rows) => {
+      if (live) setDayGames(rows)
+    })
+    return () => {
+      live = false
+    }
+  }, [firstKey, lastKey, showPlaytime])
+
+  /* The switch walking the cells, on the same clock their flashes are on: a
+     cell takes the new face as the wave reaches it, and the face is settled
+     once the last one has. Only a switch runs this — the board's own arrival
+     wave has no face to carry, and a loop per frame for it would be 42 renders
+     of the grid for nothing. */
+  useEffect(() => {
+    if (!carry) return
+    // The wave's own wait before its first cell, which the board's arrival has
+    // and nothing else does. With the Setting board's アニメーション row off
+    // there is no wave to wait for: the whole grid takes the face it is
+    // carrying on the first frame.
+    const step = motionMs(WAVE_STEP_MS)
+    const begin = performance.now() + motionMs(carry.delay)
+    let raf = 0
+    const tick = (now: number): void => {
+      const passed =
+        step === 0
+          ? CELLS
+          : Math.max(0, Math.min(CELLS, Math.floor((now - begin) / step) + 1))
+      // React drops a set that changes nothing, so this is a render per cell
+      // rather than per frame.
+      setWaveIndex(passed)
+      if (passed < CELLS) {
+        raf = requestAnimationFrame(tick)
+        return
+      }
+      if (carry.face !== null) setShowPlaytime(carry.face)
+      setCarry(null)
+      setWaveIndex(0)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [carry])
+
+  /* Sets the grid off being read again, carrying a face or — with null — a
+     month that has just come up. The run's number is what restarts the cells'
+     own flashes: a month step leaves the days either end of the grid on the
+     same keys, so those cells are not remounted and would otherwise be the
+     only ones the wave passed over without lighting (measured before the fix:
+     stepping a month lit every row but the two the old grid shared). */
+  function readIn(face: boolean | null): void {
+    /* A new wave replaces whatever is crossing the cells rather than being
+       turned away by it: the board's own arrival is a wave too, and a press or
+       a step made while it is still running is a thing asked for and has to be
+       answered. What the old wave was carrying is dropped with it — a face it
+       had not finished laying down was never settled. */
+    setCarry({ face, delay: 0 })
+    setWaveIndex(0)
+    setWave((current) => ({ run: current.run + 1, delay: 0 }))
+  }
 
   /* Read for the whole 42 cells rather than the month, since the days either
      side of it carry their play time too. Only asked for while the PlayTime
@@ -151,6 +301,20 @@ export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
     }
   }, [firstKey, lastKey])
 
+  /* Measured once the board is up and again whenever the window changes it. */
+  useEffect(() => {
+    const board = boardRef.current
+    if (!board) return
+    const read = (): void => {
+      const rect = board.getBoundingClientRect()
+      setBoardSize({ height: rect.height / (rect.width / BOARD_WIDTH) })
+    }
+    read()
+    const observer = new ResizeObserver(read)
+    observer.observe(board)
+    return () => observer.disconnect()
+  }, [])
+
   const plansByDay = new Map<string, Plan[]>()
   for (const plan of plans) {
     const day = plansByDay.get(plan.date)
@@ -165,6 +329,9 @@ export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
       const at = new Date(current.year, current.month + months, 1)
       return { year: at.getFullYear(), month: at.getMonth() }
     })
+    // A month is a new grid, and a new grid is read into the way the board's
+    // own arrival is — its cells carrying nothing until the wave reaches them.
+    readIn(null)
   }
 
   /* The menu hangs off the board rather than off the run, so its top and left
@@ -216,18 +383,32 @@ export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
     cellRef.current = cell
     setPlanFor({
       key,
-      left: cellRight + PLAN_PANEL_WIDTH <= BOARD_WIDTH ? cellRight : cellLeft - PLAN_PANEL_WIDTH,
-      top: Math.max(
-        0,
+      boardHeight,
+      /* The panel stands *on* the day it is about: its middle is the cell's
+         middle. The day steps hang off either side, so what has to stay on the
+         board is the panel and both of them, which is what the clamp leaves
+         room for at each end. */
+      left: Math.max(
+        PLAN_STEP_SPACE,
         Math.min(
-          (rect.top + rect.height / 2 - boardRect.top) / scale - PLAN_PANEL_HEIGHT / 2,
-          boardHeight - PLAN_PANEL_HEIGHT
+          (cellLeft + cellRight) / 2 - PLAN_PANEL_WIDTH / 2,
+          BOARD_WIDTH - PLAN_PANEL_WIDTH - PLAN_STEP_SPACE
         )
-      )
+      ),
+      /* The cell's own middle, which the panel is centred on. The clamp that
+         keeps it on the board is the panel's own: it is as tall as its face
+         makes it — the PlayTime face is only as tall as its list — and a
+         placement worked out here for the design's 637 would put a short panel
+         well off the cell it belongs to. */
+      middle: (rect.top + rect.height / 2 - boardRect.top) / scale
     })
   }
 
   function togglePlan(key: string, cell: HTMLButtonElement): void {
+    /* A day is a question about play time while that face is on, and the card
+       that answers it is already up under the pointer — there is nothing here
+       to open. */
+    if (showPlaytime) return
     if (planFor?.key === key) {
       setPlanFor(null)
       return
@@ -252,6 +433,9 @@ export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
       return
     }
     setCursor({ year: at.getFullYear(), month: at.getMonth() })
+    // The panel has stepped over the end of the month, so this is a new grid
+    // too, and it is read in like any other.
+    readIn(null)
     setPendingPlan(key)
   }
 
@@ -283,6 +467,53 @@ export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
     current: index === today.getMonth()
   }))
 
+  /* The card's own rows for one day: its games largest first, each in the
+     colour its rank gives it — the same rule the PlayTime Graph's ring, bars
+     and list all read from. A game the library no longer has is left out. */
+  function rowsForDay(key: string): {
+    key: string
+    name: string
+    seconds: number
+    color: string
+  }[] {
+    return dayGames
+      .filter((row) => row.date === key)
+      .map((row) => ({ ...row, game: games.find((one) => one.id === row.gameId) }))
+      .filter((row) => row.game)
+      .sort((a, b) => b.seconds - a.seconds)
+      .map((row, index) => ({
+        key: String(row.gameId),
+        name: row.game ? displayName(row.game) : '',
+        seconds: row.seconds,
+        color: colorForRank(index)
+      }))
+  }
+
+  /* Where the pointer is on the board, in its own design pixels — the same
+     conversion every measured rect on this board goes through. */
+  function boardPoint(event: React.MouseEvent): { x: number; y: number } | null {
+    const board = boardRef.current
+    if (!board) return null
+    const rect = board.getBoundingClientRect()
+    const scale = rect.width / BOARD_WIDTH
+    return { x: (event.clientX - rect.left) / scale, y: (event.clientY - rect.top) / scale }
+  }
+
+  /* Which cell the pointer is over, and where it is. `mouseover` as well as
+     `mousemove`: a pointer thrown across the grid can land on a cell without a
+     single move being delivered over it, and nothing would come up at all. */
+  function trackDay(event: React.MouseEvent): void {
+    if (!showPlaytime) return
+    const cell = (event.target as HTMLElement).closest('[data-date]')
+    const key = cell instanceof HTMLElement ? cell.dataset.date : undefined
+    if (!key) {
+      setTimeHover(null)
+      return
+    }
+    const at = boardPoint(event)
+    if (at) setTimeHover({ key, x: at.x, y: at.y })
+  }
+
   const prevMonth = new Date(cursor.year, cursor.month - 1, 1)
   const nextMonth = new Date(cursor.year, cursor.month + 1, 1)
   const todayKey = toDateKey(today)
@@ -298,7 +529,7 @@ export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
         <button
           className={`calendar-year${menu?.kind === 'year' ? ' is-open' : ''}`}
           onClick={(event) => toggleMenu('year', event.currentTarget)}
-          title="年を選ぶ"
+          title={t('年を選ぶ')}
         >
           <span className="calendar-head-run">{cursor.year}</span>
           <span className="calendar-head-caret">▼</span>
@@ -306,7 +537,7 @@ export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
         <button
           className={`calendar-month${menu?.kind === 'month' ? ' is-open' : ''}`}
           onClick={(event) => toggleMenu('month', event.currentTarget)}
-          title="月を選ぶ"
+          title={t('月を選ぶ')}
         >
           <span className="calendar-head-caret">▼</span>
           <span className="calendar-head-run">{MONTH_NAMES[cursor.month]}</span>
@@ -314,52 +545,98 @@ export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
       </div>
 
       {/* Penpot: Calender — the weekday plates over six rows of seven days */}
-      <div className="calendar-grid">
+      <div
+        className="calendar-grid"
+        onMouseMove={trackDay}
+        onMouseOver={trackDay}
+        onMouseLeave={() => setTimeHover(null)}
+      >
         {WEEKDAYS.map((day) => (
           <div className={`calendar-weekday ${day.tone}`} key={day.label}>
             {day.label}
           </div>
         ))}
 
-        {cells.map((date) => {
+        {cells.map((date, index) => {
           const key = toDateKey(date)
           const outside = date.getMonth() !== cursor.month
           const dayPlans = plansByDay.get(key) ?? []
           const seconds = playtime.get(key)
+          /* Where this cell stands in the wave, and so what it holds. A face
+             being carried is taken as the wave arrives and the old one stands
+             until then; a month being carried leaves the cell empty until then,
+             its old contents belonging to a day that is no longer in it. */
+          const reached = !carry || index < waveIndex
+          const cellPlaytime = carry && carry.face !== null && !reached ? showPlaytime : (carry?.face ?? showPlaytime)
+          const cellCarries = reached || carry?.face !== null
+          /* Which of the two faces this cell is showing. Both are drawn at all
+             times and the one that is not on is held at nothing, so a face
+             *leaves* on the reverse of the movement it arrives on rather than
+             simply being gone; unmounted, there was nothing left to animate
+             and the switch was a fade in one direction only. */
+          const showsPlans = cellCarries && !cellPlaytime
+          const showsTime = cellCarries && cellPlaytime
+          // The cell's own place in the wave: the days in their own order from
+          // the top left, which is the order the grid is read in.
+          const waveDelay = `${wave.delay + index * WAVE_STEP_MS}ms`
           return (
             <button
               type="button"
-              className={`calendar-day${outside ? ' outside' : ''}${
+              className={`calendar-day ${waveName}${outside ? ' outside' : ''}${
                 key === todayKey ? ' today' : ''
               }${planFor?.key === key ? ' is-open' : ''}`}
               key={key}
               data-date={key}
+              /* The flash's length is stated here rather than in the sheet:
+                 it is ten of the wave's own steps, and that is what holds
+                 the wave to ten cells lit at a time. */
+              style={{
+                animationDelay: waveDelay,
+                animationDuration: `${WAVE_STEP_MS * WAVE_CELLS_LIT}ms`
+              }}
               onClick={(event) => togglePlan(key, event.currentTarget)}
-              title={`${date.getMonth() + 1}/${date.getDate()} の予定`}
+              title={t('{0}/{1} の予定', date.getMonth() + 1, date.getDate())}
             >
               {/* Penpot: Top — the day's number, and the count of whatever
                   plans there was no room to draw */}
               <div className="calendar-day-top">
                 <span className="calendar-day-number">{date.getDate()}</span>
+                {/* The pill counts the plans there was no room to draw, so it
+                    is part of what the cell *carries*: it waits for the wave
+                    exactly as they do and it goes with them, being off the
+                    cell wherever the face it holds is the play time. Standing
+                    from the first frame, it was the one thing on a grid that
+                    had not been read into yet; standing through the switch, it
+                    was the one thing left of a face that had gone. The number
+                    does not wait either way: it is what the grid is a grid of,
+                    not something the wave is bringing. */}
                 {dayPlans.length > PLAN_ROWS && (
-                  <span className="calendar-day-more">+{dayPlans.length - PLAN_ROWS}</span>
+                  <span className={`calendar-day-more${showsPlans ? '' : ' is-away'}`}>
+                    +{dayPlans.length - PLAN_ROWS}
+                  </span>
                 )}
               </div>
 
               <div className="calendar-day-slot">
-                {showPlaytime
-                  ? seconds !== undefined && (
-                      <span className="calendar-day-playtime">{formatPlaytime(seconds)}</span>
-                    )
-                  : dayPlans.slice(0, PLAN_ROWS).map((plan) => (
+                {seconds !== undefined && (
+                  <span className={`calendar-day-playtime${showsTime ? '' : ' is-away'}`}>
+                    {formatPlaytime(seconds)}
+                  </span>
+                )}
+                {dayPlans.length > 0 && (
+                  <div className={`calendar-day-plans${showsPlans ? '' : ' is-away'}`}>
+                    {dayPlans.slice(0, PLAN_ROWS).map((plan) => (
                       <div
                         className="calendar-plan"
                         key={plan.id}
                         style={{ background: plan.color }}
                       >
+                        {plan.notify && <span className="plan-notify-dot" />}
                         {plan.name}
                       </div>
                     ))}
+                  </div>
+                )}
               </div>
             </button>
           )
@@ -384,9 +661,26 @@ export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
             behind it already say where it stands. */}
         <button
           className="calendar-bottom-button show-playtime"
-          onClick={() => setShowPlaytime((on) => !on)}
+          onClick={async () => {
+            /* The other face from the one on its way, rather than from the one
+               settled: a second press while a switch is still crossing the
+               cells is asking for it to be turned back. */
+            const next = !(carry?.face ?? showPlaytime)
+            /* The figures have to be in hand before the wave sets off: a cell
+               takes its new face as the wave reaches it, and one that took it
+               before the read landed would have nothing to put there. */
+            if (next) {
+              const rows = await window.library.getPlaytimeByDay(firstKey, lastKey)
+              setPlaytime(new Map(rows.map((row) => [row.date, row.seconds])))
+            }
+            // The face is a new reading of the same grid, so it is read into
+            // the way the board's own arrival is — from nothing this time.
+            readIn(next)
+          }}
         >
-          {showPlaytime ? 'Show Plans' : 'Show Playtime'}
+          {/* The word says what the next press would put up, and the press has
+              been taken even though the cells are still turning over. */}
+          {(carry?.face ?? showPlaytime) ? 'Show Plans' : 'Show Playtime'}
         </button>
 
         <button
@@ -409,23 +703,49 @@ export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
         </button>
       </div>
 
+      {/* Not in the design: what the day under the pointer was played for. It
+          follows the pointer rather than being opened on a cell — a day is a
+          question about play time while that face is on, and pointing at one is
+          the whole of asking it. */}
+      {showPlaytime && timeHover && (
+        <DayTimeCard
+          date={new Date(`${timeHover.key}T00:00:00`)}
+          rows={rowsForDay(timeHover.key)}
+          pointer={{ x: timeHover.x, y: timeHover.y }}
+          boardWidth={BOARD_WIDTH}
+          boardHeight={boardSize.height}
+        />
+      )}
+
       {planFor && (
         <PlanPanel
           date={cells.find((cell) => toDateKey(cell) === planFor.key) ?? today}
           dateKey={planFor.key}
           plans={plansByDay.get(planFor.key) ?? []}
-          top={planFor.top}
+          middle={planFor.middle}
+          boardHeight={planFor.boardHeight}
           left={planFor.left}
           onClose={() => setPlanFor(null)}
           onStepDay={stepPlan}
+          /* While the PlayTime face is on, a day is a question about play time
+             rather than about plans: the panel draws the day's own ring in the
+             list's place. */
           onAdd={async (input: NewPlanInput) => {
             await window.library.addPlan(input)
             await refreshPlans()
+            onPlansChanged()
+          }}
+          onUpdate={async (planId: number, input: NewPlanInput) => {
+            await window.library.updatePlan(planId, input)
+            await refreshPlans()
+            onPlansChanged()
           }}
           onDelete={async (planId: number) => {
             await window.library.deletePlan(planId)
             await refreshPlans()
+            onPlansChanged()
           }}
+          boardWidth={BOARD_WIDTH}
           anchorRef={cellRef}
         />
       )}
@@ -442,6 +762,8 @@ export default function Calendar({ onOpenGraph }: Props): React.JSX.Element {
                 : { ...current, month: Number(key) }
             )
             setMenu(null)
+            // The same new grid a month step makes, and read in the same way.
+            readIn(null)
           }}
           top={menu.top}
           left={menu.left}

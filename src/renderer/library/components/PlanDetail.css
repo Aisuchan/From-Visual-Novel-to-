@@ -1,0 +1,99 @@
+/* All values below are literal Penpot values from board "Plan Detail"
+   (8dc20177-e0ad-80ef-8008-7e9ba7d74a8b), 360x259: fill #2a2d31, a 5px stroke
+   in #e1e8ed and 15 of padding all round, holding the Plan Name row over a
+   1px rule over the Description.
+
+   The stroke is a Penpot *inner* one, so it is an inset shadow here rather
+   than a border — a border comes out of the box and would take the board's
+   360x259 down to 350x249 and shift every figure inside it. That is the rule
+   the Plan panel and the Calender board are both written to. */
+
+/* The height is the design's own as a floor rather than a fixed figure: a
+   description longer than the four lines it draws takes the board down instead
+   of being cut off at them. Everything above the description keeps its literal
+   height, so what grows is the description's own box. */
+.plan-detail {
+  position: absolute;
+  width: 360px;
+  min-height: 259px;
+  padding: 15px;
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 5px var(--color-text);
+  display: flex;
+  flex-direction: column;
+  /* It says what the pointer is on, and the pointer is on the row: taking the
+     pointer here would only let the panel lose the hover to its own answer. */
+  pointer-events: none;
+  /* Over the panel's own controls, and over the step tabs' slot — which are
+     not drawn while this is up. */
+  z-index: 1;
+}
+
+/* Penpot draws it beside the panel; the panel says which side, the board's own
+   right edge being what decides it. 12 out, the same air the day steps hang
+   off the panel at. */
+.plan-detail.right {
+  left: calc(100% + 12px);
+}
+
+.plan-detail.left {
+  right: calc(100% + 12px);
+}
+
+/* Penpot: Plan Name — a 330x54 row holding a chip that is only as wide as the
+   name in it. */
+.plan-detail-name {
+  flex: 0 0 54px;
+  display: flex;
+  min-width: 0;
+}
+
+/* Penpot: Color Flame — the plan's own colour at 0.7 under a 10px radius, 10
+   of padding either side and 3 above, carrying the name at Girassol 42. The
+   design's own 125x54 is what "PLAN1" comes to; a name is as long as it is, so
+   the chip runs out to the row's own width and what is past that is cut off. */
+.plan-detail-flame {
+  min-width: 0;
+  padding: 3px 10px 0;
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-size: 42px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Penpot: Rectangle — 330x1 in #B1B2B5, 10 under the name row and 5 above the
+   description. */
+.plan-detail-rule {
+  flex: 0 0 1px;
+  margin: 10px 0 5px;
+  background: var(--color-border);
+}
+
+/* Penpot: Description — a 330x159 box with the run 10 in from either side and
+   5 of air under it, set at Girassol 32. The design draws four lines, which is
+   exactly what the 154 it leaves holds; past that the box grows and takes the
+   board down with it rather than cutting the run off — nothing is scrolled or
+   hidden on a board that only reports. */
+.plan-detail-desc {
+  flex: 1 0 auto;
+  min-height: 154px;
+  padding: 0 10px 5px;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1.2;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* The mark is `.plan-notify-dot` from PlanPanel.css; the name here is set at 42
+   rather than the panel's 28, so it takes a larger one. */
+.plan-detail-flame .plan-notify-dot {
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+}

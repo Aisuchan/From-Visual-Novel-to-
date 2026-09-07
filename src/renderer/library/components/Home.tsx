@@ -1,14 +1,36 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { GameWithStats, Group, HomeLayout, Tag } from '../../../shared/db-types'
+import type {
+  GameWithStats,
+  Group,
+  HomeColumns,
+  HomeLayout,
+  HomeSpines,
+  Tag
+} from '../../../shared/db-types'
 import { mediaUrl } from '../../../shared/media-url'
 import { useContextMenuDismiss } from '../context-menu'
 import { filterGames, suggestsGroup } from '../filter'
-import { DEFAULT_SORT, displayName, sortGames, sortLabel, SORTS, type SortKey } from '../sort'
+import {
+  DEFAULT_DIRECTION,
+  DEFAULT_SORT,
+  directionLabel,
+  displayName,
+  hasDirection,
+  parseSortOption,
+  sortGames,
+  sortLabel,
+  SORT_OPTIONS,
+  sortOptionLabel,
+  sortOptionId,
+  type SortDirection,
+  type SortKey
+} from '../sort'
 import ContextMenu from './ContextMenu'
 import GameHover from './GameHover'
 import OptionMenu from './OptionMenu'
 import TagChip from './TagChip'
 import './Home.css'
+import { t } from '../../../shared/i18n'
 
 /*
  * Penpot: Home — the library's own board, in the Main Display slot the Game
@@ -24,14 +46,26 @@ import './Home.css'
 
 /** Penpot: Home — the board's own width, which a menu's scale comes off. */
 const BOARD_WIDTH = 1585
-/** Penpot: Way to Sort — 239 wide, which the menu under it takes too. */
-const SORT_WIDTH = 239
+/* Penpot: Way to Sort — 239 wide. **Its menu is 278 rather than the row's
+   239**, which is the one place a menu here is not as wide as what it drops
+   from: a row of this list is an order with its direction marked after it, and
+   the widest of them — 「つけた点数順 (降)」 — comes to 216.8 at the 28 the rows
+   are set at, where the design's 239 leaves a label column of 175. It is the
+   widest row plus the menu's own 34 of rule and air and 30 of right-hand air,
+   taken up from 280.8, so nothing in the list steps down. */
+const SORT_MENU_WIDTH = 284
 /** Penpot: Group Select — 331. */
 const GROUP_WIDTH = 331
 /** Penpot: "SORT" / "GROUP" — Girassol 35px in a field with 30px either side. */
 const FIELD_FONT_SIZE = 35
-/** The add row and the five groups the design's own Menu board draws. */
-const GROUP_MENU_ROWS = 6
+/** The groups that stand before the list scrolls. The design's own Menu board
+    draws five; eight is what was asked for, and the 「すべて」 row that lets a
+    group go stands over them. */
+const GROUP_MENU_ROWS = 8
+/* Every order but 50音順 is offered twice, which makes fifteen rows — more than
+   the board has room for under the Show Condition row — so ten stand and the
+   list is opened brought to the row it is on, exactly as the side panel's is. */
+const SORT_MENU_ROWS = 10
 /** The key the "everything" row answers to, which is no group's id. */
 const ALL_GROUPS_KEY = 'all-groups'
 
@@ -45,22 +79,49 @@ const MENU_GAP = 6
 /** How long a cell takes to grow, kept in step with `Home.css`. */
 const GROW_MS = 150
 
+/* Not in the design: the head comes off the board while the list is being read
+   down, so the games have the whole of it.
+
+   Its height is the sum of what stands above the Border — the Top's own 30 of
+   margin and its 106, then the count's 25 and the 5 under it. It is written
+   here as well as in the sheet because the slide is driven from both ends: the
+   box collapses to nothing while what is in it travels exactly as far the
+   other way, so the content and the box's own bottom edge come up together and
+   the grid rises to meet it. */
+const HEAD_HEIGHT = 30 + 106 + 25 + 5
+/** How long that takes, kept in step with `Home.css`. */
+const HEAD_SLIDE_MS = 240
+/* What a direction has to come to before the head answers it. A wheel notch is
+   a good deal more than this; what it stops is the pixel or two a scroller
+   gives back as it settles being read as a direction. */
+const HEAD_SCROLL_STEP = 8
+
+/* What each face's button asks for next, pressed on the face it is already on:
+   the design's own figure with a step either side of it, wrapping round. */
+const NEXT_COLUMNS: Record<HomeColumns, HomeColumns> = { '4': '5', '5': '6', '6': '4' }
+const NEXT_SPINES: Record<HomeSpines, HomeSpines> = { '20': '25', '25': '30', '30': '20' }
+
 /* Penpot draws two rows of five. The cards arrive on a diagonal from the top
    left rather than all at once — a card waits by the column it is in plus the
-   row it is on, so the wave runs down and across together. Held to a ceiling
-   so a long library's last row is not still arriving after the first is
-   settled. */
-const GRID_COLUMNS = 5
+   row it is on, so the wave runs down and across together, and how many
+   columns that is, is whatever the row is carrying. Held to a ceiling so a
+   long library's last row is not still arriving after the first is settled —
+   a budget for the whole wave rather than a clamp on each card (`waveStep`),
+   and set where a library of a hundred still keeps the 45 rather than having
+   it squeezed to a sweep. */
 const ARRIVE_STEP_MS = 45
-const ARRIVE_MAX_MS = 600
+const ARRIVE_MAX_MS = 1200
 
 /* The shelf fills the way a shelf is filled: one book at a time from the left
    of the top row, each tipped upright into the row rather than fading in
    where it stands. Straight index order — the diagonal the cards arrive on
    would read as a sweep across 25 columns — and a step short enough that a
-   whole row of 25 is put away in a third of a second. */
+   whole row of 25 is put away in a third of a second. The ceiling is the whole
+   wave's, and a second of it: at 500 a library of a hundred came out at 5ms a
+   book, which is under a frame apiece and read as a sweep rather than as books
+   being put away one at a time. */
 const SHELVE_STEP_MS = 14
-const SHELVE_MAX_MS = 500
+const SHELVE_MAX_MS = 1000
 
 /* A cell's own right-click menu, which offers the face it was opened on and
    nothing else. A picture given to a cell is cropped to that cell's frame —
@@ -68,6 +129,10 @@ const SHELVE_MAX_MS = 500
    the spine, which is its own height over six — so the menu says which shape
    it will be cut to rather than leaving it to be found out by trying. The two
    faces are named as their own buttons name them, above the grid. */
+/* Keys rather than runs: this is built as the module is imported, before the
+   shell has read the 言語/language row, so it goes through `t` where it is
+   drawn. */
+/* i18n-keys: the runs below are keys, read through `t` where drawn. */
 const FACE_NAME: Record<HomeLayout, string> = { grid: 'サムネイル画像', shelf: '背表紙画像' }
 const FACE_RATIO: Record<HomeLayout, string> = { grid: '5 : 6', shelf: '1 : 6' }
 
@@ -86,6 +151,14 @@ interface Props {
      one the next open finds. */
   layout: HomeLayout
   onLayoutChange: (layout: HomeLayout) => void
+  /* How many cards a row of the grid carries. The board's own toggle asks for
+     it, and it is the app's for the reason the face is: this board is
+     remounted every time it is opened. */
+  columns: HomeColumns
+  onColumnsChange: (columns: HomeColumns) => void
+  /** The same for the shelf: how many spines stand across a row of it. */
+  spines: HomeSpines
+  onSpinesChange: (spines: HomeSpines) => void
 }
 
 export default function Home({
@@ -95,7 +168,11 @@ export default function Home({
   onSelect,
   onGamesChanged,
   layout,
-  onLayoutChange
+  onLayoutChange,
+  columns,
+  onColumnsChange,
+  spines,
+  onSpinesChange
 }: Props): React.JSX.Element {
   const boardRef = useRef<HTMLDivElement | null>(null)
   const sortRef = useRef<HTMLButtonElement | null>(null)
@@ -118,6 +195,10 @@ export default function Home({
   /** The group's own name, which is what a game carries; '' is every group. */
   const [groupName, setGroupName] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>(DEFAULT_SORT)
+  const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION[DEFAULT_SORT])
+  /* Which of the menu's rows the board stands on — the pair, rather than the
+     order alone. */
+  const currentSortId = sortOptionId(sortKey, sortDir)
   /* The chips ADD TAG + puts out. They are a filter over the grid and nothing
      more — a chip is a piece of text, and taking one off never touches a tag
      on a game. `newTagId` is the chip that has just appeared, which takes the
@@ -153,6 +234,9 @@ export default function Home({
     left: number
     top: number
   } | null>(null)
+
+  /* Whether the head is off the board. */
+  const [headHidden, setHeadHidden] = useState(false)
 
   /* The card the pointer is on, which puts its Game Hover up, and
      where that panel goes — the pointer's lower right, worked out as the
@@ -303,6 +387,8 @@ export default function Home({
     () =>
       JSON.stringify([
         sortKey,
+        /* The same list turned round is a different list and arrives as one. */
+        sortDir,
         groupName,
         query,
         /* Written chips only. A blank one is what ADD TAG + puts out for a
@@ -310,7 +396,7 @@ export default function Home({
            is not a new question and must not shelve the list again. */
         tagFilters.map((chip) => chip.text).filter((text) => text !== '')
       ]),
-    [sortKey, groupName, query, tagFilters]
+    [sortKey, sortDir, groupName, query, tagFilters]
   )
 
   const shown = useMemo(
@@ -321,9 +407,10 @@ export default function Home({
           group: groupName,
           tagTerms: tagFilters.map((chip) => chip.text)
         }),
-        sortKey
+        sortKey,
+        sortDir
       ),
-    [games, tags, query, groupName, tagFilters, sortKey]
+    [games, tags, query, groupName, tagFilters, sortKey, sortDir]
   )
 
   /* Nor is what was under the pointer still under it once the list has been
@@ -405,14 +492,22 @@ export default function Home({
     setNewTagId(id)
   }
 
-  /** What a chip was left holding. Nothing in it takes the chip away. */
+  /* The name a chip was left holding. Nothing in it takes the chip away —
+     **and so does a name the row already carries**: a tag is one condition on
+     the list, and the same one twice narrows nothing further while standing
+     there as though it did. Case is ignored because the match ignores it
+     (`filterGames` lowercases both sides), so "RPG" over "rpg" would have been
+     the one condition written twice. */
   function commitTag(id: number, text: string): void {
+    const trimmed = text.trim()
     setNewTagId((current) => (current === id ? null : current))
-    setTagFilters((list) =>
-      text.trim() === ''
-        ? list.filter((chip) => chip.id !== id)
-        : list.map((chip) => (chip.id === id ? { ...chip, text: text.trim() } : chip))
-    )
+    setTagFilters((list) => {
+      const repeats = list.some(
+        (chip) => chip.id !== id && chip.text.toLowerCase() === trimmed.toLowerCase()
+      )
+      if (trimmed === '' || repeats) return list.filter((chip) => chip.id !== id)
+      return list.map((chip) => (chip.id === id ? { ...chip, text: trimmed } : chip))
+    })
   }
 
   function deleteTag(id: number): void {
@@ -467,19 +562,84 @@ export default function Home({
      an event for the card that was arrived at. */
   /** How long the card at `index` waits before it arrives. */
   function arriveDelay(index: number): number {
-    const step = (index % GRID_COLUMNS) + Math.floor(index / GRID_COLUMNS)
-    return Math.min(step * ARRIVE_STEP_MS, ARRIVE_MAX_MS)
+    const across = Number(columns)
+    const last = Math.max(across - 1 + (Math.ceil(shown.length / across) - 1), 1)
+    const step = waveStep(ARRIVE_STEP_MS, ARRIVE_MAX_MS, last)
+    return ((index % across) + Math.floor(index / across)) * step
   }
 
   /** The same for a spine, which is put away in the order it stands in. */
   function shelveDelay(index: number): number {
-    return Math.min(index * SHELVE_STEP_MS, SHELVE_MAX_MS)
+    return index * waveStep(SHELVE_STEP_MS, SHELVE_MAX_MS, Math.max(shown.length - 1, 1))
   }
 
   function leaveFace(): void {
     if (over.current !== null) release(over.current)
     over.current = null
     setHover(null)
+  }
+
+  /* What the last scroll the head answered was at, and a moment to ignore
+     scrolls until. Taking the head off grows the face by the head's own
+     height, which clamps a scroll that was near the bottom — a movement *up*,
+     which the head would otherwise read as a request to come back, and the two
+     would then take turns forever. */
+  const headScroll = useRef({ top: 0, locked: 0 })
+
+  /* What the face is keyed on. The question is the list itself — a different
+     order, group, search or tag row — and the size is the shape it is drawn
+     at: both remount the face, which is what runs the arrival again, so a grid
+     stepped from five cards a row to six is put down card by card the way a
+     new list is rather than simply resizing under the pointer. */
+  const faceKey = `${question}|${layout === 'grid' ? columns : spines}`
+
+  /* A remounted face is scrolled back to the top, so the head comes with it. */
+  useEffect(() => {
+    setHeadHidden(false)
+    headScroll.current = { top: 0, locked: 0 }
+  }, [faceKey, layout])
+
+  /** The head follows the direction the list is being read in. */
+  function trackFaceScroll(event: React.UIEvent<HTMLDivElement>): void {
+    const box = event.currentTarget
+    const top = box.scrollTop
+    const state = headScroll.current
+    const now = performance.now()
+    if (now < state.locked) {
+      state.top = top
+      return
+    }
+    const moved = top - state.top
+    /* Not every event: a movement under the step is left to accumulate, so a
+       slow drag still counts towards the direction it is going in. */
+    if (Math.abs(moved) < HEAD_SCROLL_STEP) return
+    state.top = top
+    /* **One notch is enough**: the head goes on the first movement down there
+       is, rather than waiting for the list to be scrolled past the head's own
+       height — a wheel notch is about 100px, so that made it take two.
+
+       It has to leave room to come back, though. Taking it off grows the face
+       by its own height, so on a list barely longer than the board that would
+       leave nothing to scroll up with and no way to ask for it again. */
+    const room = box.scrollHeight - box.clientHeight - HEAD_HEIGHT
+    const next = moved > 0 && top > 0 && room > 0
+    if (next === headHidden) return
+    state.locked = now + HEAD_SLIDE_MS
+    setHeadHidden(next)
+    /* A menu hangs off a row that is about to be gone. */
+    if (next) setMenu(null)
+  }
+
+  /* **The ceiling is a budget for the whole wave, not a clamp on each cell.**
+     Held against the cell's own wait, every cell past the ceiling came out at
+     exactly it and set off *together*: on a library of a hundred the shelf
+     went one book at a time to the thirty-sixth and then put the remaining
+     sixty-four away in one movement, which is the jump the wave was there to
+     avoid. So the step is squeezed instead — the run always takes the ceiling
+     and no longer, however many cells are in it, and a list short enough keeps
+     the design's own step. */
+  function waveStep(step: number, ceiling: number, last: number): number {
+    return Math.min(step, ceiling / last)
   }
 
   const faceHover: React.HTMLAttributes<HTMLDivElement> = {
@@ -502,7 +662,7 @@ export default function Home({
       label: group.name,
       color: group.color
     }))
-    if (menu.key === 'group') return [{ key: ALL_GROUPS_KEY, label: 'すべて' }, ...rows]
+    if (menu.key === 'group') return [{ key: ALL_GROUPS_KEY, label: t('すべて') }, ...rows]
     /* The suggestions are the list narrowed to what has been typed, and leave
        the 「すべて」 row off: that row belongs to the whole list rather than to
        a search. Nothing matching means no rows, and no rows means no board.
@@ -513,159 +673,187 @@ export default function Home({
 
   return (
     <div className="home-board" ref={boardRef}>
-      {/* Penpot: Top — 1515x106 */}
-      <div className="home-top">
-        <div className="home-headline">
-          <h1 className="home-word">Home</h1>
+      {/* Everything above the Border is one block, so it leaves the board as
+          one: the games are what the board is for, and while the list is being
+          read down the head is a strip of it saying what has already been
+          asked. */}
+      <div className={`home-head${headHidden ? ' hidden' : ''}`}>
+        <div className="home-head-inner">
+          {/* Penpot: Top — 1515x106 */}
+          <div className="home-top">
+            <div className="home-headline">
+              <h1 className="home-word">Home</h1>
 
-          {/* Penpot: Under Line — a 172px bar plus a 132x8 tapering triangle */}
-          <div className="home-underline">
-            <span className="home-underline-bar" />
-            <svg className="home-underline-tail" viewBox="0 0 132 8" preserveAspectRatio="none">
-              <path d="M0,0 L132,0 L0,8 Z" fill="#e1e8ed" />
-            </svg>
+              {/* Penpot: Under Line — a 172px bar plus a 132x8 tapering triangle */}
+              <div className="home-underline">
+                <span className="home-underline-bar" />
+                <svg className="home-underline-tail" viewBox="0 0 132 8" preserveAspectRatio="none">
+                  <path d="M0,0 L132,0 L0,8 Z" fill="#e1e8ed" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Penpot: Show Condition — 1034x106 */}
+            <div className="home-condition">
+              <div className="home-others">
+                {/* Penpot: Way to Sort — 239x52. The order is one of a fixed list,
+                    so nothing is typed into it: the field says which one is on and
+                    the menu is the only way to change it, which is what the side
+                    panel's own Sort field is. */}
+                <button
+                  className="home-select"
+                  ref={sortRef}
+                  onClick={(event) => toggleMenu('sort', event.currentTarget)}
+                  aria-haspopup="menu"
+                  aria-expanded={menu?.key === 'sort'}
+                >
+                  <span className="home-select-value sort">
+                    <FitLabel label={sortLabel(sortKey)} width={189 - 30 * 2} />
+                  </span>
+                  <span className="home-select-caret">
+                    <span className="home-caret-glyph">▼</span>
+                  </span>
+                </button>
+
+                {/* Penpot: Group Select — 331x52. Unlike the order beside it a
+                    group's name is free text, so this half of the pill is typed
+                    into the way the side panel's Select Group is: the ▼ drops the
+                    whole list out of the row, typing narrows that same board to
+                    what a name contains, and the design's own "GROUP" is what the
+                    field says while nothing is in it. */}
+                <div className="home-select" ref={groupRef}>
+                  <span className="home-select-value group">
+                    <input
+                      className="home-select-input"
+                      placeholder="GROUP"
+                      value={groupText}
+                      onChange={(event) => {
+                        /* A blank is nothing typed: a field holding only spaces
+                           goes back to being empty, so it says the design's own
+                           GROUP again rather than standing there looking filled
+                           in while it narrows the grid by nothing. Only a run
+                           that is *all* whitespace goes — a space inside a name
+                           is part of the name. */
+                        const text = event.target.value.trim() ? event.target.value : ''
+                        if (text) setGroupText(text)
+                        else commitGroup('')
+                        openGroupSuggestions(text)
+                      }}
+                      onKeyDown={(event) => {
+                        /* Enter settles the field. Not the Enter that ends an IME
+                           conversion, though — that one is choosing a character,
+                           and a group written in Japanese would otherwise be
+                           searched for one syllable at a time. */
+                        if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+                        commitGroup(groupText)
+                        setMenu(null)
+                      }}
+                      onFocus={() => openGroupSuggestions(groupText)}
+                      onBlur={() => {
+                        commitGroup(groupText)
+                        setMenu((open) => (open?.key === 'group-suggest' ? null : open))
+                      }}
+                    />
+                  </span>
+                  <button
+                    className="home-select-caret"
+                    onClick={(event) => toggleMenu('group', event.currentTarget.parentElement!)}
+                    title={t('グループ一覧')}
+                    aria-label={t('グループ一覧')}
+                    aria-haspopup="menu"
+                    aria-expanded={menu?.key.startsWith('group') ?? false}
+                  >
+                    <span className="home-caret-glyph">▼</span>
+                  </button>
+                </div>
+
+                {/* Penpot: Search Box — 404x52. The design's "SEARCH..." is what
+                    the field says while nothing has been typed into it. */}
+                <div className="home-search">
+                  <input
+                    className="home-search-input"
+                    placeholder="SEARCH..."
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Penpot: Tag — 1034x39 */}
+              <div className="home-tag-row">
+                <button className="home-add-tag" onClick={addTag}>
+                  <span className="home-chip-label">ADD TAG +</span>
+                </button>
+                <span className="home-tag-rule" />
+                {/* Penpot draws the button and the chips it makes; the chip itself
+                    is the app's own, restyled here to the design's own pill. */}
+                <div className="home-tag-container" ref={tagsRef}>
+                  {tagFilters.map((chip) => (
+                    <TagChip
+                      key={chip.id}
+                      name={chip.text}
+                      editing={chip.id === newTagId}
+                      onCommit={(text) => commitTag(chip.id, text)}
+                      onDelete={() => deleteTag(chip.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Penpot: Show Condition — 1034x106 */}
-        <div className="home-condition">
-          <div className="home-others">
-            {/* Penpot: Way to Sort — 239x52. The order is one of a fixed list,
-                so nothing is typed into it: the field says which one is on and
-                the menu is the only way to change it, which is what the side
-                panel's own Sort field is. */}
-            <button
-              className="home-select"
-              ref={sortRef}
-              onClick={(event) => toggleMenu('sort', event.currentTarget)}
-              title="並び順を選ぶ"
-              aria-haspopup="menu"
-              aria-expanded={menu?.key === 'sort'}
-            >
-              <span className="home-select-value sort">
-                <FitLabel label={sortLabel(sortKey)} width={189 - 30 * 2} />
-              </span>
-              <span className="home-select-caret">
-                <span className="home-caret-glyph">▼</span>
-              </span>
-            </button>
+          {/* Penpot: Number of VN — the design's "9999 games", which counts what
+              the filters have left rather than the whole library. */}
+          <div className="home-count">
+            <span className="home-count-text">
+              <span className="home-count-number">{shown.length}</span> games
+            </span>
 
-            {/* Penpot: Group Select — 331x52. Unlike the order beside it a
-                group's name is free text, so this half of the pill is typed
-                into the way the side panel's Select Group is: the ▼ drops the
-                whole list out of the row, typing narrows that same board to
-                what a name contains, and the design's own "GROUP" is what the
-                field says while nothing is in it. */}
-            <div className="home-select" ref={groupRef}>
-              <span className="home-select-value group">
-                <input
-                  className="home-select-input"
-                  placeholder="GROUP"
-                  value={groupText}
-                  onChange={(event) => {
-                    /* A blank is nothing typed: a field holding only spaces
-                       goes back to being empty, so it says the design's own
-                       GROUP again rather than standing there looking filled
-                       in while it narrows the grid by nothing. Only a run
-                       that is *all* whitespace goes — a space inside a name
-                       is part of the name. */
-                    const text = event.target.value.trim() ? event.target.value : ''
-                    if (text) setGroupText(text)
-                    else commitGroup('')
-                    openGroupSuggestions(text)
-                  }}
-                  onKeyDown={(event) => {
-                    /* Enter settles the field. Not the Enter that ends an IME
-                       conversion, though — that one is choosing a character,
-                       and a group written in Japanese would otherwise be
-                       searched for one syllable at a time. */
-                    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
-                    commitGroup(groupText)
-                    setMenu(null)
-                  }}
-                  onFocus={() => openGroupSuggestions(groupText)}
-                  onBlur={() => {
-                    commitGroup(groupText)
-                    setMenu((open) => (open?.key === 'group-suggest' ? null : open))
-                  }}
-                  aria-label="グループで絞り込む"
-                />
-              </span>
+            {/* Not in the design, which draws the count against the right edge and
+                nothing beside it: the count is moved in by what these take, and
+                they stand in the room that makes. */}
+            <div className="home-layout-toggle" role="group">
               <button
-                className="home-select-caret"
-                onClick={(event) => toggleMenu('group', event.currentTarget.parentElement!)}
-                title="グループ一覧"
-                aria-label="グループ一覧"
-                aria-haspopup="menu"
-                aria-expanded={menu?.key.startsWith('group') ?? false}
+                className={`home-layout-button ${layout === 'grid' ? 'chosen' : ''}`}
+                /* Pressed on the face it is not on it asks for that face;
+                   pressed on the one it is, it asks for the next size — 4, 5
+                   and 6 cards a row, the design's five among them. One control
+                   for the face and then for how much of it a card takes, which
+                   is the same question asked twice. */
+                onClick={() =>
+                  layout === 'grid'
+                    ? onColumnsChange(NEXT_COLUMNS[columns])
+                    : onLayoutChange('grid')
+                }
+                title={
+                  layout === 'grid'
+                    ? t('サムネイル表示（1行 {0} 個・押すと {1} 個）', columns, NEXT_COLUMNS[columns])
+                    : t('サムネイル表示')
+                }
+                aria-pressed={layout === 'grid'}
               >
-                <span className="home-caret-glyph">▼</span>
+                <i className="fa-solid fa-table-cells-large" />
+              </button>
+              <button
+                className={`home-layout-button ${layout === 'shelf' ? 'chosen' : ''}`}
+                /* The thumbnail button's own rule: the face if it is not the
+                   one on, and the next size across if it is. */
+                onClick={() =>
+                  layout === 'shelf'
+                    ? onSpinesChange(NEXT_SPINES[spines])
+                    : onLayoutChange('shelf')
+                }
+                title={
+                  layout === 'shelf'
+                    ? t('背表紙表示（1行 {0} 個・押すと {1} 個）', spines, NEXT_SPINES[spines])
+                    : t('背表紙表示')
+                }
+                aria-pressed={layout === 'shelf'}
+              >
+                <i className="fa-solid fa-barcode" />
               </button>
             </div>
-
-            {/* Penpot: Search Box — 404x52. The design's "SEARCH..." is what
-                the field says while nothing has been typed into it. */}
-            <div className="home-search">
-              <input
-                className="home-search-input"
-                placeholder="SEARCH..."
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                aria-label="ゲームを検索"
-              />
-            </div>
           </div>
-
-          {/* Penpot: Tag — 1034x39 */}
-          <div className="home-tag-row">
-            <button className="home-add-tag" onClick={addTag} title="タグで絞り込む">
-              <span className="home-chip-label">ADD TAG +</span>
-            </button>
-            <span className="home-tag-rule" />
-            {/* Penpot draws the button and the chips it makes; the chip itself
-                is the app's own, restyled here to the design's own pill. */}
-            <div className="home-tag-container" ref={tagsRef}>
-              {tagFilters.map((chip) => (
-                <TagChip
-                  key={chip.id}
-                  name={chip.text}
-                  editing={chip.id === newTagId}
-                  onCommit={(text) => commitTag(chip.id, text)}
-                  onDelete={() => deleteTag(chip.id)}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Penpot: Number of VN — the design's "9999 games", which counts what
-          the filters have left rather than the whole library. */}
-      <div className="home-count">
-        <span className="home-count-text">
-          <span className="home-count-number">{shown.length}</span> games
-        </span>
-
-        {/* Not in the design, which draws the count against the right edge and
-            nothing beside it: the count is moved in by what these take, and
-            they stand in the room that makes. */}
-        <div className="home-layout-toggle" role="group" aria-label="表示を切り替える">
-          <button
-            className={`home-layout-button ${layout === 'grid' ? 'chosen' : ''}`}
-            onClick={() => onLayoutChange('grid')}
-            title="サムネイル表示"
-            aria-pressed={layout === 'grid'}
-          >
-            <i className="fa-solid fa-table-cells-large" />
-          </button>
-          <button
-            className={`home-layout-button ${layout === 'shelf' ? 'chosen' : ''}`}
-            onClick={() => onLayoutChange('shelf')}
-            title="背表紙表示"
-            aria-pressed={layout === 'shelf'}
-          >
-            <i className="fa-solid fa-barcode" />
-          </button>
         </div>
       </div>
 
@@ -678,8 +866,8 @@ export default function Home({
           filters, and a cell is a cell either way: it carries the hover and it
           opens the game's board. */}
       {layout === 'grid' ? (
-        <div className="home-face" key={question} {...faceHover}>
-          <div className="home-grid">
+        <div className="home-face" key={faceKey} {...faceHover} onScroll={trackFaceScroll}>
+          <div className={`home-grid cols-${columns}`}>
             {shown.map((game, index) => (
               <div
                 key={game.id}
@@ -720,8 +908,8 @@ title", two lines. The short
           </div>
         </div>
       ) : (
-        <div className="home-face" key={question} {...faceHover}>
-          <div className="home-shelf">
+        <div className="home-face" key={faceKey} {...faceHover} onScroll={trackFaceScroll}>
+          <div className={`home-shelf spines-${spines}`}>
             {shown.map((game, index) => (
               <div
                 key={game.id}
@@ -765,7 +953,7 @@ title", two lines. The short
           style={{ left: cardMenu.left, top: cardMenu.top }}
           items={[
             {
-              label: `${FACE_NAME[layout]}を変更 (${FACE_RATIO[layout]})`,
+              label: t('{0}を変更 ({1})', t(FACE_NAME[layout]), FACE_RATIO[layout]),
               onSelect: () => void pickFaceImage(menuGame.id, layout)
             },
             /* Only where there is one to give back: with nothing set, the
@@ -773,7 +961,7 @@ title", two lines. The short
             ...((layout === 'shelf' ? menuGame.homeSpineImage : menuGame.homeCardImage)
               ? [
                   {
-                    label: `${FACE_NAME[layout]}を戻す`,
+                    label: t('{0}を戻す', t(FACE_NAME[layout])),
                     onSelect: () => void clearFaceImage(menuGame.id, layout)
                   }
                 ]
@@ -788,16 +976,32 @@ title", two lines. The short
         <OptionMenu
           options={
             menu.key === 'sort'
-              ? SORTS.map((sort) => ({ key: sort.key, label: sort.label }))
+              ? SORT_OPTIONS.map((sort) => ({
+                  key: sort.id,
+                  label: sortOptionLabel(sort),
+                  current: sort.id === currentSortId
+                }))
               : groupOptions
           }
           top={menu.top}
           left={menu.left}
-          width={menu.key === 'sort' ? SORT_WIDTH : GROUP_WIDTH}
-          maxRows={menu.key === 'sort' ? SORTS.length : GROUP_MENU_ROWS}
+          width={menu.key === 'sort' ? SORT_MENU_WIDTH : GROUP_WIDTH}
+          /* The groups are what the count is of; the 「すべて」 row over them
+             is not one of them, and the suggestions leave it off entirely. */
+          maxRows={
+            menu.key === 'sort'
+              ? SORT_MENU_ROWS
+              : GROUP_MENU_ROWS + (groupOptions[0]?.key === ALL_GROUPS_KEY ? 1 : 0)
+          }
+          /* A list long enough to scroll opens at the row it stands on rather
+             than at its own beginning. */
+          scrollToKey={menu.key === 'sort' ? currentSortId : undefined}
           onPick={(key) => {
             if (menu.key === 'sort') {
-              setSortKey(key as SortKey)
+              /* A row is an order and the way it runs, picked in the one act. */
+              const picked = parseSortOption(key)
+              setSortKey(picked.key)
+              setSortDir(picked.direction)
             } else if (key === ALL_GROUPS_KEY) {
               commitGroup('')
             } else {

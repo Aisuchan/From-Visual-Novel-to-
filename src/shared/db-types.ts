@@ -75,7 +75,17 @@ export interface GameImage {
   id: number
   gameId: number
   filePath: string
-  source: 'manual' | 'screenshot'
+  /**
+   * Where the picture came from, if it came from anywhere: the file that was
+   * picked out of the dialog, or the place a screenshot was saved to. The app
+   * keeps a copy of its own under `userData` — which is what `filePath` is and
+   * what the gallery draws — so this is the only record of the original, and
+   * 「ファイルの場所を開く」 is what reads it: the file a player means is the
+   * one they have, and the app's copy stands in only once that one is gone.
+   * Null for a row that never had an original of its own.
+   */
+  sourcePath: string | null
+  source: 'manual' | 'screenshot' | 'recording'
   createdAt: string
 }
 
@@ -225,11 +235,44 @@ export type ScreenshotFormat = 'png' | 'jpg'
 export type VideoFormat = 'mp4' | 'mov'
 export type AudioFormat = 'mp3' | 'wav'
 
+/* The Setting board's 起動時のウインドウサイズ row: whether the library window
+   opens at its own 1280x720 or fills the screen. The 16:9 ratio is held either
+   way — a work area is 16:9 whenever the display is. */
+export type LaunchWindowMode = 'window' | 'fullscreen'
+
 /* Which of the Home board's two faces it opens on — the design's Container, a
    grid of cards, or its Bookshelf Container, a shelf of spines. Not a row on
    the Setting board: it is what the board's own toggle was last left on, kept
    so that opening Home again finds it where it was left. */
 export type HomeLayout = 'grid' | 'shelf'
+
+/* How large the Recorder Panel is drawn. 中 is the design's own 227x30 and the
+   other two are a quarter either side of it — the panel sits over a game and
+   how big it wants to be there is the player's, not the design's. The page is
+   still laid out in the design's own figures and scaled as a whole, the way the
+   library window is; the main process scales the window and the region it is
+   clipped to by the same factor. */
+export const OVERLAY_SIZES = ['large', 'medium', 'small'] as const
+export type OverlaySize = (typeof OVERLAY_SIZES)[number]
+export const OVERLAY_SCALES: Record<OverlaySize, number> = {
+  large: 1.25,
+  medium: 1,
+  small: 0.75
+}
+
+/* How many cards the grid puts on a row. The design draws five; pressing the
+   thumbnail button while it is already the one that is on steps through these,
+   so the same control asks for the face and then for the size of it. Kept
+   beside `homeLayout` and for the same reason — the board is remounted every
+   time it is opened, so a size chosen here is one the next open finds. Written
+   as text because that is what the settings table holds. */
+export const HOME_COLUMNS = ['4', '5', '6'] as const
+export type HomeColumns = (typeof HOME_COLUMNS)[number]
+
+/* The same for the shelf, whose button does the same thing: the design's 25
+   spines across, and a step either side of it. */
+export const HOME_SPINES = ['20', '25', '30'] as const
+export type HomeSpines = (typeof HOME_SPINES)[number]
 
 /* Which of Penpot's "Setting Period" rows the PlayTime Graph opens on. Not a
    row on the Setting board either: it is what that board's own SET DEFAULT was
@@ -250,6 +293,45 @@ export const GRAPH_PERIODS = [
 ] as const
 export type GraphPeriod = (typeof GRAPH_PERIODS)[number]
 
+/* A setting that is on or off — the design's own On / Off Button, which it
+   draws as a placeholder and which these are the first real rows to use.
+   Stored as the word rather than as 0/1: the settings table is one flat
+   key/value list of strings, and `oneOf` is what validates every other row. */
+export type Toggle = 'on' | 'off'
+
+/* Which corner the Recorder Panel opens in. It is the panel's *initial*
+   position — the Move Button still drags it anywhere once it is up — and the
+   two left corners also turn the panel around, so its controls run from the
+   corner it is in rather than always from the left. */
+export const OVERLAY_CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const
+export type OverlayCorner = (typeof OVERLAY_CORNERS)[number]
+
+/**
+ * One of the Recorder Panel's effect sounds, read off `recorderpanel_SE`.
+ * `key` is the number the file's name begins with, which is what the Setting
+ * board offers and what is stored; `file` is the name itself.
+ */
+export interface SoundEffect {
+  key: string
+  file: string
+}
+
+/** One of the desktop's displays, as the Setting board's own row lists them. */
+export interface ScreenDisplay {
+  /** Electron's own display id, in decimal — what `overlayDisplay` stores. */
+  id: string
+  /** What a row of the list says: the number, the resolution and whether it is
+      the main one — everything a player can check against what is in front of
+      them. */
+  label: string
+  /** What the field itself says once one is picked. The box is 117 wide for a
+      41px run, so the whole of the above would be stepped down to nothing there;
+      what the resolution is for is telling two monitors apart while they are
+      side by side in the list, which is over once one has been chosen. */
+  short: string
+  primary: boolean
+}
+
 /** The app's own settings, read and written as a whole. */
 export interface AppSettings {
   language: Language
@@ -257,5 +339,68 @@ export interface AppSettings {
   videoFormat: VideoFormat
   audioFormat: AudioFormat
   homeLayout: HomeLayout
+  homeColumns: HomeColumns
+  homeSpines: HomeSpines
+  /* The day the footer's Notification board was last confirmed on, written as
+     the same local "YYYY-MM-DD" a plan carries — or empty for none. The row
+     stands for today's plans, so a confirmation is about a day: it takes the
+     mark off that day and the next day's plans put it back without anything
+     having to clear it. */
+  noticeSeen: string
   graphPeriod: GraphPeriod
+  overlayCorner: OverlayCorner
+  /* Which display the panel opens on: an Electron display id, or 'primary'
+     for whichever display is the primary one at the time. A display that is
+     no longer there falls back to the primary rather than opening the panel
+     off the desktop. */
+  overlayDisplay: string
+  /* Whether the app's own arrivals run. Off, every one of them is taken to
+     nothing — the boards, the pages the Calender board is turned to through,
+     the ring, the bars and the Recorder Panel's own fold — so a screen is
+     simply there rather than arriving. */
+  animations: Toggle
+  /* Whether a shot taken from the Recorder Panel is also filed in the game's
+     own Add Thumbnail gallery, which is what `game_images.source` has always
+     told apart. */
+  screenshotToGallery: Toggle
+  /* The same for a screen recording, which the gallery can hold now that it
+     holds clips. Its own row rather than the shot's: a folder of recordings is
+     a different thing from a folder of stills, and a player who wants one
+     filed does not necessarily want the other. */
+  videoToGallery: Toggle
+  /** How large the Recorder Panel is drawn — the design's own size, and a
+      quarter either side of it. */
+  overlaySize: OverlaySize
+  /* The 音声 tab: the two sounds the finale makes. Both are already played
+     and this is only whether they are — the confetti's crackers as the clip's
+     own cues come up, and a balloon's pop as it is clicked. */
+  crackerSound: Toggle
+  balloonSound: Toggle
+  /* Which of `recorderpanel_SE`'s sounds the panel's buttons make, by the
+     number its file is named for — or `off`, which is what both open on: the
+     panel has never made a sound, and a shutter nobody asked for is a sound
+     over a game. A number no file answers to any more plays nothing. */
+  screenshotSound: string
+  /* One row each, rather than the single 録画・録音 row these two began as: a
+     shutter and a stop are different events and the files that suit them are
+     different files. An install made before the split carries its old choice
+     into both. */
+  videoSound: string
+  audioSound: string
+  /* 一般: how the library window opens, and whether the database is copied
+     somewhere as it does. `backupDirectory` is a folder the player names — an
+     empty one is what an unanswered row is, and nothing is copied then. */
+  launchWindowMode: LaunchWindowMode
+  backupOnLaunch: Toggle
+  backupDirectory: string
+  /* What a backup is read back *from*. It is a row on the board rather than a
+     dialog because the row is where the path is written; the 読み込み button
+     beside it is what acts on it. */
+  backupRestorePath: string
+  /* Where each kind of capture was last saved, so the next save dialog opens
+     on it. Not rows on the board — they are what the dialog was last answered
+     with, the way `homeLayout` is what the Home board was last left on. */
+  lastSaveScreenshot: string
+  lastSaveVideo: string
+  lastSaveAudio: string
 }

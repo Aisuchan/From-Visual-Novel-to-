@@ -12,6 +12,7 @@ import NewGroupSetting from './NewGroupSetting'
 import OptionMenu from './OptionMenu'
 import TagChip from './TagChip'
 import './AddGameDialog.css'
+import { t } from '../../../shared/i18n'
 
 interface Props {
   /** When present the dialog edits this game instead of creating a new one. */
@@ -29,10 +30,11 @@ interface Props {
 /** The key the add row answers to, which is no group's id — as in the panel. */
 const ADD_GROUP_KEY = 'add-group'
 /* Penpot: Group — the 426x39 row, and the menu drops out of it 5px below.
-   The design's own list is five long, and the add row stands over it. */
+   The design's own list is five long; eight groups stand before it scrolls,
+   as they do in the panel, and the add row stands over them. */
 const GROUP_MENU_WIDTH = 426
 const GROUP_MENU_TOP = 44
-const GROUP_MENU_ROWS = 6
+const GROUP_MENU_ROWS = 8
 
 /** One chip on the Tag row. The id is the row's own; nothing stores it. */
 interface Chip {
@@ -150,7 +152,7 @@ export default function AddGameDialog({
         color: group.color
       }))
     return groupMenu === 'all'
-      ? [{ key: ADD_GROUP_KEY, label: 'グループを追加 ＋' }, ...rows]
+      ? [{ key: ADD_GROUP_KEY, label: t('グループを追加 ＋') }, ...rows]
       : rows
   }, [groups, groupMenu, groupName])
 
@@ -198,11 +200,11 @@ export default function AddGameDialog({
 
   function submit(): void {
     if (!title.trim()) {
-      setError('ゲーム名を入力してください')
+      setError(t('ゲーム名を入力してください'))
       return
     }
     if (!exePath.trim()) {
-      setError('実行ファイルを選択してください')
+      setError(t('実行ファイルを選択してください'))
       return
     }
     onSubmit({
@@ -244,7 +246,7 @@ export default function AddGameDialog({
                 checked={useThumbnailAsDefault}
                 onChange={(e) => setUseThumbnailAsDefault(e.target.checked)}
               />
-              <span className="setting-text">Use game thumbnail as default</span>
+              <span className="setting-text">{t('サムネイルを使用')}</span>
             </label>
           </div>
 
@@ -305,10 +307,18 @@ export default function AddGameDialog({
                     checked={useShortName}
                     onChange={(e) => setUseShortName(e.target.checked)}
                   />
+                  {/* Penpot writes this over two lines with the break in the
+                      middle of the sentence; where the other language breaks it
+                      is the other language's, so the run carries its own. */}
                   <span className="setting-text small">
-                    if there is not enoght space to display the name,
-                    <br />
-                    short name will be displayed instead
+                    {t('GAME NAMEを表示するスペースが足りない場合、\nSHORT NAMEを代わりに表示')
+                      .split('\n')
+                      .map((line, index) => (
+                        <span key={index}>
+                          {index > 0 && <br />}
+                          {line}
+                        </span>
+                      ))}
                   </span>
                 </label>
               </div>
@@ -344,8 +354,8 @@ export default function AddGameDialog({
                             setGroupName('')
                             setGroupMenu('none')
                           }}
-                          title="グループを外す"
-                          aria-label="グループを外す"
+                          title={t('グループを外す')}
+                          aria-label={t('グループを外す')}
                         >
                           <i className="fa-solid fa-xmark" />
                         </button>
@@ -355,8 +365,8 @@ export default function AddGameDialog({
                       <button
                         className="split-input-button small-caret"
                         onClick={() => setGroupMenu((menu) => (menu === 'all' ? 'none' : 'all'))}
-                        title="グループ一覧"
-                        aria-label="グループ一覧"
+                        title={t('グループ一覧')}
+                        aria-label={t('グループ一覧')}
                         aria-expanded={groupMenu !== 'none'}
                       >
                         ▼
@@ -369,7 +379,12 @@ export default function AddGameDialog({
                         top={GROUP_MENU_TOP}
                         left={0}
                         width={GROUP_MENU_WIDTH}
-                        maxRows={GROUP_MENU_ROWS}
+                        /* The groups are what the count is of; the row that
+                           adds one is not one of them, and the suggestions
+                           leave it off entirely. */
+                        maxRows={
+                          GROUP_MENU_ROWS + (groupOptions[0]?.key === ADD_GROUP_KEY ? 1 : 0)
+                        }
                         onPick={(key) => {
                           setGroupMenu('none')
                           if (key === ADD_GROUP_KEY) {
@@ -407,7 +422,7 @@ export default function AddGameDialog({
                       ))}
                     </div>
                     <div className="split-input-divider" />
-                    <button className="split-input-button" onClick={addChip} title="タグを追加">
+                    <button className="split-input-button" onClick={addChip} title={t('タグを追加')}>
                       ADD
                     </button>
                   </div>
@@ -435,7 +450,7 @@ export default function AddGameDialog({
                 checked={useExeIcon}
                 onChange={(e) => setUseExeIcon(e.target.checked)}
               />
-              <span className="setting-text">Use the executable file icon</span>
+              <span className="setting-text">{t('実行ファイルのアイコンを使用')}</span>
             </label>
           </div>
 

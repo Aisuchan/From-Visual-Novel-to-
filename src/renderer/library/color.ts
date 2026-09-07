@@ -20,6 +20,22 @@ export const SWATCHES = [
 
 export const HEX = /^#[0-9a-f]{6}$/i
 
+/** How much of the Template Color palette a ring of games keeps. Those
+    swatches are drawn for one plate at a time; a ring of a dozen wedges in
+    them, with the same dozen again down a histogram and once more in a legend,
+    is a great deal of pure colour at once and reads as noise. A quarter of the
+    saturation comes off and the lightness is left where it is. */
+const RANK_SATURATION = 0.75
+
+/** The colour a game is drawn in wherever its play time is: the PlayTime
+    Graph's ring, its bars and its list, and a day's own ring on the Plan
+    panel. Games carry no colour of their own — a route does — so it comes off
+    the game's rank in whatever is being read, out of the app's own Template
+    Color palette, with that palette held back to the figure above. */
+export function colorForRank(rank: number): string {
+  return desaturate(SWATCHES[rank % SWATCHES.length], RANK_SATURATION)
+}
+
 /**
  * The same hue at the same lightness, with the colour taken out of it by
  * `factor` — 1 leaves it alone, 0 makes it grey. It is HSL saturation rather

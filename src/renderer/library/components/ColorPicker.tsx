@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { clamp01, hexToHsv, hsvToHex } from '../color'
 import './ColorPicker.css'
+import { t } from '../../../shared/i18n'
 
 interface Props {
   /** #rrggbb. A colour from anywhere else — a code field, a swatch — moves the
@@ -67,7 +68,7 @@ export default function ColorPicker({ color, onChange, className }: Props): Reac
           setHue(next)
           write(hsvToHex(next, saturation, brightness))
         }}
-        aria-label="色相"
+        aria-label={t('色相')}
       />
       <div
         className="color-picker-square"

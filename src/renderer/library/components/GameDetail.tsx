@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { GameWithStats, ProgressState, Route, Tag } from '../../../shared/db-types'
-import { mediaUrl } from '../../../shared/media-url'
+import { isVideoPath, mediaUrl } from '../../../shared/media-url'
 import { useContextMenuDismiss } from '../context-menu'
 import { formatLastPlayed, formatPlaytime, splitPlaytime } from '../format'
 import { GEAR_PATH, GEAR_VIEW_BOX } from '../gear'
@@ -14,6 +14,7 @@ import PlayLog from './PlayLog'
 import RoutePanel from './RoutePanel'
 import TagChip from './TagChip'
 import './GameDetail.css'
+import { t } from '../../../shared/i18n'
 
 interface Props {
   game: GameWithStats
@@ -30,6 +31,8 @@ interface Props {
   onCelebrate: (celebrating: boolean) => void
   /** Runs confetti1 in the finale's place, for a route marked cleared. */
   onCelebrateRoute: () => void
+  /** The Play log can take a session off the game, which moves its totals. */
+  onGamesChanged: () => void
 }
 
 /* Penpot "Under decoration" geometry, in the 1585px content space: the rule
@@ -78,13 +81,27 @@ const SIDE_SHIFT = 1065.5
 const OFF_SHIFT = SIDE_SHIFT + 830
 const SLOT_OFFSETS = [-2, -1, 0, 1, 2]
 
-/* Not in the design: the mark the Progress triangle carries. The incentre of
-   the 265x246 triangle — (190.3, 74.7), the point equidistant from all three
-   edges — leaves a turned mark the most room, but reads as crowded into the
-   corner; the centroid is a little down and in from it and still clears every
-   edge at the sizes used (measured). */
+/* Not in the design: where the mark the Progress triangle carries stands.
+   The incentre of the 265x246 triangle — (190.3, 74.7), the point equidistant
+   from all three *edges* — reads as crowded into the corner; the centroid is a
+   little down and in from it and is where a score stands.
+
+   **A square glyph does not have the same middle as a score.** What has to
+   clear the three edges is not the point but the turned box around it, and how
+   far a box reaches towards an edge depends on its shape: 未/途/完 are very
+   nearly square (measured ink, 95x91 at 100px) and reach almost as far towards
+   the hypotenuse as towards the top, where a score is wide and short (61 tall,
+   36.5 to a figure) and hardly reaches the hypotenuse at all. So at the
+   centroid the glyphs came out with 10 of air against the hypotenuse and 20
+   against the right edge — even room being what reads as centred, they sat
+   into the lower-left corner. Their own point is the one that makes all three
+   equal for *their* box: 5 to the right of the centroid and 1 below it, which
+   leaves 9.5 on every side at the size the CSS then takes them up to. The
+   score keeps the centroid, its own three coming out even enough there. */
 const PROGRESS_MARK_X = (0 + 265 + 265) / 3
 const PROGRESS_MARK_Y = (0 + 246 + 0) / 3
+const GLYPH_MARK_X = 182
+const GLYPH_MARK_Y = 83
 
 /**
  * What the triangle reads. A game the player has set by hand keeps that;
@@ -92,21 +109,86 @@ const PROGRESS_MARK_Y = (0 + 246 + 0) / 3
  * is 未, anything else is 途. Cleared is only ever set by hand, and shows the
  * score it was given, or 完 when it was cleared without one.
  */
+/* **未/途/完 read as N/P/C in English, and a letter is not a square.** The
+   glyph's point and its size were worked out for ink that is very nearly square
+   (95x91 at 100px); a Girassol capital is narrower and its cap height is about
+   0.7em, so it takes a size of its own to come to the same ink. It keeps the
+   glyphs' own point, being closer to their box than to a score's wide, short
+   one. */
+function isSquareGlyph(text: string): boolean {
+  return /[\u3040-\u30ff\u3400-\u9fff]/.test(text)
+}
+
 function progressMark(game: GameWithStats): { text: string; scored: boolean } {
   const played = game.stats.hasSessions || game.stats.totalPlaySeconds > 0
   const state = game.progressState ?? (played ? 'playing' : 'unplayed')
   if (state === 'cleared') {
     return game.clearScore === null
-      ? { text: '完', scored: false }
+      ? { text: t('完'), scored: false }
       : { text: String(game.clearScore), scored: true }
   }
-  return { text: state === 'playing' ? '途' : '未', scored: false }
+  return { text: t(state === 'playing' ? '途' : '未'), scored: false }
 }
 
 function slotTransform(offset: number): string {
   if (offset === 0) return 'translateX(0) scale(1)'
   const shift = (Math.abs(offset) === 1 ? SIDE_SHIFT : OFF_SHIFT) * Math.sign(offset)
   return `translateX(${shift}px) scale(${SIDE_SCALE})`
+}
+
+/**
+ * One clip in the Middle row's carousel.
+ *
+ * **Whether it plays cannot be a prop on the element.** `autoplay` and `muted`
+ * are read by a media element as it is created and never again, and the slots
+ * are *reused* across a step: a slot's key is the entry it holds, so the
+ * element that was the neighbour becomes the middle one with nothing but its
+ * className and its transform changed — the clip that had just been stepped to
+ * therefore never started, and a carousel opening on a picture (which it
+ * always does, the thumbnail being one) meant a clip never played at all. So
+ * playing is done to the element rather than declared on it, from an effect
+ * that runs on every change of which slot this is.
+ *
+ * A clip that is not in the middle is stopped and wound back, so the sliver at
+ * the row's edge is its first frame rather than wherever it had got to; and it
+ * is silenced whatever the row is set to, one clip being what the speaker is
+ * about. `play()` is refused rather than thrown when the browser will not have
+ * it, which is why the promise is caught: a muted clip is always allowed, and
+ * the sound is only ever turned on by a press.
+ */
+function CarouselClip({
+  src,
+  center,
+  muted
+}: {
+  src: string
+  center: boolean
+  muted: boolean
+}): React.JSX.Element {
+  const ref = useRef<HTMLVideoElement | null>(null)
+
+  useEffect(() => {
+    const clip = ref.current
+    if (!clip) return
+    clip.muted = muted || !center
+    if (center) {
+      void clip.play().catch(() => undefined)
+    } else {
+      clip.pause()
+      clip.currentTime = 0
+    }
+  }, [center, muted, src])
+
+  return (
+    <video
+      ref={ref}
+      src={src}
+      muted
+      loop
+      playsInline
+      preload={center ? 'auto' : 'metadata'}
+    />
+  )
 }
 
 export default function GameDetail({
@@ -118,7 +200,8 @@ export default function GameDetail({
   onOpenThumbnails,
   onSetProgress,
   onCelebrate,
-  onCelebrateRoute
+  onCelebrateRoute,
+  onGamesChanged
 }: Props): React.JSX.Element {
   const lastPlayed = formatLastPlayed(game.stats.lastPlayedAt)
   const detailRef = useRef<HTMLElement | null>(null)
@@ -132,6 +215,12 @@ export default function GameDetail({
   const [carousel, setCarousel] = useState<string[]>([])
   const [imageIndex, setImageIndex] = useState(0)
   const [animated, setAnimated] = useState(false)
+  /* Whether the clip in the middle of the carousel is silent. It starts that
+     way — a board opening with sound coming out of it is not something anyone
+     asked for, and Chromium will not autoplay an unmuted clip either — and the
+     speaker on the Main Image is what turns it round. It is the row's choice
+     rather than each clip's, so stepping to the next clip keeps it. */
+  const [clipMuted, setClipMuted] = useState(true)
   const [editing, setEditing] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
   const [infoFlipped, setInfoFlipped] = useState(false)
@@ -459,7 +548,7 @@ export default function GameDetail({
             progressOpener.current = event.currentTarget
             setProgressMenu(designPointWithin(event.clientX, event.clientY))
           }}
-          title="右クリックで進行状況を変更"
+          title={t('右クリックで進行状況を変更')}
         >
           <svg className="game-progress-shape" viewBox="0 0 265 246" preserveAspectRatio="none">
             <path
@@ -473,8 +562,11 @@ export default function GameDetail({
           <span
             className={`progress-mark ${mark.scored ? 'scored' : ''} ${
               mark.text.length > 2 ? 'wide' : ''
-            }`}
-            style={{ left: `${PROGRESS_MARK_X}px`, top: `${PROGRESS_MARK_Y}px` }}
+            } ${!mark.scored && !isSquareGlyph(mark.text) ? 'letter' : ''}`}
+            style={{
+              left: `${mark.scored ? PROGRESS_MARK_X : GLYPH_MARK_X}px`,
+              top: `${mark.scored ? PROGRESS_MARK_Y : GLYPH_MARK_Y}px`
+            }}
           >
             {mark.text}
           </span>
@@ -502,7 +594,36 @@ export default function GameDetail({
                     center ? '' : `side ${offset < 0 ? 'side-left' : 'side-right'}`
                   }`}
                 >
-                  {src ? <img src={mediaUrl(src)} alt={center ? game.title : ''} /> : null}
+                  {/* The carousel is the gallery, and the gallery holds clips
+                      as well as pictures. **The one in the middle plays**, on
+                      a loop, the way it does in the gallery's own grid; the
+                      two beside it are slivers of the neighbours and stand as
+                      their first frame. No control bar is drawn over the
+                      design's Main Image — the row's one control is the gear —
+                      but the sound is a choice, so the one thing it carries is
+                      a speaker. */}
+                  {src ? (
+                    isVideoPath(src) ? (
+                      <>
+                        <CarouselClip src={mediaUrl(src)} center={center} muted={clipMuted} />
+                        {center ? (
+                          <button
+                            className={`main-image-sound${clipMuted ? '' : ' is-on'}`}
+                            onClick={() => setClipMuted((on) => !on)}
+                            aria-pressed={!clipMuted}
+                          >
+                            <i
+                              className={`fa-solid ${
+                                clipMuted ? 'fa-volume-xmark' : 'fa-volume-high'
+                              }`}
+                            />
+                          </button>
+                        ) : null}
+                      </>
+                    ) : (
+                      <img src={mediaUrl(src)} alt={center ? game.title : ''} />
+                    )
+                  ) : null}
 
                   {center ? (
                     /* Revealed at 50% while the image is hovered — or parked in
@@ -510,8 +631,6 @@ export default function GameDetail({
                     <button
                       className={`main-image-setting ${imageCount === 0 ? 'centered' : ''}`}
                       onClick={onOpenThumbnails}
-                      title="画像を追加 / サムネイルを変更"
-                      aria-label="画像を追加 / サムネイルを変更"
                     >
                       <svg viewBox={GEAR_VIEW_BOX} aria-hidden="true">
                         <path d={GEAR_PATH} />
@@ -521,7 +640,7 @@ export default function GameDetail({
                     <button
                       className="carousel-side-hit"
                       onClick={() => stepImage(offset < 0 ? -1 : 1)}
-                      aria-label={offset < 0 ? '前の画像' : '次の画像'}
+                      aria-label={offset < 0 ? t('前の画像') : t('次の画像')}
                     />
                   )}
                 </div>
@@ -534,7 +653,7 @@ export default function GameDetail({
           className="nav-arrow prev"
           onClick={() => stepImage(-1)}
           disabled={imageCount <= 1}
-          aria-label="前の画像"
+          aria-label={t('前の画像')}
         >
           <svg viewBox="0 0 43.29 86.58">
             <path d="M43.29,0 L43.29,86.58 L0,43.29 Z" fill="#B1B2B5" />
@@ -545,7 +664,7 @@ export default function GameDetail({
           className="nav-arrow next"
           onClick={() => stepImage(1)}
           disabled={imageCount <= 1}
-          aria-label="次の画像"
+          aria-label={t('次の画像')}
         >
           <svg viewBox="0 0 43.29 86.58">
             <path d="M0,0 L0,86.58 L43.29,43.29 Z" fill="#B1B2B5" />
@@ -587,7 +706,6 @@ export default function GameDetail({
                   value={draft.hours}
                   onChange={(e) => onDigits('hours', e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && commitEdit()}
-                  aria-label="プレイ時間（時）"
                 />
                 h
                 <input
@@ -595,7 +713,6 @@ export default function GameDetail({
                   value={draft.minutes}
                   onChange={(e) => onDigits('minutes', e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && commitEdit()}
-                  aria-label="プレイ時間（分）"
                 />
                 m
               </span>
@@ -603,7 +720,7 @@ export default function GameDetail({
               <span
                 className="stat-value editable"
                 onClick={beginEdit}
-                title="クリックしてプレイ時間を編集"
+                title={t('クリックしてプレイ時間を編集')}
               >
                 {formatPlaytime(game.stats.totalPlaySeconds)}
               </span>
@@ -700,10 +817,10 @@ export default function GameDetail({
         <ContextMenu
           style={{ right: `${UNDER_WIDTH - progressMenu.x}px`, top: `${progressMenu.y}px` }}
           items={[
-            { label: '未プレイ表記に変更', onSelect: () => setProgress('unplayed', null) },
-            { label: 'プレイ途中表記に変更', onSelect: () => setProgress('playing', null) },
+            { label: t('未プレイ表記に変更'), onSelect: () => setProgress('unplayed', null) },
+            { label: t('プレイ途中表記に変更'), onSelect: () => setProgress('playing', null) },
             {
-              label: 'クリア状態にする',
+              label: t('クリア状態にする'),
               onSelect: () => {
                 setProgressMenu(null)
                 setScoring(game.clearScore === null ? '' : String(game.clearScore))
@@ -722,10 +839,15 @@ export default function GameDetail({
       )}
 
       {playLogMounted && (
-        <PlayLog game={game} open={playLogOpen} onClosed={() => setPlayLogMounted(false)} />
+        <PlayLog
+          game={game}
+          open={playLogOpen}
+          onClosed={() => setPlayLogMounted(false)}
+          onGamesChanged={onGamesChanged}
+        />
       )}
 
-      {isPlaying && <div className="playing-badge">プレイ中…</div>}
+      {isPlaying && <div className="playing-badge">{t('プレイ中…')}</div>}
     </section>
   )
 }

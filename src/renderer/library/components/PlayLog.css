@@ -190,3 +190,11 @@
   opacity: 1;
   transition: opacity 0.12s ease 0.28s;
 }
+
+/* Not in the design: a row that can be taken off says so under the pointer,
+   the way every other thing in the app that answers a right-click does. The
+   rows the library works out rather than stores — the first launch, the
+   registration — carry no mark, there being nothing to take off them. */
+.play-log-row.removable {
+  cursor: context-menu;
+}

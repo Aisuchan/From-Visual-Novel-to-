@@ -31,15 +31,82 @@
   filter: brightness(1.18);
 }
 
-/* Penpot: Date — "08/01 (Sat.)" / "11:23:58" Girassol 28px, #657786 */
+/* Penpot: Date — 297x56, which is its 20px of side padding around a 141-wide
+   day, a 15px gap and a 101-wide clock. The design writes "08/01 (Sat.)" and
+   "11:23:58" in those two boxes at Girassol 28px in #657786; both are gone,
+   and what stands in the slot is the design's own Year Progress Bar.
+
+   **The slot keeps the design's own 297 all the same.** The footer is
+   `space-between`, so every other run in it is placed by what this one comes
+   to: left to be as wide as the bar and the share made it, the slot ran 374
+   and pushed the Play Time, the Notification and the icons along by 77. The
+   bar takes what the share leaves of the 297 instead, which is what the row
+   below says. */
 .footer-date {
+  box-sizing: border-box;
+  width: 297px;
+  flex-shrink: 0;
   display: flex;
-  gap: 15px;
+  align-items: center;
+  /* The design's own gap between the two runs it puts in this slot. */
+  column-gap: 15px;
   padding: 0 20px;
+}
+
+/* Penpot: Year Progress Bar — 264x36, fill #14171a, a 5px #657786 stroke and
+   no radius, `overflow: hidden`, a row centred and packed to the start with
+   10px of padding either side. The stroke is an inner one, so it is an inset
+   shadow rather than a border, for the reason the Setting board's are: a
+   border comes out of the box and would take the bar to 254x26.
+
+   The design draws it at 0%, so the fill is the one thing here that is not
+   its own — and it is the run's own #657786, which is why the run stands
+   past the bar's right edge rather than on it. The design's own flex row and
+   its 10px of padding are gone with the run they held: what is left inside
+   the bar is the fill, which fills it.
+
+   **Its 264 is given up rather than the slot's 297.** The share stands
+   outside the bar, so the two together are wider than the bar the design
+   drew — and of the pair it is the bar that can be any length and still say
+   what it says, where the share is a figure that has to be read. So the bar
+   is what is shortened: it takes whatever the 297 has left once the share and
+   the design's own gap and padding are out of it, which comes to about 180. */
+.footer-year {
+  position: relative;
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 5px var(--color-text-dim);
+  overflow: hidden;
+}
+
+.footer-year-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: var(--color-text-dim);
+}
+
+/* Penpot: "0%" — Girassol 400, 24px, #657786, line-height 1.2. The design
+   writes it inside the bar; it stands past the bar's right edge here, on the
+   footer's own ground, since the fill behind it is that same #657786.
+   Tabular figures are not the design's: the run is written every second, and
+   a proportional last digit shifts the two before it as it turns over. */
+/* The room it holds is the widest it ever comes to — four figures, the point
+   and the sign — so the bar beside it is one length all year rather than
+   giving a digit's width back on the day the share reaches ten per cent. The
+   figures being tabular, a digit is exactly 1ch. */
+.footer-year-percent {
+  min-width: 5.6ch;
+  text-align: right;
   font-family: var(--font-display);
-  font-size: 28px;
+  font-size: 24px;
   line-height: 1.2;
   color: var(--color-text-dim);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -52,13 +119,69 @@
   white-space: nowrap;
 }
 
+/* Not in the design: the row's own box, taken to the footer's whole height so
+   that the board it puts up can be placed against it — its top edge is the
+   footer's content edge, which is the underside of the 4px rule, and its middle
+   is the run's own middle. See `.notification-board`. */
+.footer-notification-slot {
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  /* How far the board it puts up is moved off the slot's own middle to land on
+     the *word's*: the mark stands to the left of the run (10 wide with 8 of
+     margin), so with it there the run's middle is 9 to the right of the box's,
+     and with it gone the two are the same point. */
+  --notice-shift: 0px;
+}
+
+.footer-notification-slot.is-due {
+  --notice-shift: 9px;
+}
+
 /* Penpot: "Notification▲" — Girassol, "Notification" 28px and "▲" 18px, #657786 */
+/* It is a button now — it puts today's own plans up — so it gives up the
+   chrome a button carries and keeps the design's run exactly as it was. */
 .footer-notification {
+  padding: 0;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
   font-family: var(--font-display);
   font-size: 28px;
   line-height: 1.2;
   color: var(--color-text-dim);
   white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+/* Nothing to put up: the design's own inert row. */
+.footer-notification:disabled {
+  cursor: default;
+}
+
+/* While it stands for something, it is written in the app's own text rather
+   than the footer's dim ink, and comes up under the pointer the way every
+   other control does. */
+.footer-notification.is-due {
+  color: var(--color-text);
+}
+
+.footer-notification.is-due:hover {
+  color: var(--color-text-bright);
+}
+
+/* Not in the design: the mark that says the row is standing for something —
+   the same red the plans' own marks carry, without their ring: it is on the
+   footer's own ground rather than on a plate in a plan's colour. */
+.footer-notification-dot {
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--color-danger-bright);
 }
 
 .footer-notification-caret {
@@ -72,6 +195,13 @@
   align-items: center;
   justify-content: flex-end;
   gap: 7px;
+  /* Not in the design, which runs the row flush to the canvas edge: two thirds
+     of the 20 the Date carries either side of itself. It is a shift rather
+     than a margin because the footer is `space-between` — a margin would take
+     those pixels out of the free space and move the Date, the Play Time and
+     the Notification with it, and this row is the only one meant to move. */
+  position: relative;
+  right: 13.333px;
 }
 
 /* Penpot draws these as emoji at 48px (⚙ at 62px). As Font Awesome glyphs they

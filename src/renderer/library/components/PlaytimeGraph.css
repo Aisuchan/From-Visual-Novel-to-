@@ -856,3 +856,304 @@
   color: var(--color-text-muted);
   text-align: right;
 }
+
+/* Penpot draws two Rectangles on the board itself rather than in a column,
+   which is why both of these are absolute against `.graph-board`. Each is
+   #2a2d31 under a 1px #657786 stroke; the stroke is an inner one and so an
+   inset shadow, for the reason the Setting board's are — a border would come
+   out of the box and take a plate 2px in on every side.
+
+   **Each is set against the rule it stands on rather than beside it**: this
+   one is pulled a pixel below the board so its own stroke lands *in* the
+   footer's 4px rule, and the plate above is pulled a pixel up into the
+   header's 2px one. All three are the same #657786, so a plate then hangs off
+   one line; sitting flush, the two strokes read as a thicker rule with a seam
+   down it.
+
+   The filters take the design's **bottom** Rectangle — 1117x50 at 468/935,
+   which begins clear of the ◀ Calender the left column carries at 30 and ends
+   on the board's own right edge. That 935 is 51 above the board's 986, which
+   is the plate standing on the footer — and only this board's height flexes,
+   so it is held to the *bottom* rather than at that literal top, which in a
+   taller window would leave it floating in the room the window added. The
+   1117 is also what lets the two controls keep the Home board's own widths:
+   its 331 pill fits here as drawn. */
+.graph-filters {
+  position: absolute;
+  bottom: -1px;
+  left: 468px;
+  box-sizing: border-box;
+  width: 1117px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  column-gap: 15px;
+  padding: 0 15px;
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 1px var(--color-text-dim);
+  z-index: 2;
+}
+
+/* The two halves share what the plate leaves: the Group pill takes Penpot's
+   own 331 and the tag row has the rest, which is what puts the chips where
+   the room is — a group is one name and the tags are as many as are asked
+   for. */
+.graph-filter-half {
+  height: 100%;
+  flex: 0 0 331px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.graph-filter-half.tags {
+  flex: 1;
+  column-gap: 10px;
+}
+
+/* The one mark between them, at the weight the board's own rules are. */
+.graph-filter-rule {
+  width: 1px;
+  height: 26px;
+  flex-shrink: 0;
+  background: var(--color-text-dim);
+}
+
+/* The Home board's Group Select — a field and its caret button squared off
+   into one pill — at this plate's own height. Every figure is that board's
+   scaled to the 36 a 50-tall plate leaves room for: the 52 pill becomes 36,
+   its 30px radius 18, and the 35px run 24. **The pill is filled in the
+   board's ground rather than the plate's**: on the Home board a #2a2d31 pill
+   stands on the #14171a board, and here the plate under it is already
+   #2a2d31, so the two colours change places or there is no control to see. */
+.graph-select {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  transition: filter 0.15s ease;
+}
+
+.graph-select:hover,
+.graph-add-tag:hover {
+  filter: brightness(1.25);
+}
+
+.graph-select-value {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 30px;
+  background: var(--color-bg);
+  border-radius: 20px 0 0 20px;
+}
+
+/* The typed half. A group's name is free text, so this is a field rather than
+   a label; it carries no ring of its own — the caret is what says where the
+   typing goes, which is what every other filter field in the app does. It
+   cannot step its own size down the way `FitLabel` does, so a name past the
+   box scrolls. */
+.graph-select-input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 40px;
+  color: var(--color-text);
+  cursor: text;
+}
+
+.graph-select-input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+.graph-select-input:focus-visible,
+.graph-select-caret:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Penpot: Show Groups — the caret's own half of the pill, its glyph held to
+   the left of it the way the Home board's is. */
+.graph-select-caret {
+  width: 50px;
+  height: 100%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 15px 0 10px;
+  background: var(--color-bg);
+  border: none;
+  border-radius: 0 20px 20px 0;
+  cursor: pointer;
+}
+
+.graph-caret-glyph {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+}
+
+/* Penpot: Add Tag — the Home board's own pill, squared off (only the tags
+   themselves are rounded) and filled in the board's ground for the reason the
+   Group pill is. */
+.graph-add-tag {
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 15px;
+  background: var(--color-bg);
+  border: none;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.graph-tag-rule {
+  width: 1px;
+  height: 34px;
+  flex-shrink: 0;
+  background: var(--color-border);
+}
+
+/* What is left of the plate. Past its end the row is scrolled rather than cut
+   off — a chip that has silently gone is a filter no one can see — and on no
+   scrollbar at all: any bar is drawn out of the row's own height and would
+   push the chips off it, which is why the wheel is turned sideways in the
+   component instead. */
+.graph-tag-container {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  column-gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.graph-tag-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* The chip is the app's own (`TagChip`), at the Home board's own 34 and 25 —
+   the plate is 50 tall, so what that board draws fits here as drawn. */
+.graph-tag-container .tag-chip {
+  height: 34px;
+  padding: 0 10px 0 15px;
+  background: var(--color-bg);
+  border-radius: 50px;
+  font-size: 25px;
+  color: var(--color-text-muted);
+}
+
+.graph-chip-label {
+  font-family: var(--font-display);
+  font-size: 25px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* Penpot: Rectangle — 1117x50 at 468/935, the same plate. It ends on the
+   board's own right edge and begins clear of the "◀ Calender" the left column
+   carries at 30. */
+/* The averages take the design's **top** Rectangle — 600x50 at 986/0. Its own
+   986 + 600 is 1586, a pixel past the board's 1585: the figure is the
+   design's and the pixel falls off the edge. It is set a pixel above the
+   board so its stroke lands in the header's rule, for the reason the plate at
+   the foot is set a pixel below.
+
+   Three figures and their labels in 600 rather than 1117, so the run is set
+   smaller than it was at the foot — the whole of it comes to about 490 of the
+   570 the padding leaves. **What is left over is put between them rather than
+   around them**: the four parts are spread across the plate's whole width, so
+   the air is the space that tells one figure from the next instead of a
+   margin on either end of a run huddled in the middle. */
+.graph-averages {
+  position: absolute;
+  top: -1px;
+  left: 986px;
+  box-sizing: border-box;
+  width: 600px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  /* **The figures are one box, and it is given the same air on both sides.**
+     With the head standing in the `space-between` beside them, the four parts
+     shared the plate out between themselves: the last figure ended on the
+     padding's own 20 while the gap after the head came to half as much again,
+     and the right end read as tight against the frame. So the head keeps the
+     plate's left padding and everything after it is `.graph-average-units`,
+     whose left air is this gap and whose right air is the padding beside it —
+     one figure written twice, so the box cannot come off centre whatever the
+     figures in it come to. 30 rather than 20, the right end being what was
+     asked for more of. */
+  column-gap: 30px;
+  padding: 0 30px 0 20px;
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 1px var(--color-text-dim);
+  z-index: 2;
+}
+
+/* The whole plate is one run — 「平均: 1日 0h00m 1週間 0h00m 1ヶ月 0h00m」 —
+   so what it says is read once at its head rather than three times over. */
+.graph-average-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+/* The figures stand a fixed 40 apart and the box is **centred** in what the
+   head leaves rather than stretched across it. Shared out with `space-between` instead, the three
+   were pushed as far apart as the plate would allow and read as three separate
+   runs rather than one; holding the gap and centring what it comes to keeps
+   them together, and the slack falls to either end of the box, which leaves
+   the air on both sides the same whatever the figures come to. */
+.graph-average-units {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  column-gap: 40px;
+}
+
+/* A label and its figure on one line: the label in the board's dim ink and the
+   figure in its text, so the three read as three figures rather than six
+   runs. */
+.graph-average {
+  display: flex;
+  align-items: baseline;
+  column-gap: 10px;
+}
+
+.graph-average-label {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+.graph-average-value {
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1.2;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

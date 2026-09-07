@@ -1,6 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { GameWithStats, Route, Session } from '../../../shared/db-types'
+import { useContextMenuDismiss } from '../context-menu'
+import { formatFullDate } from '../format'
+import ConfirmDialog from './ConfirmDialog'
+import ContextMenu from './ContextMenu'
 import './PlayLog.css'
+import { t } from '../../../shared/i18n'
 
 interface Props {
   game: GameWithStats
@@ -8,7 +13,18 @@ interface Props {
   open: boolean
   /** Fired once the closing slide has finished, so GameDetail can unmount. */
   onClosed: () => void
+  /** A row taken off the log moves the game's totals, so the shell reads the
+      library again. */
+  onGamesChanged: () => void
 }
+
+/** Penpot: Play log — 547 wide, which is what a measured rect is divided by to
+    put the right-click menu where the pointer is. The plate is 201 wide and
+    one row tall, and the board clips what runs past it, so both are pulled
+    back inside. */
+const LOG_WIDTH = 547
+const MENU_WIDTH = 201
+const MENU_HEIGHT = 70
 
 /** The row tints Penpot gives the route/game clear entries. */
 type LogTone = 'route-cleared' | 'game-cleared' | null
@@ -26,6 +42,10 @@ interface LogEntry {
   tone: LogTone
   /** Milliseconds, for the rows the timeline orders among themselves. */
   at?: number
+  /** What a right-click on this row can take away, where anything can. A row
+      the library works out rather than stores — the first launch, the
+      registration — carries nothing and opens no menu. */
+  remove?: { what: string; run: () => Promise<unknown> }
 }
 
 /**
@@ -39,8 +59,7 @@ function toDate(stamp: string): Date {
 function formatDate(stamp: string): string {
   const date = toDate(stamp)
   if (Number.isNaN(date.getTime())) return '--'
-  const pad = (n: number): string => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  return formatFullDate(date)
 }
 
 /** Penpot writes durations "99 : 99", i.e. hours and minutes, both padded. */
@@ -59,9 +78,27 @@ function formatSpan(totalSeconds: number): string {
  * `PLAYED "HEROINE1"` row — a session attributed to a route — is not produced;
  * a session is banked on the active route but not filed under it.
  */
-export default function PlayLog({ game, open, onClosed }: Props): React.JSX.Element {
+export default function PlayLog({
+  game,
+  open,
+  onClosed,
+  onGamesChanged
+}: Props): React.JSX.Element {
   const [sessions, setSessions] = useState<Session[] | null>(null)
   const [routes, setRoutes] = useState<Route[]>([])
+  /* Where a right-click landed, in the board's own pixels, and which row it
+     landed on. */
+  const [menu, setMenu] = useState<{ entry: LogEntry; x: number; y: number } | null>(null)
+  /* The row a confirmation is standing over. Nothing on this board is undone
+     by another press, so every one of them is asked about first — the same
+     board the side panel asks with. */
+  const [removing, setRemoving] = useState<LogEntry | null>(null)
+  const menuOpener = useContextMenuDismiss(menu !== null, () => setMenu(null))
+
+  const reload = useCallback((): void => {
+    window.library.listSessions(game.id).then(setSessions)
+    window.library.listRoutes(game.id).then(setRoutes)
+  }, [game.id])
 
   useEffect(() => {
     let cancelled = false
@@ -88,7 +125,16 @@ export default function PlayLog({ game, open, onClosed }: Props): React.JSX.Elem
         { text: 'GAME CLEARD', accent: 'clear' },
         { text: `  in  ${formatSpan(game.clearPlaySeconds ?? 0)}` }
       ],
-      tone: 'game-cleared'
+      tone: 'game-cleared',
+      /* The row is the clear, so taking it off is setting the game back —
+         which is exactly what the Progress triangle does, and is why the
+         stamp and the time it holds go with it. It carries no play time of
+         its own: what it writes is a reading of the total, not a part of it. */
+      remove: {
+        what: t('クリア記録'),
+        run: async () =>
+          window.library.setProgress(game.id, 'playing', game.clearScore ?? null)
+      }
     })
   }
 
@@ -107,7 +153,15 @@ export default function PlayLog({ game, open, onClosed }: Props): React.JSX.Elem
         }`
       }
     ],
-    tone: null
+    tone: null,
+    /* The one row that carries play time of its own. Every total in the app is
+       a sum over the sessions table, so the time goes off the game's total —
+       and off the footer, the Calender board's day and the graph's period —
+       with the row itself. */
+    remove: {
+      what: t('この記録 ({0})', formatSpan(session.durationSeconds)),
+      run: () => window.library.deleteSession(game.id, session.id)
+    }
   }))
 
   /* Penpot: `♡ CLEARED "HEROINE1"  in   99 : 99` on a #3a2a2a band, the route's
@@ -124,7 +178,19 @@ export default function PlayLog({ game, open, onClosed }: Props): React.JSX.Elem
         { text: route.name, accent: 'route' },
         { text: `"  in   ${formatSpan(route.clearPlaySeconds ?? 0)}` }
       ],
-      tone: 'route-cleared'
+      tone: 'route-cleared',
+      /* Unticking the route's own box, which is what the CHANGE editor does.
+         The route stays and keeps its banked time; only the crossing goes. */
+      remove: {
+        what: t('「{0}」のクリア記録', route.name),
+        run: () =>
+          window.library.updateRoute(game.id, route.id, {
+            name: route.name,
+            color: route.color,
+            playSeconds: route.playSeconds,
+            cleared: false
+          })
+      }
     })
   }
 
@@ -171,7 +237,28 @@ export default function PlayLog({ game, open, onClosed }: Props): React.JSX.Elem
                it, so hovering lights the strip from one rule to the next; the
                row inside keeps the design's own 29px height and its tint. */
             <div className="play-log-entry" key={entry.key}>
-              <div className={`play-log-row ${entry.tone ?? ''}`}>
+              <div
+                className={`play-log-row ${entry.tone ?? ''}${entry.remove ? ' removable' : ''}`}
+                onContextMenu={(event) => {
+                  if (!entry.remove) return
+                  event.preventDefault()
+                  // The row is what a second right-click on it toggles off.
+                  menuOpener.current = event.currentTarget
+                  const board = event.currentTarget.closest('.play-log') as HTMLElement | null
+                  const box = board?.getBoundingClientRect()
+                  // `.play-log` is 547 design px wide, which is what recovers
+                  // the shell's own scale — the conversion the side panel's
+                  // own menu makes against its 335.
+                  if (!box || box.width <= 0) return
+                  const scale = box.width / LOG_WIDTH
+                  const height = box.height / scale
+                  setMenu({
+                    entry,
+                    x: Math.min((event.clientX - box.left) / scale, LOG_WIDTH - MENU_WIDTH),
+                    y: Math.min((event.clientY - box.top) / scale, height - MENU_HEIGHT)
+                  })
+                }}
+              >
                 <span className="play-log-date">{entry.date}</span>
                 <span className="play-log-text">
                   {entry.runs.map((run, index) => (
@@ -185,6 +272,36 @@ export default function PlayLog({ game, open, onClosed }: Props): React.JSX.Elem
           ))}
         </div>
       </div>
+
+      {menu && menu.entry.remove && (
+        <ContextMenu
+          style={{ top: `${menu.y}px`, left: `${menu.x}px` }}
+          items={[
+            {
+              label: t('削除'),
+              danger: true,
+              onSelect: () => {
+                setRemoving(menu.entry)
+                setMenu(null)
+              }
+            }
+          ]}
+        />
+      )}
+
+      {removing?.remove && (
+        <ConfirmDialog
+          title="delete log"
+          message={t('{0}を削除しますか？', removing.remove.what)}
+          onCancel={() => setRemoving(null)}
+          onConfirm={async () => {
+            await removing.remove!.run()
+            setRemoving(null)
+            reload()
+            onGamesChanged()
+          }}
+        />
+      )}
 
       {/* Penpot: Path — the 164x124 wedge cutting the bottom-right corner */}
       <svg className="play-log-corner" viewBox="0 0 164 124" preserveAspectRatio="none">

@@ -10,7 +10,12 @@ import type {
   ProgressState,
   RoutePatch
 } from '../shared/db-types'
-import type { LibraryApi, SessionEndedPayload, StartSessionRequest } from '../shared/ipc-types'
+import type {
+  LibraryApi,
+  SessionEndedPayload,
+  SessionFailedPayload,
+  StartSessionRequest
+} from '../shared/ipc-types'
 
 const libraryApi: LibraryApi = {
   listGames: () => ipcRenderer.invoke(IpcChannels.GamesList),
@@ -50,7 +55,17 @@ const libraryApi: LibraryApi = {
   listTags: () => ipcRenderer.invoke(IpcChannels.TagsList),
   getSettings: () => ipcRenderer.invoke(IpcChannels.SettingsGet),
   setSettings: (patch) => ipcRenderer.invoke(IpcChannels.SettingsSet, patch),
+  listDisplays: () => ipcRenderer.invoke(IpcChannels.DisplaysList),
+  listSoundEffects: () => ipcRenderer.invoke(IpcChannels.SoundEffectsList),
+  pickBackupDirectory: () => ipcRenderer.invoke(IpcChannels.BackupPickDirectory),
+  restoreBackup: (filePath: string) => ipcRenderer.invoke(IpcChannels.BackupRestore, filePath),
+  pickBackupFile: () => ipcRenderer.invoke(IpcChannels.BackupPickFile),
+  checkBackup: (filePath: string) => ipcRenderer.invoke(IpcChannels.BackupCheck, filePath),
   listSessions: (gameId: number) => ipcRenderer.invoke(IpcChannels.SessionsList, gameId),
+  deleteSession: (gameId: number, sessionId: number) =>
+    ipcRenderer.invoke(IpcChannels.SessionsDelete, gameId, sessionId),
+  showItemInFolder: (filePath: string, fallback?: string | null) =>
+    ipcRenderer.invoke(IpcChannels.ShellShowItem, filePath, fallback ?? null),
   getPlaytimeByDay: (fromDate: string, toDate: string) =>
     ipcRenderer.invoke(IpcChannels.SessionsPlaytimeByDay, fromDate, toDate),
   getPlaytimeByDayAndGame: (fromDate: string, toDate: string) =>
@@ -58,6 +73,8 @@ const libraryApi: LibraryApi = {
   listPlans: (fromDate: string, toDate: string) =>
     ipcRenderer.invoke(IpcChannels.PlansList, fromDate, toDate),
   addPlan: (input: NewPlanInput) => ipcRenderer.invoke(IpcChannels.PlansAdd, input),
+  updatePlan: (planId: number, input: NewPlanInput) =>
+    ipcRenderer.invoke(IpcChannels.PlansUpdate, planId, input),
   deletePlan: (planId: number) => ipcRenderer.invoke(IpcChannels.PlansDelete, planId),
   getFooterStats: () => ipcRenderer.invoke(IpcChannels.GamesFooterStats),
   getLaunchPrefs: (gameId: number) => ipcRenderer.invoke(IpcChannels.LaunchPrefsGet, gameId),
@@ -69,6 +86,13 @@ const libraryApi: LibraryApi = {
     ipcRenderer.on(IpcChannels.SessionEnded, listener)
     return () => ipcRenderer.removeListener(IpcChannels.SessionEnded, listener)
   },
+  onSessionFailed: (cb: (payload: SessionFailedPayload) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: SessionFailedPayload): void =>
+      cb(payload)
+    ipcRenderer.on(IpcChannels.SessionFailed, listener)
+    return () => ipcRenderer.removeListener(IpcChannels.SessionFailed, listener)
+  },
+  resetSettings: () => ipcRenderer.invoke(IpcChannels.SettingsReset),
   minimizeWindow: () => ipcRenderer.send(IpcChannels.WindowMinimize),
   toggleMaximizeWindow: () => ipcRenderer.send(IpcChannels.WindowToggleMaximize),
   closeWindow: () => ipcRenderer.send(IpcChannels.WindowClose),

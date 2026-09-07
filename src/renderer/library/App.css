@@ -17,6 +17,9 @@
 }
 
 .main-column {
+  /* The Calender board's own pages are turned over this column and nothing
+     else, so it is what their `inset: 0` is measured against. */
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -50,6 +53,16 @@
   animation-duration: 500ms;
 }
 
+/* The Calender board's own pages are turned off an empty column rather than
+   off the board: it waits the whole run out and then fades up in its own
+   right. The delay is set inline from `FLIP_TOTAL_MS`, so the two cannot drift
+   apart, and `backwards` is what holds the board off screen through it — an
+   animation with a delay and no fill paints its element as it stands until it
+   starts, which would put the board under the pages from the first frame. */
+.main-column > .board-slot.after-flip {
+  animation-fill-mode: backwards;
+}
+
 @keyframes board-fade-in {
   from {
     opacity: 0;
@@ -68,4 +81,30 @@
   color: var(--color-text-dim);
   font-family: var(--font-display);
   font-size: 40px;
+}
+
+/*
+ * The Setting board's アニメーション row, off.
+ *
+ * Every arrival in the app is a `@keyframes` or a `transition`, so taking both
+ * to nothing is the whole of it: a board is simply there rather than fading
+ * up, a card is in its cell rather than arriving at it, a wedge is drawn
+ * rather than swept on. The delays go with them — an arrival that waits its
+ * turn is what the row is about — so a list does not still be filling in half
+ * a second after it is asked for.
+ *
+ * 0.01ms rather than 0: an animation still runs, so anything listening for its
+ * `animationend` — the legend's rows hand their own plate back on it — is
+ * still told. What this cannot reach is a movement the app times itself, on a
+ * timer or a `requestAnimationFrame` loop; those read `motion.ts`, which is
+ * keyed on this same attribute.
+ */
+:root[data-animations='off'] *,
+:root[data-animations='off'] *::before,
+:root[data-animations='off'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
 }

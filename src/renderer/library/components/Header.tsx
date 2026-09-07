@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import './Header.css'
+import { t } from '../../../shared/i18n'
 
 export default function Header(): React.JSX.Element {
   const [maximized, setMaximized] = useState(false)
@@ -18,21 +19,21 @@ export default function Header(): React.JSX.Element {
         <button
           className="window-control"
           onClick={() => window.library.minimizeWindow()}
-          aria-label="最小化"
+          aria-label={t('最小化')}
         >
           ─
         </button>
         <button
           className="window-control"
           onClick={() => window.library.toggleMaximizeWindow()}
-          aria-label={maximized ? '元のサイズに戻す' : '最大化'}
+          aria-label={maximized ? t('元のサイズに戻す') : t('最大化')}
         >
           {maximized ? '❐' : '□'}
         </button>
         <button
           className="window-control close"
           onClick={() => window.library.closeWindow()}
-          aria-label="閉じる"
+          aria-label={t('閉じる')}
         >
           ✕
         </button>

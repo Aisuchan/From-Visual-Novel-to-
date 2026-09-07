@@ -2,6 +2,38 @@
    (3a42d79e-e96e-80d3-8008-8b9cae85e75a), 450x278. `.dialog-backdrop` comes
    from AddGameDialog.css. */
 
+/* A notice carries a path, which is as long as it is: the sentence keeps the
+   design's 119 as a floor and the board grows under it rather than clipping
+   what it is there to say.
+
+   **The air under the buttons has to be asked for once the height is not.**
+   The design's 278 is the 253 its rows come to plus 25, so that 25 was the
+   board's own leftover rather than anything declared — and a board grown to
+   its content had none of it, which put OK hard against the 5px stroke and
+   reading as hanging out of the frame. Declared as padding it holds either
+   way: the box is `border-box`, so a short message still comes to exactly the
+   design's 278 (253 + 25) and a long one keeps the same 25 under it.
+
+   The sentence takes side padding for the same reason — a path is one
+   unbreakable run and ran edge to edge into the stroke. */
+.delete-confirm.notice {
+  height: auto;
+  min-height: 278px;
+  padding-bottom: 25px;
+}
+
+.delete-confirm.notice .delete-confirm-sentence {
+  height: auto;
+  min-height: 119px;
+  padding: 40px 25px;
+}
+
+/* One button and nothing to put beside it: it keeps its own 180 and stands in
+   the middle of the row. */
+.delete-confirm-actions.notice {
+  justify-content: center;
+}
+
 .delete-confirm {
   width: 450px;
   height: 278px;
@@ -46,6 +78,10 @@
   line-height: 1.2;
   color: var(--color-text);
   text-align: center;
+  /* A message may carry a second line — the file a launch could not find — and
+     a path has nothing in it a browser would break a line at. */
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 /* Penpot: Rectangle — 390x1 #B1B2B5 with 25px below it, drawn as this row's
