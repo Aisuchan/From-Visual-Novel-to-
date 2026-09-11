@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { GameWithStats, ProgressState, Route, Tag } from '../../../shared/db-types'
+import type {
+  GameReference,
+  GameWithStats,
+  ProgressState,
+  Route,
+  Tag
+} from '../../../shared/db-types'
 import { isVideoPath, mediaUrl } from '../../../shared/media-url'
 import { useContextMenuDismiss } from '../context-menu'
 import { formatLastPlayed, formatPlaytime, splitPlaytime } from '../format'
@@ -33,6 +39,9 @@ interface Props {
   onCelebrateRoute: () => void
   /** The Play log can take a session off the game, which moves its totals. */
   onGamesChanged: () => void
+  /** Writes the four values the Game Info board draws, which its own gear
+      edits in place. */
+  onSaveReference: (gameId: number, input: GameReference) => void
 }
 
 /* Penpot "Under decoration" geometry, in the 1585px content space: the rule
@@ -201,7 +210,8 @@ export default function GameDetail({
   onSetProgress,
   onCelebrate,
   onCelebrateRoute,
-  onGamesChanged
+  onGamesChanged,
+  onSaveReference
 }: Props): React.JSX.Element {
   const lastPlayed = formatLastPlayed(game.stats.lastPlayedAt)
   const detailRef = useRef<HTMLElement | null>(null)
@@ -223,6 +233,9 @@ export default function GameDetail({
   const [clipMuted, setClipMuted] = useState(true)
   const [editing, setEditing] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
+  /* Held here rather than in the panel: the panel is mounted by the hover, and
+     what is being typed into it must survive the pointer leaving the mark. */
+  const [infoEditing, setInfoEditing] = useState(false)
   const [infoFlipped, setInfoFlipped] = useState(false)
   // The Play log board slides in and back out, so it outlives the "open" flag
   // by one transition.
@@ -507,10 +520,26 @@ export default function GameDetail({
               className="title-marker"
               ref={markerRef}
               onMouseEnter={() => setShowInfo(true)}
-              onMouseLeave={() => setShowInfo(false)}
+              /* **The board stays while it is being typed into.** It is a hover
+                 otherwise, and a hover that went away as the pointer crossed to
+                 a field would take what had been typed with it. */
+              onMouseLeave={() => {
+                if (!infoEditing) setShowInfo(false)
+              }}
             >
               <i className="fa-solid fa-circle-info" />
-              {showInfo && <GameInfo game={game} flipped={infoFlipped} />}
+              {(showInfo || infoEditing) && (
+                <GameInfo
+                  game={game}
+                  flipped={infoFlipped}
+                  editing={infoEditing}
+                  onEditingChange={(editing) => {
+                    setInfoEditing(editing)
+                    if (!editing) setShowInfo(false)
+                  }}
+                  onSave={(input) => onSaveReference(game.id, input)}
+                />
+              )}
             </span>
           </div>
 
@@ -734,7 +763,7 @@ export default function GameDetail({
               played
             </span>
             <span className="stat-sep">:</span>
-            <span className="stat-value" title={lastPlayed.text}>
+            <span className="stat-value">
               {lastPlayed.lines[0]}
               {lastPlayed.lines[1] ? (
                 <>

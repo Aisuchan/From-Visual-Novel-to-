@@ -62,6 +62,11 @@
   position: absolute;
   inset: 0;
   border: 10px solid var(--color-text-dim);
+  /* **It is a frame, not a lid.** Being positioned, it paints over the board's
+     own children, which are in the ordinary flow — so it lay across the whole
+     panel and took every press that was meant for the mark underneath it. The
+     frame is drawn and nothing else. */
+  pointer-events: none;
 }
 
 /* ----------------------------------------------------------- Top Icon ---- */
@@ -100,12 +105,52 @@
   background: var(--color-border);
 }
 
-/* Penpot: "🔞" — 50px, 60px tall box */
+/* Penpot: "🔞" — 50px, 60px tall box. The design draws it inert; here it is the
+   board's one control, so it takes a button's own plate-less shape and answers
+   the pointer by coming up — a mark that does something ought to say so. */
 .gi-rating {
   height: 60px;
   flex-shrink: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-text);
   font-size: 50px;
   line-height: 60px;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.gi-rating:hover {
+  filter: brightness(1.25);
+}
+
+/* The site's own mark, at the size the emoji it stands in for is drawn at:
+   Penpot sets 🔞 at 50 in a 60px box, and an emoji is ink to the edges of its
+   own em, so 50 square is what the mark has to be to sit where the emoji sat.
+   Both files are square, so nothing is fitted or cropped.
+
+   **It is painted rather than drawn** — the file is a mask (`mask.ts`) and what
+   comes through it is `currentColor`, so the mark is the board's own ink, the
+   same the gear that stands in its place takes, and the button's existing
+   brightness hover lifts it the way it lifted the emoji. */
+.gi-site-mark {
+  width: 50px;
+  height: 50px;
+  display: block;
+  background-color: currentColor;
+}
+
+/* The gear stands in for the mark where there is no page to open. It is drawn
+   at the app's own icon size rather than the emoji's 50, an emoji being ink
+   with its own margins where a glyph is not. */
+.gi-rating.gear {
+  font-size: 38px;
+  color: var(--color-text-muted);
+}
+
+.gi-rating.gear:hover {
+  color: var(--color-text);
 }
 
 /* ------------------------------------------------------------ Content ---- */
@@ -142,6 +187,9 @@
 }
 
 .gi-field {
+  /* The release date's own note hangs off this box's bottom edge; see
+     `.gi-release-language`. */
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -168,6 +216,60 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Not in the design: which of the VN Database's per-language releases the date
+   above it is. It is a note on the figure rather than a part of it — the same
+   relation the clock's own am/pm has to its figure — so it is set at half the
+   date's size and in the board's dim ink.
+
+   **It stands under the date and out of the flow.** The board is a fixed 480
+   and clips what will not fit, so a field grown by a line would push the two
+   score rows off the bottom of it; hung off the field's own bottom edge it
+   costs the layout nothing and sits in the 30 the design leaves between one
+   field and the next. Centred on the field rather than on the date, the two
+   being centred on the same middle. */
+.gi-release-language {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+/* **A value being typed is the same run in the same box.** The board is written
+   to the design's pixel and the gear must not move anything, so the field takes
+   `.gi-value`'s own metrics and adds only what an input needs — no plate, no
+   frame, and the caret to say where the typing goes, which is how every field in
+   this app that has no room for a ring says it. The rule under it is what says
+   the box can be typed in at all. */
+.gi-input {
+  width: 261px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid var(--color-text-dim);
+  border-radius: 0;
+  padding: 0;
+  text-align: center;
+}
+
+.gi-input:focus {
+  outline: none;
+  border-bottom-color: var(--color-accent);
+}
+
+.gi-input::placeholder {
+  color: var(--color-text-dim);
+}
+
+/* The two figures stand side by side in a 70px gap, so neither can have the
+   whole 261: half of what the row leaves, less that gap. */
+.gi-input.narrow {
+  width: 95px;
 }
 
 /* Penpot: Average and Median — flex row, 70px column gap */
@@ -201,4 +303,41 @@
   flex: 1;
   height: 2px;
   background: var(--color-border);
+}
+
+/* Not in the design: OK and CANCEL take the rule's place while the board is
+   being typed into. They are the Plan panel's own pair at the height this band
+   leaves — 63 of the Bottom's 73 — and OK carries the accent the way every
+   committing button in the app does. */
+.gi-actions {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  column-gap: 10px;
+}
+
+.gi-actions button {
+  width: 110px;
+  height: 44px;
+  border-radius: 5px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.gi-actions button:hover {
+  filter: brightness(1.18);
+}
+
+.gi-ok {
+  background: var(--color-accent);
+  border: 2px solid var(--color-text);
+}
+
+.gi-cancel {
+  background: var(--color-bg-alt);
+  border: 2px solid var(--color-text-dim);
 }

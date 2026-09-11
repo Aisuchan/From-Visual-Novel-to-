@@ -22,8 +22,11 @@ LITERAL = re.compile(r"'((?:[^'\\]|\\.)*)'")
 FIRST_ARG = re.compile(r"\bt\(\s*'((?:[^'\\]|\\.)*)'")
 MARKER = 'i18n-keys'
 CLOSES = ('}', ']', '};', '];')
-# Written in the language they name, so never translated.
-SKIP = {'日本語'}
+# Nothing is skipped by name. 日本語 used to be, being what the 言語/language row
+# writes in the language it names — but that row never passes it through `t`,
+# and the VN Database row's short form does, where an English interface wants
+# "Japanese" beside "English" and "Chinese".
+SKIP = set()
 
 keys = []
 seen = set()

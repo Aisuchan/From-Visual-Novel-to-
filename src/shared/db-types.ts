@@ -31,12 +31,27 @@ export interface Game {
   progressState: ProgressState | null
   /** 0-100, shown in place of the cleared mark. Only ever set with 'cleared'. */
   clearScore: number | null
-  /** YYYY-MM-DD, and ErogeScape's median for the game. Both come from the
-      deferred ErogeScape/VNDB import, so nothing writes them yet — the Sort
-      field's 発売日順 and 中央値順 read them, and a game without one is filed
-      below every game that has one. */
+  /** YYYY-MM-DD, and ErogameScape's median and average for the game. The Add
+      Game dialog's Reference row is what writes them; the Sort field's 発売日順
+      and 中央値順 read the first two, and a game without one is filed below
+      every game that has one. **Nothing reads the average yet** — it is stored
+      the way the median was before 中央値順 existed. */
   releaseDate: string | null
+  /** Which language's release that date is, where it was read off a page that
+      lists one per language — the VN Database. Null for a date typed by hand or
+      read off ErogameScape, which lists one; the Game Info board draws the mark
+      beside the date only where there is one, so a date never stands for a
+      release it is not. */
+  releaseLanguage: VndbReleaseLanguage | null
   medianScore: number | null
+  averageScore: number | null
+  /** The studio the game is from, as ErogameScape names it. The Game Info
+      board's BRAND row is what reads it. */
+  brand: string | null
+  /** The ErogameScape page this game's information was read from. The Game Info
+      board's 🔞 opens it; with none, that mark is a gear instead and opens the
+      dialog the information is set in. */
+  referenceUrl: string | null
   /** The tags filed against this game (`game_tags`). Nothing writes them yet —
       the screen that would put a tag on a game is not built — but the side
       panel's tag row already reads them: a game that is not under every tag on
@@ -47,6 +62,19 @@ export interface Game {
   /** What TOTAL PLAY stood at then, which the log's GAME CLEARD row reads. */
   clearPlaySeconds: number | null
   createdAt: string
+}
+
+/**
+ * What the Game Info board holds, and what its own gear edits. Every field is
+ * written as it stands — this is the board's four values being typed rather
+ * than a page being read, so an emptied field is a value taken away.
+ */
+export interface GameReference {
+  brand: string | null
+  /** `YYYY-MM-DD`, the shape the release-date order is sorted on. */
+  releaseDate: string | null
+  medianScore: number | null
+  averageScore: number | null
 }
 
 export interface NewGameInput {
@@ -63,6 +91,19 @@ export interface NewGameInput {
   useExeIcon: boolean
   useShortName: boolean
   useThumbnailAsDefault: boolean
+  /* What the Reference row read off ErogameScape, where it was used. Null on
+     every field the row was not pressed for, which is what leaves a game
+     registered by hand exactly as it always was. */
+  releaseDate?: string | null
+  /** Which release the date above is, where the row read it off the VN
+      Database; see `Game.releaseLanguage`. */
+  releaseLanguage?: VndbReleaseLanguage | null
+  medianScore?: number | null
+  averageScore?: number | null
+  brand?: string | null
+  /* The Reference row's own field rather than something it read, so this one is
+     written as it stands — cleared where the field was emptied. */
+  referenceUrl?: string | null
 }
 
 /**
@@ -240,6 +281,52 @@ export type AudioFormat = 'mp3' | 'wav'
    way — a work area is 16:9 whenever the display is. */
 export type LaunchWindowMode = 'window' | 'fullscreen'
 
+/*
+ * **The Setting board's 描画方式 row: how much of the drawing the GPU does.**
+ *
+ * It is not a preference about speed. On some machines — measured on one with
+ * two 1920x1080 displays both at 100%, so no scaling of any kind in play, and an
+ * NVIDIA driver — every window Chromium presents comes out *soft*, text
+ * included, and the same is true of other apps built the same way. Nothing about
+ * the page causes it: what is resampled is the surface the compositor presents
+ * through, which is the driver's side of DirectComposition. Turning the GPU off
+ * answers it and gives up more than it has to, so the row is the *ladder* rather
+ * than a switch — each rung hands one more stage to the CPU:
+ *
+ *   auto                   — Chromium's own defaults
+ *   no-direct-composition  — presented without DirectComposition or overlays
+ *   no-gpu-compositing     — the final compositing on the CPU; raster and video
+ *                            decode still on the GPU
+ *   off                    — hardware acceleration off entirely
+ *
+ * A capture is unaffected by any of them: a screenshot is a `desktopCapturer`
+ * thumbnail and a recording is MediaRecorder's, neither of which goes through
+ * the compositor this row is about.
+ *
+ * The switches have to be set before the app is ready, so this is the one row
+ * read outside a window's lifetime — and the only one a change to has no effect
+ * until the app is started again, which its description says.
+ */
+export const GPU_MODES = ['auto', 'no-direct-composition', 'no-gpu-compositing', 'off'] as const
+export type GpuMode = (typeof GPU_MODES)[number]
+
+/**
+ * Which language's release the VN Database's date is read off.
+ *
+ * A visual novel is released more than once — the original, and a translation
+ * for every market that gets one — and VNDB lists them in a block per language.
+ * Which of those blocks is *the* release date is the player's question rather
+ * than the site's: a library kept in Japanese usually means the original, and
+ * one kept off the English releases means the day it could be played. So the
+ * row picks the block, and the first complete release in it is what is read.
+ *
+ * The page's own labels are what these stand for — "English", "Chinese",
+ * "Japanese" — and Chinese is matched by its head, the site writing traditional
+ * and simplified as two labels beginning with that word.
+ */
+export const VNDB_RELEASE_LANGUAGES = ['en', 'zh', 'ja'] as const
+export type VndbReleaseLanguage = (typeof VNDB_RELEASE_LANGUAGES)[number]
+
 /* Which of the Home board's two faces it opens on — the design's Container, a
    grid of cards, or its Bookshelf Container, a shelf of spines. Not a row on
    the Setting board: it is what the board's own toggle was last left on, kept
@@ -335,6 +422,9 @@ export interface ScreenDisplay {
 /** The app's own settings, read and written as a whole. */
 export interface AppSettings {
   language: Language
+  /** Which language's release the Add Game dialog reads a date off; see
+      `VNDB_RELEASE_LANGUAGES`. */
+  vndbReleaseLanguage: VndbReleaseLanguage
   screenshotFormat: ScreenshotFormat
   videoFormat: VideoFormat
   audioFormat: AudioFormat
@@ -387,10 +477,17 @@ export interface AppSettings {
      into both. */
   videoSound: string
   audioSound: string
+  /* Whether Windows starts the app when the machine does. It is the one row
+     that is not the app's own state: what it writes is the system's Run key,
+     through `app.setLoginItemSettings`, so the row and the machine are kept in
+     step rather than the row standing for something nothing acts on. */
+  launchAtLogin: Toggle
   /* 一般: how the library window opens, and whether the database is copied
      somewhere as it does. `backupDirectory` is a folder the player names — an
      empty one is what an unanswered row is, and nothing is copied then. */
   launchWindowMode: LaunchWindowMode
+  /** How much of the drawing the GPU does; see `GPU_MODES`. */
+  gpuMode: GpuMode
   backupOnLaunch: Toggle
   backupDirectory: string
   /* What a backup is read back *from*. It is a row on the board rather than a

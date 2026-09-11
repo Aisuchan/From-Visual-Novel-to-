@@ -1,9 +1,10 @@
 import { app, BrowserWindow } from 'electron'
 import { pruneCaptureScratch, registerCaptureHandlers } from './capture'
 import { backupDatabase, getSettings, initDb, pruneUnusedIcons } from './db'
-import { registerIpcHandlers } from './ipc'
+import { applyLaunchAtLogin, registerIpcHandlers } from './ipc'
 import { registerMediaProtocol, registerMediaScheme } from './media-protocol'
 import { setLanguage, t } from '../shared/i18n'
+import type { GpuMode } from '../shared/db-types'
 import { createLibraryWindow } from './windows'
 
 // Scheme privileges have to be declared before the app is ready.
@@ -13,6 +14,29 @@ registerMediaScheme()
    touches the filesystem, and `app.getPath('userData')` is the same path
    either side of ready. */
 initDb()
+
+/**
+ * **The 描画方式 row, applied before the app is ready** — which is the only
+ * time these can be set, and the whole reason a change to that row does nothing
+ * until the app is started again.
+ *
+ * Each rung hands one more stage of the drawing to the CPU. See `GPU_MODES` for
+ * what the row is for: on some machines the surface Chromium presents through is
+ * resampled by the driver and everything in the window comes out soft, with no
+ * scaling of any kind in play. Turning the GPU off answers that and gives up
+ * more than it needs to, so the narrower switches stand above it.
+ */
+function applyGpuMode(mode: GpuMode): void {
+  if (mode === 'no-direct-composition') {
+    app.commandLine.appendSwitch('disable-direct-composition')
+  } else if (mode === 'no-gpu-compositing') {
+    app.commandLine.appendSwitch('disable-gpu-compositing')
+  } else if (mode === 'off') {
+    app.disableHardwareAcceleration()
+  }
+}
+
+applyGpuMode(getSettings().gpuMode)
 
 app.whenReady().then(() => {
 
@@ -38,6 +62,7 @@ app.whenReady().then(() => {
      its dialogs and the sentences it throws back to the renderer go through
      `t` too, and the panel is handed the answer on its command line. */
   setLanguage(settings.language)
+  applyLaunchAtLogin(settings)
 
   if (settings.backupOnLaunch === 'on' && settings.backupDirectory) {
     void backupDatabase(settings.backupDirectory).catch((error) => {

@@ -39,6 +39,23 @@ export function toDateKey(date: Date): string {
 
 const MS_PER_DAY = 86_400_000
 
+/** What English calls a month in three letters, which is how it writes a day
+    with no year on it. */
+const MONTH_ABBREVIATIONS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec'
+]
+
 function startOfDay(date: Date): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
 }
@@ -63,8 +80,16 @@ export function formatLastPlayed(iso: string | null): { lines: string[]; text: s
 
   const yearsAgo = Math.floor(daysAgo / 365)
   if (yearsAgo < 1) {
+    /* **A day inside the year is named rather than numbered in English.**
+       Japanese writes the two figures the design draws, 09/04; English names
+       the month and drops the day's leading zero — `Sep 4` — which is how a
+       day with no year on it is written there, and reads as a date rather than
+       as a pair of numbers that could be either way round. */
     const pad = (n: number): string => String(n).padStart(2, '0')
-    const label = `${pad(played.getMonth() + 1)}/${pad(played.getDate())}`
+    const label =
+      getLanguage() === 'en'
+        ? `${MONTH_ABBREVIATIONS[played.getMonth()]} ${played.getDate()}`
+        : `${pad(played.getMonth() + 1)}/${pad(played.getDate())}`
     return { lines: [label], text: label }
   }
   if (yearsAgo === 1) return { lines: ['last', 'year'], text: 'last year' }
@@ -86,13 +111,44 @@ export function formatFullDate(date: Date): string {
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-export function formatClock(date: Date): { dateLabel: string; timeLabel: string } {
-  const dateLabel = `${date.getFullYear()} ${date.getMonth() + 1}/${date.getDate()} (${
-    WEEKDAY_LABELS[date.getDay()]
-  }.)`
+/**
+ * **The clock is read differently in the two languages, so it is written
+ * differently.** Penpot draws 「2026 8/1 (Sat.)」 over 「11:23:58」 and that is
+ * what Japanese keeps. English puts the weekday first and the year last — `Tue,
+ * 9/8 2026` — and reads the hour off a twelve-hour clock with the half of the
+ * day said after it. Nothing here is a word to look up, so it is not the
+ * dictionary's: what changes is the order of the parts and which parts there
+ * are.
+ *
+ * The `am`/`pm` comes back on its own because it is drawn on its own — a note
+ * on the figure at well under half its size, the figure itself being the same
+ * `hh:mm:ss` in both languages.
+ */
+export function formatClock(date: Date): {
+  dateLabel: string
+  timeLabel: string
+  timeSuffix?: string
+} {
   const pad = (n: number): string => String(n).padStart(2, '0')
-  const timeLabel = `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
-  return { dateLabel, timeLabel }
+  const weekday = WEEKDAY_LABELS[date.getDay()]
+  const month = date.getMonth() + 1
+  const day = date.getDate()
+  const hours = date.getHours()
+
+  if (getLanguage() === 'en') {
+    // Midnight and noon are both 12 rather than 0 on a twelve-hour clock.
+    const twelve = hours % 12 === 0 ? 12 : hours % 12
+    return {
+      dateLabel: `${weekday}, ${month}/${day} ${date.getFullYear()}`,
+      timeLabel: `${twelve}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`,
+      timeSuffix: hours < 12 ? 'am' : 'pm'
+    }
+  }
+
+  return {
+    dateLabel: `${date.getFullYear()} ${month}/${day} (${weekday}.)`,
+    timeLabel: `${pad(hours)}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  }
 }
 
 /**

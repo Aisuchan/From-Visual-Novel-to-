@@ -10,6 +10,7 @@ import type {
 import { mediaUrl } from '../../../shared/media-url'
 import { useContextMenuDismiss } from '../context-menu'
 import { filterGames, suggestsGroup } from '../filter'
+import { nameBreaks } from '../wrap'
 import {
   DEFAULT_DIRECTION,
   DEFAULT_SORT,
@@ -109,6 +110,168 @@ const NEXT_SPINES: Record<HomeSpines, HomeSpines> = { '20': '25', '25': '30', '3
    a budget for the whole wave rather than a clamp on each card (`waveStep`),
    and set where a library of a hundred still keeps the 45 rather than having
    it squeezed to a sweep. */
+/* **A title that fits on one line is set at the design's own size.**
+   `Home.css` sets a card's title at 20, which is what two lines of it fit in
+   under the rule — and most titles are not two lines. A title that stands on
+   one is set at Penpot's 30 instead: the slot holds a single 1.2 line box of it
+   with 12 to spare, and the size the design drew is the size it should be
+   wherever there is room for it.
+
+   Which titles those are cannot be asked in CSS — there is no way to set a size
+   by how many lines the text came to — so they are measured. */
+const TITLE_ONE_LINE = 30
+const TITLE_TWO_LINE = 20
+/** The size a run is measured at. What is compared is one width against
+    another, so the probe stands outside the shell and its zoom scales both —
+    the same arrangement the PlayTime Graph's own `FitName` measures in. */
+const TITLE_REF = 200
+
+/* A card's width, derived the way `Home.css` derives it: the design's own side
+   padding is what five 5:6 cards and their four 40s leave of the board's 1585,
+   and the *card* is what gives way to the count. */
+function cardWidth(across: number): number {
+  const side = (1585 - 5 * ((304 * 5) / 6) - 4 * 40) / 2
+  return (1585 - 2 * side - (across - 1) * 40) / across
+}
+
+/** How much of a poorer break a caller will trade for a better balance: a
+    tier apart is worth this much of the 0..1 the imbalance is measured on, so a
+    mark beats a script change unless taking it leaves one line very short. */
+const TITLE_TIER_COST = 0.35
+
+/**
+ * How each of `names` is set under a card: one line, two lines broken where a
+ * reader would break them, or nothing at all — which leaves the run to the
+ * browser and its own clamp.
+ *
+ * One probe for the whole list rather than a measurement per card: every card
+ * is the same width and the same face, so what changes between them is only the
+ * run. The faces are loaded before anything is drawn (`font-display: block` in
+ * `theme.css`), but a first paint can still land before the file has arrived —
+ * a run measured in the fallback is a run measured at the wrong width — so it
+ * is measured again once `document.fonts` says they are all in.
+ */
+function useTitleLines(names: string[], across: number): Map<string, string[]> {
+  const [layout, setLayout] = useState<Map<string, string[]>>(() => new Map())
+
+  useEffect(() => {
+    let dropped = false
+    const measure = (): void => {
+      const probe = document.createElement('span')
+      const family = getComputedStyle(document.documentElement).getPropertyValue('--font-display')
+      probe.style.cssText =
+        'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:pre;' +
+        `font-family:${family};font-size:${TITLE_REF}px;`
+      document.body.appendChild(probe)
+      const widthOf = (run: string): number => {
+        probe.textContent = run
+        return probe.getBoundingClientRect().width
+      }
+      /* The card's own width taken up to the size the probe is set at, once per
+         size: what is compared is two widths in the same units. */
+      const room = (size: number): number => cardWidth(across) * (TITLE_REF / size)
+      const oneLine = room(TITLE_ONE_LINE)
+      const twoLine = room(TITLE_TWO_LINE)
+
+      const found = new Map<string, string[]>()
+      for (const name of names) {
+        if (name === '' || found.has(name)) continue
+        if (widthOf(name) <= oneLine) {
+          found.set(name, [name])
+          continue
+        }
+        const lines = breakInTwo(name, twoLine, widthOf)
+        if (lines) found.set(name, lines)
+      }
+      probe.remove()
+      if (!dropped) setLayout(found)
+    }
+    measure()
+    void document.fonts.ready.then(() => {
+      if (!dropped) measure()
+    })
+    return () => {
+      dropped = true
+    }
+    /* `names` is the caller's own memo over the list that is drawn, so it is
+       one value per list rather than a new array every render. */
+  }, [names, across])
+
+  return layout
+}
+
+/**
+ * The two lines a title that will not fit on one is set as, or null where there
+ * is nowhere in it a reader would break.
+ *
+ * **The first line must fit.** A head longer than the card is a head that would
+ * wrap again, which is the very thing being chosen away from. Past that, a
+ * break where the tail fits too is worth more than any other consideration —
+ * that is the whole title being shown — and among those the best place to break
+ * wins, with the balance between the two lines settling a tie: most titles have
+ * several places they could come apart, and without that last the first one in
+ * the name won and a long run was left hanging under one short word.
+ *
+ * With nothing that fits in two, the most that can be shown is what matters, so
+ * the fullest first line takes it and the second is left to its ellipsis.
+ */
+function breakInTwo(
+  text: string,
+  room: number,
+  widthOf: (run: string) => number
+): string[] | null {
+  let best: { lines: string[]; rank: number; score: number } | null = null
+  for (const { at, tier } of nameBreaks(text)) {
+    const head = text.slice(0, at).trimEnd()
+    const tail = text.slice(at).trimStart()
+    if (!head || !tail) continue
+    const headWidth = widthOf(head)
+    if (headWidth > room) continue
+    const tailWidth = widthOf(tail)
+    const whole = tailWidth <= room
+    /* **A bracket beats every other consideration.** The mark that opens a
+       subtitle (`nameBreaks`, tier -1) is where the title is already divided,
+       so it is weighed against neither how even the two lines come out nor
+       whether the second of them fits: 「Sakura no Uta -Sakura no Mori no Ue o
+       Mau-」 breaks before the dash and lets the subtitle end in an ellipsis,
+       where a break chosen to fit the whole title would put the subtitle's
+       first half at the end of the line above and its second half below.
+
+       What is not given up is the *first* line fitting, which is checked above
+       — a head longer than the card would simply wrap again. */
+    const rank = (tier < 0 ? 2 : 0) + (whole ? 1 : 0)
+    const balance = Math.abs(headWidth - tailWidth) / (headWidth + tailWidth)
+    const score = whole ? -tier * TITLE_TIER_COST - balance : headWidth
+    if (!best || rank > best.rank || (rank === best.rank && score > best.score)) {
+      best = { lines: [head, tail], rank, score }
+    }
+  }
+  return best ? best.lines : null
+}
+
+/**
+ * A card's title, in whichever of its three shapes the measurement chose.
+ *
+ * One line takes the design's own 30; two take the 20 they fit in, and are
+ * written as a line each so there is nothing left for the browser to break. A
+ * title with nowhere in it to break — one long run of one script with no mark —
+ * is handed back to the browser with the clamp it always had.
+ */
+function CardTitle({ name, lines }: { name: string; lines?: string[] }): React.JSX.Element {
+  if (lines?.length === 1) {
+    return <span className="home-card-title-text one-line">{name}</span>
+  }
+  if (lines?.length === 2) {
+    return (
+      <span className="home-card-title-text two-line">
+        <span className="home-card-title-line">{lines[0]}</span>
+        <span className="home-card-title-line">{lines[1]}</span>
+      </span>
+    )
+  }
+  return <span className="home-card-title-text">{name}</span>
+}
+
 const ARRIVE_STEP_MS = 45
 const ARRIVE_MAX_MS = 1200
 
@@ -159,6 +322,9 @@ interface Props {
   /** The same for the shelf: how many spines stand across a row of it. */
   spines: HomeSpines
   onSpinesChange: (spines: HomeSpines) => void
+  /* A right press on one of the rows the group list drops. It is the shell's
+     to answer: the list is the shell's, and so is the board that edits one. */
+  onGroupContext?: (key: string, event: React.MouseEvent) => void
 }
 
 export default function Home({
@@ -172,7 +338,8 @@ export default function Home({
   columns,
   onColumnsChange,
   spines,
-  onSpinesChange
+  onSpinesChange,
+  onGroupContext
 }: Props): React.JSX.Element {
   const boardRef = useRef<HTMLDivElement | null>(null)
   const sortRef = useRef<HTMLButtonElement | null>(null)
@@ -568,6 +735,14 @@ export default function Home({
     return ((index % across) + Math.floor(index / across)) * step
   }
 
+  /* Which titles stand on one line at the design's own size. Measured off the
+     list that is actually drawn and the width the count gives a card, so a
+     board stepped from five across to six is asked again. */
+  const titleLines = useTitleLines(
+    useMemo(() => shown.map((game) => displayName(game)), [shown]),
+    Number(columns)
+  )
+
   /** The same for a spine, which is put away in the order it stands in. */
   function shelveDelay(index: number): number {
     return index * waveStep(SHELVE_STEP_MS, SHELVE_MAX_MS, Math.max(shown.length - 1, 1))
@@ -900,7 +1075,10 @@ title", two lines. The short
                       has, and a title past them is cut off — which is the case
                       the setting is there for. */}
                   <span className="home-card-title">
-                    <span className="home-card-title-text">{displayName(game)}</span>
+                    {/* One line at the design's own 30 where the run fits, two
+                        at the 20 they fit in where it does not; see
+                        `useOneLineTitles`. */}
+                    <CardTitle name={displayName(game)} lines={titleLines.get(displayName(game))} />
                   </span>
                 </button>
               </div>
@@ -974,6 +1152,9 @@ title", two lines. The short
           than an empty plate, which is what the side panel's own field does. */}
       {menu && (menu.key === 'sort' || groupOptions.length > 0) && (
         <OptionMenu
+          /* Only the group list's rows own one; the Sort menu's are an order
+             and there is nothing to edit about one. */
+          onRowContext={menu.key === 'sort' ? undefined : onGroupContext}
           options={
             menu.key === 'sort'
               ? SORT_OPTIONS.map((sort) => ({

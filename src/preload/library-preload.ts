@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannels } from '../shared/ipc-types'
 import type {
+  GameReference,
   HomeLayout,
   LaunchPrefs,
   NewGameInput,
@@ -41,6 +42,15 @@ const libraryApi: LibraryApi = {
   addGameImages: (gameId: number) => ipcRenderer.invoke(IpcChannels.GameImagesAdd, gameId),
   deleteGameImage: (gameId: number, imageId: number) =>
     ipcRenderer.invoke(IpcChannels.GameImagesDelete, gameId, imageId),
+  reorderGameImages: (gameId: number, orderedIds: number[]) =>
+    ipcRenderer.invoke(IpcChannels.GameImagesReorder, gameId, orderedIds),
+  fetchReferencePage: (url: string) =>
+    ipcRenderer.invoke(IpcChannels.ReferencePage, url),
+  fetchReferenceImage: (src: string, referer: string) =>
+    ipcRenderer.invoke(IpcChannels.ReferenceImage, src, referer),
+  openExternal: (url: string) => ipcRenderer.invoke(IpcChannels.ShellOpenExternal, url),
+  setGameReference: (gameId: number, input: GameReference) =>
+    ipcRenderer.invoke(IpcChannels.GamesSetReference, gameId, input),
 
   listRoutes: (gameId: number) => ipcRenderer.invoke(IpcChannels.RoutesList, gameId),
   addRoute: (input: NewRouteInput) => ipcRenderer.invoke(IpcChannels.RoutesAdd, input),
@@ -92,6 +102,9 @@ const libraryApi: LibraryApi = {
     ipcRenderer.on(IpcChannels.SessionFailed, listener)
     return () => ipcRenderer.removeListener(IpcChannels.SessionFailed, listener)
   },
+  updateGroup: (id: number, input: NewGroupInput) =>
+    ipcRenderer.invoke(IpcChannels.GroupsUpdate, id, input),
+  deleteGroup: (id: number) => ipcRenderer.invoke(IpcChannels.GroupsDelete, id),
   resetSettings: () => ipcRenderer.invoke(IpcChannels.SettingsReset),
   minimizeWindow: () => ipcRenderer.send(IpcChannels.WindowMinimize),
   toggleMaximizeWindow: () => ipcRenderer.send(IpcChannels.WindowToggleMaximize),

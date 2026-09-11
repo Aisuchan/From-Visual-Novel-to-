@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
 import * as db from './db'
 import type {
+  GameReference,
   HomeLayout,
   NewGroupInput,
   NewRouteInput,
@@ -12,6 +13,7 @@ import type {
 } from '../shared/db-types'
 import { launchGame } from './launcher'
 import * as capture from './capture'
+import * as reference from './reference'
 import {
   createOverlayWindow,
   closeOverlayWindow,
@@ -23,8 +25,20 @@ import { listSoundEffects } from './sound-effects'
 import { IpcChannels } from '../shared/ipc-types'
 import { setLanguage, t } from '../shared/i18n'
 import { GALLERY_IMAGE_EXTENSIONS, GALLERY_VIDEO_EXTENSIONS } from '../shared/media-url'
-import type { LaunchPrefs, NewGameInput } from '../shared/db-types'
+import type { AppSettings, LaunchPrefs, NewGameInput } from '../shared/db-types'
 import type { StartSessionRequest } from '../shared/ipc-types'
+
+/**
+ * **The PCの起動時にこのアプリを立ち上げる row is the one that writes outside the
+ * app.** What it stands for is Windows' own startup list rather than anything
+ * in the database, so the row is put onto the machine every time it can have
+ * changed: as it is written, when the whole table is reset, and once at
+ * startup — the last of those being what puts a restored library's answer back
+ * on a machine that never had it.
+ */
+export function applyLaunchAtLogin(settings: AppSettings): void {
+  app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin === 'on' })
+}
 
 /* Every dialog this module puts up belongs to the library window. Unparented,
    Windows is free to put a message box *behind* the app — the press then reads
@@ -230,11 +244,18 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannels.TagsList, () => db.listTags())
 
   ipcMain.handle(IpcChannels.SettingsGet, () => db.getSettings())
+  ipcMain.handle(IpcChannels.GroupsUpdate, (_e, id: number, input: NewGroupInput) =>
+    db.updateGroup(id, input)
+  )
+
+  ipcMain.handle(IpcChannels.GroupsDelete, (_e, id: number) => db.deleteGroup(id))
+
   ipcMain.handle(IpcChannels.SettingsSet, (_e, patch) => {
     const settings = db.setSettings(patch)
     /* This process writes in the chosen language too, so it follows the row
        rather than being told once at startup. */
     setLanguage(settings.language)
+    applyLaunchAtLogin(settings)
     return settings
   })
 
@@ -294,7 +315,12 @@ export function registerIpcHandlers(): void {
       cancelId: 1
     })
     if (answer.response !== 0) return null
-    return db.resetSettings()
+    const settings = db.resetSettings()
+    /* The reset puts every row back, and this one stands for something outside
+       the app: left alone, the machine would go on starting an app whose board
+       says it does not. */
+    applyLaunchAtLogin(settings)
+    return settings
   })
 
   ipcMain.handle(IpcChannels.BackupPickFile, async () => {
@@ -451,6 +477,37 @@ export function registerIpcHandlers(): void {
     return db.addGameImages(gameId, copied)
   })
 
+  /* **A page opened in the system's own browser.** Checked here rather than
+     trusted from the renderer: `openExternal` hands its argument to the desktop,
+     which will act on schemes that are not pages at all, so only http and https
+     get through. */
+  ipcMain.handle(IpcChannels.ShellOpenExternal, async (_e, url: string) => {
+    let parsed: URL
+    try {
+      parsed = new URL(url)
+    } catch {
+      return
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return
+    await shell.openExternal(parsed.href)
+  })
+
+  /* The Reference row. Both are one request each and both are paced by the one
+     queue in `reference.ts`; nothing here is fired by anything but a press. */
+  ipcMain.handle(IpcChannels.ReferencePage, (_event, url: string) =>
+    reference.fetchPage(url)
+  )
+
+  ipcMain.handle(
+    IpcChannels.ReferenceImage,
+    (_event, src: string, referer: string) => reference.fetchImage(src, referer)
+  )
+
+  ipcMain.handle(
+    IpcChannels.GameImagesReorder,
+    (_event, gameId: number, orderedIds: number[]) => db.reorderGameImages(gameId, orderedIds)
+  )
+
   ipcMain.handle(IpcChannels.GameImagesDelete, (_event, gameId: number, imageId: number) => {
     const image = db.getGameImage(gameId, imageId)
     const remaining = db.deleteGameImage(gameId, imageId)
@@ -490,6 +547,10 @@ export function registerIpcHandlers(): void {
       return null
     }
   })
+
+  ipcMain.handle(IpcChannels.GamesSetReference, (_e, gameId: number, input: GameReference) =>
+    db.setGameReference(gameId, input)
+  )
 
   ipcMain.handle(IpcChannels.GamesDelete, (_event, gameId: number) => db.deleteGame(gameId))
 

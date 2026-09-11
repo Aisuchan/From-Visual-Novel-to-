@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type {
   AppSettings,
   AudioFormat,
+  GpuMode,
   Language,
   LaunchWindowMode,
   OverlayCorner,
@@ -10,7 +11,8 @@ import type {
   ScreenshotFormat,
   SoundEffect,
   Toggle,
-  VideoFormat
+  VideoFormat,
+  VndbReleaseLanguage
 } from '../../../shared/db-types'
 import { playSound, soundEffectUrl, SOUND_EFFECT_VOLUME } from '../../playSound'
 import { GEAR_PATH, GEAR_VIEW_BOX } from '../gear'
@@ -34,6 +36,12 @@ const SELECT_GAP = 20
    whole width — which is the only room there is beside it, and the rows then
    stand at very nearly their own size. */
 const MONITOR_MENU_WIDTH = SELECT_WIDTH * 2 + SELECT_GAP
+/* And the 描画方式 row's, for the same reason: what each of its choices hands to
+   the CPU cannot be said in the four or five characters 207 leaves. That row has
+   only one box and it stands at the row's right end, so the room is to its
+   *left* — the list is held by its right edge (`align`) rather than its left,
+   which is what ran it off the board and had it cut off there. */
+const GPU_MENU_WIDTH = SELECT_WIDTH * 2 + SELECT_GAP
 /** Penpot: "enable" — 41px in a 167 box with 25px of padding either side. */
 const SELECT_FONT_SIZE = 41
 const SELECT_LABEL_WIDTH = 167 - 25 * 2
@@ -71,6 +79,13 @@ interface SelectField {
   patch: (key: string) => Partial<AppSettings>
   /** How wide the list it drops is, where that is not the box's own 207. */
   width?: number
+  /** Which edge of the box a wider list is held to. A menu hangs off the box's
+      left by default, which is where the room is on the モニター row — its own
+      box is the left of two and the list runs out over the right one. A row with
+      one box has that box at the row's right end, so a wider list has nowhere to
+      go but left: held by its left edge it ran off the board and was cut off by
+      it. */
+  align?: 'left' | 'right'
 }
 
 /** A row whose description slot holds a path rather than a sentence: typed
@@ -220,6 +235,18 @@ const ROWS: Row[] = [
     ]
   },
   {
+    /* Not a thing the app remembers about itself: what this row writes is the
+       system's own Run key, so turning it on here is what actually puts the
+       app in Windows' startup list. */
+    kind: 'toggle',
+    id: 'launchAtLogin',
+    tab: 'general',
+    name: 'PCの起動時にこのアプリを立ち上げる',
+    title: '自動起動の入り切り',
+    current: (settings) => settings.launchAtLogin,
+    patch: (value) => ({ launchAtLogin: value })
+  },
+  {
     kind: 'select',
     id: 'launchWindowMode',
     tab: 'general',
@@ -234,6 +261,82 @@ const ROWS: Row[] = [
         ],
         current: (settings) => settings.launchWindowMode,
         patch: (key) => ({ launchWindowMode: key as LaunchWindowMode })
+      }
+    ]
+  },
+  {
+    kind: 'select',
+    id: 'gpuMode',
+    tab: 'general',
+    name: '描画方式',
+    /* The one row on this board whose effect waits for the next launch: the
+       switches it writes can only be set before the app is ready. */
+    description: '表示がぼやける・崩れる場合に変更（次回の起動から）',
+    fields: [
+      {
+        id: 'gpuMode',
+        title: '描画方式を選ぶ',
+        /* Each rung hands one more stage of the drawing to the CPU, so the list
+           reads down from "leave it alone" to "do none of it on the GPU" and
+           what is picked is the first one that answers. The field says the short
+           form: the box is 117 for a 41px run, and 「DirectComposition を使わ
+           ない」 there would be stepped down to nothing. */
+        options: () => [
+          { key: 'auto', label: t('自動') },
+          {
+            key: 'no-direct-composition',
+            label: t('DirectComposition を使わない'),
+            short: t('DC なし')
+          },
+          { key: 'no-gpu-compositing', label: t('GPU 合成を使わない'), short: t('合成なし') },
+          { key: 'off', label: t('GPU を使わない'), short: t('GPU なし') }
+        ],
+        current: (settings) => settings.gpuMode,
+        patch: (key) => ({ gpuMode: key as GpuMode }),
+        width: GPU_MENU_WIDTH,
+        // One box, and it is at the row's right end: the room is to its left.
+        align: 'right'
+      }
+    ]
+  },
+  {
+    /* **A game is released once per market, so which release is *the* release
+       is a question about the player.** VNDB lists them a language at a time
+       and the Add Game dialog's Reference row reads the first complete one out
+       of the block this names — the original for a library kept in Japanese,
+       the translated one for a library of what can actually be played. It is
+       not the 言語/language row above: the interface can be English while the
+       dates come off the Japanese releases.
+
+       **A language with no release falls back to the Japanese one.** Plenty of
+       games are never translated, and a library where those games alone carry
+       no date at all is worse than one where the date is the original's — so
+       what is picked here is the block that is *preferred*, and 日本語版 is
+       what answers when it is not there. Which one a date actually came from
+       is written on the game and said on the Game Info board, so the two are
+       never confused. */
+    kind: 'select',
+    id: 'vndbReleaseLanguage',
+    tab: 'general',
+    name: 'VN DataBaseから取得する発売日',
+    fields: [
+      {
+        id: 'vndbReleaseLanguage',
+        title: '取得する発売日を選ぶ',
+        /* The field writes the language alone. 「英語版」 is three characters and
+           fits the box; its English half, "English release", is a sentence in
+           117px and was stepped down to nothing. The list keeps the whole name —
+           and takes the room the 描画方式 row's list takes, out to the left, so
+           "Japanese release" stands at its own size there too. */
+        options: () => [
+          { key: 'en', label: t('英語版'), short: t('英語') },
+          { key: 'zh', label: t('中国語版'), short: t('中国語') },
+          { key: 'ja', label: t('日本語版'), short: t('日本語') }
+        ],
+        current: (settings) => settings.vndbReleaseLanguage,
+        patch: (key) => ({ vndbReleaseLanguage: key as VndbReleaseLanguage }),
+        width: GPU_MENU_WIDTH,
+        align: 'right'
       }
     ]
   },
@@ -410,7 +513,10 @@ const ROWS: Row[] = [
         id: 'videoFormat',
         title: '画面録画ファイルの形式を選ぶ',
         options: () => [
-          { key: 'mp4', label: 'mp4' },
+          /* Capitals for the two that carry a figure: this face sets lowercase as
+             small caps, so "mp4" stood as two short letters against a full-height
+             4 and read as a mismatch. "MP" is the figure's own height. */
+          { key: 'mp4', label: 'MP4' },
           { key: 'mov', label: 'mov' }
         ],
         current: (settings) => settings.videoFormat,
@@ -428,7 +534,7 @@ const ROWS: Row[] = [
         id: 'audioFormat',
         title: '録音ファイルの形式を選ぶ',
         options: () => [
-          { key: 'mp3', label: 'mp3' },
+          { key: 'mp3', label: 'MP3' },
           { key: 'wav', label: 'wav' }
         ],
         current: (settings) => settings.audioFormat,
@@ -584,10 +690,15 @@ export default function Setting({ settings, onChange }: Props): React.JSX.Elemen
     const rect = button.getBoundingClientRect()
     const scale = boardRect.width / BOARD_WIDTH
     anchorRef.current = button
+    /* A list wider than the box it drops from hangs off one of its edges, and
+       which one is the field's own: see `SelectField.align`. */
+    const field = FIELDS.find((one) => one.id === id)
+    const boxLeft = (rect.left - boardRect.left) / scale
+    const width = field?.width ?? SELECT_WIDTH
     setMenu({
       id,
       top: (rect.bottom - boardRect.top) / scale,
-      left: (rect.left - boardRect.left) / scale
+      left: field?.align === 'right' ? boxLeft + rect.width / scale - width : boxLeft
     })
   }
 
@@ -856,25 +967,94 @@ function SelectBox({
   )
 }
 
+/* One canvas for every measurement: it is a ruler, not a drawing. */
+let inkRuler: CanvasRenderingContext2D | null = null
+
+/** How far a run's ink reaches above and below the baseline, in CSS px at
+    `size` — `measureText`'s own figures, which a pixel scan of the same run
+    drawn on the same canvas agrees with to the pixel. */
+function inkExtent(text: string, size: number): { above: number; below: number } {
+  inkRuler ??= document.createElement('canvas').getContext('2d')
+  if (!inkRuler) return { above: 0, below: 0 }
+  const family = getComputedStyle(document.documentElement).getPropertyValue('--font-display')
+  inkRuler.font = `${size}px ${family}`
+  const m = inkRuler.measureText(text)
+  return { above: m.actualBoundingBoxAscent, below: m.actualBoundingBoxDescent }
+}
+
 /* Penpot sets the value at 41px, and "enable" comes to exactly the 117 the box
    leaves. A language's name is whatever it is called in its own language, so a
-   run past that is stepped down to fit the way the clock's date is. */
+   run past that is stepped down to fit the way the clock's date is.
+
+   **And then its ink is put on the box's middle, which the box does not do for
+   it.** What the flex centres is the line box, and a line box is centred on the
+   font's ascent and descent, not on what is drawn in it — in this face a
+   lowercase run is small caps standing on the baseline with the descender's
+   room empty under it, a figure or a capital reaches higher, and a Japanese
+   glyph, which comes off the *fallback* face on the primary's baseline, reaches
+   higher still. Measured in the engine at the value's 41: 「日本語」 stood 3.0px
+   above the middle and "png" 3.5 below it, 「中」 3.5 above, mp4 1.5 above,
+   「ウインドウ」 dead on. No one constant serves a control that writes all of
+   them, so each run is measured as it is drawn.
+
+   **Two measurements, and neither is worked out from the font's metrics.**
+   Where the baseline stands is read off the DOM — an empty inline-block sits
+   on the baseline, so its bottom edge *is* it — because Blink places it with
+   integer arithmetic of its own (the half-leading is floored) and a baseline
+   computed from `fontBoundingBoxAscent` came out 0.85px from the real one,
+   which left every run a pixel short of centred. How far the ink reaches
+   either side of that baseline is `measureText`'s, which the pixels agree
+   with. The rects are in the shell's zoomed pixels and the canvas in unzoomed
+   ones, so the ink extent is scaled by the zoom before the two are compared,
+   and the shift is scaled back before it is written. Done again once the faces
+   are all in: a run measured in a fallback face is measured at the wrong size
+   and the wrong height. */
 function SelectLabel({ label }: { label: string }): React.JSX.Element {
   const ref = useRef<HTMLSpanElement | null>(null)
+  const probeRef = useRef<HTMLSpanElement | null>(null)
 
   useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    el.style.fontSize = `${SELECT_FONT_SIZE}px`
-    const width = el.scrollWidth
-    if (width > SELECT_LABEL_WIDTH) {
-      el.style.fontSize = `${Math.floor(SELECT_FONT_SIZE * (SELECT_LABEL_WIDTH / width))}px`
+    let dropped = false
+    const fit = (): void => {
+      const el = ref.current
+      const probe = probeRef.current
+      if (!el || !probe) return
+      el.style.fontSize = `${SELECT_FONT_SIZE}px`
+      el.style.transform = ''
+      const width = el.scrollWidth
+      const size =
+        width > SELECT_LABEL_WIDTH
+          ? Math.floor(SELECT_FONT_SIZE * (SELECT_LABEL_WIDTH / width))
+          : SELECT_FONT_SIZE
+      el.style.fontSize = `${size}px`
+
+      const box = el.getBoundingClientRect()
+      if (box.height === 0 || el.offsetHeight === 0) return
+      const zoom = box.height / el.offsetHeight
+      const baseline = probe.getBoundingClientRect().bottom
+      const { above, below } = inkExtent(label, size)
+      /* The label's padding is the same above and below, so the middle of its
+         box is the middle of the line box the flex has centred. */
+      const boxMiddle = (box.top + box.bottom) / 2
+      const inkMiddle = baseline - ((above - below) / 2) * zoom
+      const shift = (boxMiddle - inkMiddle) / zoom
+      if (Math.abs(shift) >= 0.25) el.style.transform = `translateY(${shift.toFixed(2)}px)`
+    }
+    fit()
+    void document.fonts.ready.then(() => {
+      if (!dropped) fit()
+    })
+    return () => {
+      dropped = true
     }
   }, [label])
 
   return (
     <span className="setting-select-label" ref={ref}>
       {label}
+      {/* Where the baseline is: an empty inline-block stands on it, so its
+          bottom edge says where it stands. Nothing is drawn. */}
+      <span className="setting-select-baseline" ref={probeRef} />
     </span>
   )
 }

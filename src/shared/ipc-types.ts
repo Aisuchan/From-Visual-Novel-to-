@@ -5,6 +5,7 @@ import type {
   DayGamePlaytime,
   FooterStats,
   GameImage,
+  GameReference,
   GameWithStats,
   Group,
   HomeLayout,
@@ -39,9 +40,13 @@ export const IpcChannels = {
   GamesPickHomeImage: 'games:pick-home-image',
   GamesClearHomeImage: 'games:clear-home-image',
   GamesSetProgress: 'games:set-progress',
+  GamesSetReference: 'games:set-reference',
   GameImagesList: 'game-images:list',
   GameImagesAdd: 'game-images:add',
   GameImagesDelete: 'game-images:delete',
+  GameImagesReorder: 'game-images:reorder',
+  ReferencePage: 'reference:page',
+  ReferenceImage: 'reference:image',
   RoutesList: 'routes:list',
   RoutesAdd: 'routes:add',
   RoutesUpdate: 'routes:update',
@@ -49,6 +54,8 @@ export const IpcChannels = {
   RoutesSetActive: 'routes:set-active',
   GroupsList: 'groups:list',
   GroupsAdd: 'groups:add',
+  GroupsUpdate: 'groups:update',
+  GroupsDelete: 'groups:delete',
   TagsList: 'tags:list',
   SettingsGet: 'settings:get',
   SettingsSet: 'settings:set',
@@ -56,6 +63,7 @@ export const IpcChannels = {
   SoundEffectsList: 'sound-effects:list',
   BackupPickDirectory: 'backup:pick-directory',
   ShellShowItem: 'shell:show-item',
+  ShellOpenExternal: 'shell:open-external',
   SettingsReset: 'settings:reset',
   BackupPickFile: 'backup:pick-file',
   BackupCheck: 'backup:check',
@@ -225,6 +233,24 @@ export interface LibraryApi {
   /** Opens the picker, copies the chosen files in, and returns the new list. */
   addGameImages(gameId: number): Promise<GameImage[]>
   deleteGameImage(gameId: number, imageId: number): Promise<GameImage[]>
+  /** The order the Add Thumbnail grid was dragged into: the game's whole list,
+      in the order it is to be read back in. */
+  reorderGameImages(gameId: number, orderedIds: number[]): Promise<GameImage[]>
+
+  /** The Add Game dialog's Reference row — an ErogameScape statistics page or a
+      VNDB visual-novel page. It comes back as HTML and is read in the renderer,
+      which is where an HTML parser is; the main process does the fetching, which
+      is where it can be paced and identified. */
+  fetchReferencePage(url: string): Promise<string>
+  /** Downloads the picture that page points at and returns the app's own copy
+      of it, which is what the thumbnail slot is given. */
+  fetchReferenceImage(src: string, referer: string): Promise<string>
+  /** The four values the Game Info board draws, as its own gear left them. */
+  setGameReference(gameId: number, input: GameReference): Promise<GameWithStats>
+  /** Opens a page in whatever the system uses for one. Only http and https,
+      which is checked in the main process: this is the one call in the app that
+      hands a string to the desktop. */
+  openExternal(url: string): Promise<void>
 
   /** Every call returns the game's whole list, the way the images API does. */
   listRoutes(gameId: number): Promise<Route[]>
@@ -237,6 +263,10 @@ export interface LibraryApi {
   /** The whole group list, as the routes API does — the Menu's own source. */
   listGroups(): Promise<Group[]>
   addGroup(input: NewGroupInput): Promise<Group[]>
+  /** Renames and recolours one; the games filed under it are renamed with it. */
+  updateGroup(id: number, input: NewGroupInput): Promise<Group[]>
+  /** Takes it off the list and off the games that carried its name. */
+  deleteGroup(id: number): Promise<Group[]>
 
   /* The tag vocabulary, which is read-only from a renderer: what puts a name
      into it and takes it out again is a game being written (`setGameTags`).

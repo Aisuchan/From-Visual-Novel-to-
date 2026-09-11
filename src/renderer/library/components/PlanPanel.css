@@ -24,6 +24,30 @@
   flex-direction: column;
 }
 
+/* Not in the design, which draws the panel and not how it comes up: **it
+   arrives the way every window over the dialog backdrop does** — a little under
+   size, past itself, and back. It is the same `dialog-pop` those four use
+   (AddGameDialog.css, where its stops and the reason it animates `scale` rather
+   than `transform` are written out), so a board put up on this one press reads
+   as the same piece of movement as a board put up on any other.
+
+   **The card that follows the pointer takes none of it.** That one is not
+   opened on anything — it is where the pointer is, and it is mounted afresh on
+   every cell the pointer crosses, so it would pop its way across the grid. */
+.plan-panel:not(.is-following) {
+  animation: dialog-pop 0.34s;
+  /* **A day stepped to is the same panel over another cell, so it travels
+     there.** The steps put the panel where that day's own cell would have put
+     it — measured off the cell, so the whole placement rule applies again — and
+     without this it was simply somewhere else on the next frame, which read as
+     a second panel rather than as this one moving. The two axes are both
+     needed: a step within a row moves it across, and a step over the end of one
+     takes it down as well. */
+  transition:
+    left 0.2s ease,
+    top 0.2s ease;
+}
+
 /* `DayTimeCard` — the same frame with a day's play time in it, which is as
    tall as that list makes it: the design's 637 is the most it can be, past
    which the list scrolls, rather than what it always is. */

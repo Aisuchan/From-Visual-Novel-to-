@@ -1,5 +1,65 @@
 @import url('https://fonts.googleapis.com/css2?family=Girassol&family=Alumni+Sans+Collegiate+One&family=GFS+Didot&display=swap');
 
+/* **日本語 is 叛逆明朝, and it travels with the app.** The three faces
+   above are Latin only — Girassol, GFS Didot and Alumni Sans Collegiate One
+   carry no CJK at all — so every Japanese run in this app fell through to
+   whatever the machine happened to have, which is a different face on every
+   machine and a different ink height with it. This one is named last in each
+   stack below, so the design keeps its own face for Latin and Japanese is
+   drawn in this rather than in the system's.
+
+   It is a file in the repository rather than a name off the system: a family
+   that is only assumed to be installed is a family that is not there on
+   someone else's machine. A blocking `font-display` because the
+   metrics differ from any fallback's — a run drawn in the wrong face first and swapped after
+   would move every line it is in. */
+@font-face {
+  /* 叛逆明朝, **stretched横に**. That face is drawn narrow — measured off its
+     own tables, a CJK glyph is 564 units of a 1024 em, a good deal under the
+     square a Japanese character is usually set on — so it is widened by 40%,
+     which takes that glyph to 790 — near enough the three quarters of an em a
+     Japanese character usually stands on — and it is the *file* that is widened rather
+     than a `scaleX` laid over it:
+     layout measures what it is given, and this app steps several runs down to
+     fit by measuring their width (the clock, the Sort field, the graph's own
+     `FitName`). A transform is drawn after all of that has been decided.
+     `scripts/widen-font.py` is what makes the file, from the original beside
+     it; the factor is that script's one argument and it is written into the
+     file's own name, so a factor changed is a URL changed and the face on the
+     screen is the one on disk.
+
+     **The family the file itself declares is what is written here** — a name
+     invented at this end would be a name only this stylesheet knows, and the
+     script renames the font as it writes it, an outline that is not the one a
+     family name stands for being a file that lies about itself.
+
+     **And it is drawn 12% over its own size, because the face is small inside
+     its em.** Measured off the file: a kanji's ink is 0.80em tall and, before
+     the widening, 0.47em across, where the Windows face this used to fall
+     through to (游明朝) draws one at about 0.88 x 0.90 — so every Japanese run
+     in the app came out visibly smaller than the same run in the same
+     `font-size` had been the day before. `size-adjust` is the descriptor for
+     exactly this: it scales the outlines against the em, so the *type* grows
+     while every `font-size` in the app stays the design's own figure. 112%
+     puts the ink at 0.90 x 0.73.
+
+     **The line metrics are pinned back where they were.** `size-adjust` scales
+     a face's ascent and descent along with its outlines, which would have taken
+     this one's content area from 1.172em to 1.312 — past the 1.2 line box the
+     app sets nearly everything on, so ink would begin overflowing the boxes
+     that clip for an ellipsis. The two overrides are the file's own hhea
+     figures written as percentages of the em (968 and 232 of 1024), so the box
+     is the box it always was and only the glyphs in it have grown. */
+  font-family: 'Hangyaku Wide';
+  src: url('./fonts/Hangyaku-wide-140.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+  size-adjust: 112%;
+  ascent-override: 94.5%;
+  descent-override: 22.7%;
+}
+
 :root {
   --color-bg: #14171a;
   --color-bg-alt: #2a2d31;
@@ -17,9 +77,9 @@
   --color-strip: #222326;
   --color-chip: #2f3236;
 
-  --font-display: 'Girassol', 'GFS Didot', serif;
-  --font-numeric: 'Alumni Sans Collegiate One', 'Girassol', sans-serif;
-  --font-body: 'GFS Didot', 'Girassol', serif;
+  --font-display: 'Girassol', 'GFS Didot', 'Hangyaku Wide', serif;
+  --font-numeric: 'Alumni Sans Collegiate One', 'Girassol', 'Hangyaku Wide', sans-serif;
+  --font-body: 'GFS Didot', 'Girassol', 'Hangyaku Wide', serif;
 }
 
 * {

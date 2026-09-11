@@ -529,7 +529,6 @@ export default function Calendar({
         <button
           className={`calendar-year${menu?.kind === 'year' ? ' is-open' : ''}`}
           onClick={(event) => toggleMenu('year', event.currentTarget)}
-          title={t('年を選ぶ')}
         >
           <span className="calendar-head-run">{cursor.year}</span>
           <span className="calendar-head-caret">▼</span>
@@ -537,7 +536,6 @@ export default function Calendar({
         <button
           className={`calendar-month${menu?.kind === 'month' ? ' is-open' : ''}`}
           onClick={(event) => toggleMenu('month', event.currentTarget)}
-          title={t('月を選ぶ')}
         >
           <span className="calendar-head-caret">▼</span>
           <span className="calendar-head-run">{MONTH_NAMES[cursor.month]}</span>
@@ -595,7 +593,6 @@ export default function Calendar({
                 animationDuration: `${WAVE_STEP_MS * WAVE_CELLS_LIT}ms`
               }}
               onClick={(event) => togglePlan(key, event.currentTarget)}
-              title={t('{0}/{1} の予定', date.getMonth() + 1, date.getDate())}
             >
               {/* Penpot: Top — the day's number, and the count of whatever
                   plans there was no room to draw */}
@@ -648,7 +645,6 @@ export default function Calendar({
         <button
           className="calendar-step prev"
           onClick={() => step(-1)}
-          title={`${MONTH_NAMES[prevMonth.getMonth()]} ${prevMonth.getFullYear()}`}
         >
           <span className="calendar-step-arrow">◀</span>
           <span className="calendar-step-month">{MONTH_NAMES[prevMonth.getMonth()]}</span>
@@ -696,7 +692,6 @@ export default function Calendar({
         <button
           className="calendar-step next"
           onClick={() => step(1)}
-          title={`${MONTH_NAMES[nextMonth.getMonth()]} ${nextMonth.getFullYear()}`}
         >
           <span className="calendar-step-month">{MONTH_NAMES[nextMonth.getMonth()]}</span>
           <span className="calendar-step-arrow">▶</span>

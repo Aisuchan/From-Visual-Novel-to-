@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { GameImage, GameWithStats } from '../../../shared/db-types'
 import { isVideoPath, mediaUrl } from '../../../shared/media-url'
 import { WHEEL_NOTCH, useWheelStepper } from '../useWheelStepper'
@@ -33,8 +33,34 @@ const MENU_WIDTH = 201
 const MENU_HEIGHT = 160
 const PAGE_SIZE = COLUMNS * ROWS
 
+/* Penpot's own cell and the gaps between them, which `AddThumbnail.css` draws
+   the grid with. The drag works its target slot out of these rather than out of
+   where the cells are: a cell that is sliding into its new place is *moving*,
+   and a moving box under a still pointer is what made the order shake. */
+const CELL_WIDTH = 273
+const CELL_HEIGHT = 154
+const COLUMN_GAP = 30
+const ROW_GAP = 20
+const GRID_WIDTH = COLUMNS * CELL_WIDTH + (COLUMNS - 1) * COLUMN_GAP
+
+/* **A picture is carried onto another page by holding it at the edge.** The
+   band is a little wider than the 50 the Image Container has of its own
+   padding, so it begins where the pictures end rather than at the very edge of
+   the board; a pointer that has run out of grid is already asking for the next
+   page. Held there, the first page turns after `EDGE_HOLD_MS` and each one
+   after that at `EDGE_REPEAT_MS` — long enough to read a page before the next
+   one comes, and short enough not to have to wait for it. */
+const EDGE_BAND = 60
+const EDGE_HOLD_MS = 500
+const EDGE_REPEAT_MS = 700
+
 /** Delay between the diagonals the pictures flip in along, in milliseconds. */
 const FLIP_STAGGER = 55
+/** How long the flip itself takes; the same figure as `thumb-flip-in`'s. */
+const FLIP_MS = 300
+/** The whole arrival: the last diagonal's wait — a 5x5 grid has eight of them
+    past the first — and the flip that follows it. */
+const FLIP_TOTAL_MS = (COLUMNS - 1 + ROWS - 1) * FLIP_STAGGER + FLIP_MS
 
 /* The board's own fade-in (`board-fade-in` at `.slow-fade`'s duration, in
    App.css) is what covers the read and the decode. The flip waits it out
@@ -106,12 +132,79 @@ export default function AddThumbnail({
      measured against: the two have to be the same box. The grid inside it
      scrolls, so it is the section rather than the container. */
   const sectionRef = useRef<HTMLElement | null>(null)
+  /* **The grid is dragged into the order it is read in.** Which picture is
+     being carried, and the page's own ids in the order they currently stand —
+     the cells swap under the pointer and only the release writes anything, the
+     way the side panel's rows do.
+
+     It is the *page* that is reordered rather than the gallery: a drag is over
+     the cells that can be seen, and 25 of them is what a page is. What is
+     written back is still the whole list, with the page's slots refilled in
+     their new order — exactly what the side panel does when a filter is
+     narrowing it. */
+  const [dragId, setDragId] = useState<number | null>(null)
+  const [dragOrder, setDragOrder] = useState<number[] | null>(null)
+  /* A press on a cell opens the picture and a drag reorders it, and the two
+     are the same gesture until the pointer moves. This holds where the press
+     landed until it has moved far enough to be a drag; once it has, the click
+     that follows the release is the drag's own and is swallowed. */
+  const pressed = useRef<{ id: number; x: number; y: number } | null>(null)
+  const dragged = useRef(false)
+  /* The frame the carried picture belongs to. It stays in its slot the whole
+     drag, so its own box is what the picture's offset is measured against —
+     and it moves with the reorder, which is what keeps the offset right after
+     the cell has changed places. */
+  /* **The flip is a page arriving, and nothing else is one.** It used to be
+     hung on `is-ready` alone, which stands for the whole time the page can be
+     seen — so every render that moved a picture re-ran it: an `animation-delay`
+     written from the cell's index is changed by a reorder, and a finished
+     animation whose delay moves re-enters its own active phase and plays
+     again. What arrives is the page, so this is turned on when the page does
+     and turned off once the last diagonal has landed; `is-ready` goes on doing
+     what it always did, which is to say the pictures may be turned face up. */
+  const [arriving, setArriving] = useState(false)
+  /* **Which picture is being carried, looked up rather than held.** The frame
+     it belongs to is what its offset is measured against, and that frame is
+     found by its id every time it is wanted: a page turned mid-drag draws a
+     different twenty-five, so the cell the picture is in is a *different
+     element* on the other side of the turn, and an element held onto from
+     before the turn is one no longer in the document — which is where the
+     picture stopped following the pointer. */
+  const carriedId = useRef<number | null>(null)
+  /* Where in the cell the picture was taken hold of, in design pixels. Read on
+     the first frame the cell is actually carried rather than at the press: the
+     cell is under the pointer, so at the press it still has the hover's own
+     1.04 on it and its box is not the slot's. */
+  const grab = useRef<{ x: number; y: number } | null>(null)
+  /** Where the pointer last was, so the picture can be put under it again on a
+      frame the pointer itself did not move. */
+  const pointerAt = useRef<{ x: number; y: number } | null>(null)
+  /* Where each cell stood before the swap, in the grid's own design pixels
+     (`offsetLeft`/`offsetTop`, which are the *layout* position and so are not
+     moved by the transform a cell may still be sliding under). It is what the
+     slide below is worked out from. */
+  const cellHome = useRef(new Map<number, { left: number; top: number }>())
+  /* Which edge the carried picture is being held at, and the timer that is
+     turning pages for as long as it is. It is a timer rather than something
+     the moves drive: a pointer standing still at the edge sends none. */
+  const edge = useRef<{ side: -1 | 1; timer: number } | null>(null)
 
   useEffect(() => {
     if (motionOff()) return
     const id = window.setTimeout(() => setFaded(true), FADE_COVER_MS)
     return () => window.clearTimeout(id)
   }, [])
+
+  /* A board closed mid-drag leaves nothing running behind it. */
+  useEffect(
+    () => () => {
+      if (edge.current) {
+        window.clearTimeout(edge.current.timer)
+        window.clearInterval(edge.current.timer)
+      }
+    },
+    []
+  )
 
   // Start on the image that is already applied as the thumbnail, and open on
   // the page holding it rather than burying the current choice pages in.
@@ -131,9 +224,26 @@ export default function AddThumbnail({
     load(game.thumbnailPath)
   }, [load, game.thumbnailPath])
 
+  /** How far the pointer has to travel before a press is a drag rather than a
+      click, in the window's own pixels. */
+  const DRAG_THRESHOLD = 6
+
   const pageCount = Math.max(1, Math.ceil(images.length / PAGE_SIZE))
   const current = Math.min(page, pageCount)
-  const visible = images.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
+  /* **What the drag holds is the whole gallery's order, not the page's.** A
+     picture is carried off the end of a page onto the next one, so the slot it
+     is being put into is an index into the list rather than into the
+     twenty-five that happen to be on the screen; the page is only which
+     twenty-five of them are drawn. The list itself is not touched until the
+     release. */
+  const ordered = useMemo(() => {
+    if (!dragOrder) return images
+    const byId = new Map(images.map((image) => [image.id, image]))
+    return dragOrder
+      .map((id) => byId.get(id))
+      .filter((image): image is GameImage => image !== undefined)
+  }, [images, dragOrder])
+  const visible = ordered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
   /* The grid's pictures are turned face down until this is true, so it is what
      says the page may be seen. The decode is waited out only because the flip
      is: a page of pictures being decoded on the frame a 3D transform starts is
@@ -143,6 +253,16 @@ export default function AddThumbnail({
   const ready =
     motionOff() || (faded && visible.every((image) => decoded.current.has(image.filePath)))
   const visibleKey = visible.map((image) => image.id).join(',')
+
+  /* The page is what arrives, so the run is set off by the page rather than by
+     the list: a picture dragged into another slot, or one deleted, leaves the
+     rest of the page exactly where it was and is not an arrival. */
+  useEffect(() => {
+    if (!ready) return
+    setArriving(true)
+    const id = window.setTimeout(() => setArriving(false), FLIP_TOTAL_MS)
+    return () => window.clearTimeout(id)
+  }, [ready, current, game.id])
 
   useEffect(() => {
     if (visible.every((image) => decoded.current.has(image.filePath))) return
@@ -177,6 +297,280 @@ export default function AddThumbnail({
     if (el) el.scrollTop = turnedBack.current ? el.scrollHeight : 0
     turnedBack.current = false
   }, [current])
+
+  /* **A cell is carried to where it is to stand.** The press is held rather
+     than acted on — it could still be the click that opens the picture — and
+     only once the pointer has moved a few pixels does the cell come off the
+     grid and the page begin to reorder under it. Nothing is written until the
+     release. */
+  function pressCell(event: React.PointerEvent<HTMLElement>, imageId: number): void {
+    // Only the left button carries a cell; the right one puts the menu up.
+    if (event.button !== 0) return
+    pressed.current = { id: imageId, x: event.clientX, y: event.clientY }
+    dragged.current = false
+    carriedId.current = imageId
+    grab.current = null
+  }
+
+  /**
+   * **Which slot of the grid the pointer is in**, worked out of the grid's own
+   * geometry rather than by asking the cells where they are.
+   *
+   * Asking them is what made a swap shake: a displaced cell slides into its new
+   * place over 0.15s, and while it is sliding its box sweeps *across* the
+   * pointer — so a pointer standing still near a boundary was answered first by
+   * one cell and then by the other, and the two swapped back and forth for as
+   * long as it stood there. The slots do not move: five columns of 273 with 30
+   * between them, rows of 154 with 20, from the grid's own top left.
+   *
+   * A pointer in a gap is in no slot at all, which is the answer to leave the
+   * order alone.
+   */
+  function slotAt(clientX: number, clientY: number, nearest = false): number | null {
+    const grid = document.querySelector<HTMLElement>('.thumb-grid')
+    if (!grid) return null
+    const box = grid.getBoundingClientRect()
+    if (box.width <= 0) return null
+    const scale = box.width / GRID_WIDTH
+    const x = (clientX - box.left) / scale
+    const y = (clientY - box.top) / scale
+
+    let column = Math.floor(x / (CELL_WIDTH + COLUMN_GAP))
+    let row = Math.floor(y / (CELL_HEIGHT + ROW_GAP))
+    /* **`nearest` is for when the picture has to land somewhere.** A page
+       turned under it is such a moment: the pointer is held against the edge of
+       the board, which is *past* the last column and in no slot at all, and
+       answering `null` there left the carried picture on the page it had come
+       from — not drawn, and not where a release would put it either. Every
+       point is in the grid then: outside is the row or column it is outside of,
+       and a gap is the cell it began. */
+    if (nearest) {
+      column = Math.max(0, Math.min(COLUMNS - 1, column))
+      row = Math.max(0, Math.min(ROWS - 1, row))
+      return row * COLUMNS + column
+    }
+    if (column < 0 || column >= COLUMNS || row < 0 || row >= ROWS) return null
+    if (x - column * (CELL_WIDTH + COLUMN_GAP) > CELL_WIDTH) return null
+    if (y - row * (CELL_HEIGHT + ROW_GAP) > CELL_HEIGHT) return null
+    return row * COLUMNS + column
+  }
+
+  /* **The picture is put under the point of it that was taken hold of.** The
+     cell it belongs to keeps its slot and takes no transform, so its own box is
+     that slot measured afresh — which is what makes this right whichever slot
+     the cell is in. */
+  const carriedCell = useCallback(
+    (): HTMLElement | null =>
+      carriedId.current === null
+        ? null
+        : document.querySelector<HTMLElement>(`[data-thumb-id="${carriedId.current}"]`),
+    []
+  )
+
+  const placeCarried = useCallback((clientX: number, clientY: number): void => {
+    const cell = carriedCell()
+    const section = sectionRef.current?.getBoundingClientRect()
+    if (!cell || !section || section.width <= 0) return
+    const scale = section.width / BOARD_WIDTH
+    const box = cell.getBoundingClientRect()
+    const x = (clientX - box.left) / scale
+    const y = (clientY - box.top) / scale
+    if (!grab.current) grab.current = { x, y }
+    cell.style.setProperty('--drag-x', `${x - grab.current.x}px`)
+    cell.style.setProperty('--drag-y', `${y - grab.current.y}px`)
+  }, [carriedCell])
+
+  /* **A swap moves the cell, and the offset was worked out against where it
+     used to be.** The order is settled in a render, so the frame that puts the
+     cell in its new slot is a frame the pointer has not moved on — and the
+     picture, still carrying the old slot's offset, jumped a whole cell and
+     stayed there until the pointer moved again. It is placed again here, from
+     where the pointer last was, before that frame is painted. */
+  useLayoutEffect(() => {
+    const at = pointerAt.current
+    if (dragId !== null && at) placeCarried(at.x, at.y)
+  }, [dragOrder, current, dragId, placeCarried])
+
+  /* **The cells the carried one displaces slide into their new slots.** A
+     reorder is a render, so without this they were simply somewhere else on the
+     next frame — the picture being carried moved and the grid under it
+     teleported. This is the ordinary first/last inversion: each cell is put
+     back where it was standing, with no transition, and then let go of, and the
+     0.15s the cell already carries on `transform` does the rest.
+     
+     What it is put back *to* is where it was standing **visually**, not where
+     it was laid out — a cell caught still sliding from the swap before this one
+     has a transform of its own part way through, and inverting to its layout
+     position instead would snap it back to the start of a movement it was
+     already half way through. */
+  useLayoutEffect(() => {
+    const home = cellHome.current
+    if (!dragOrder) {
+      home.clear()
+      return
+    }
+    const next = new Map<number, { left: number; top: number }>()
+    for (const cell of document.querySelectorAll<HTMLElement>('[data-thumb-id]')) {
+      const id = Number(cell.dataset.thumbId)
+      const left = cell.offsetLeft
+      const top = cell.offsetTop
+      next.set(id, { left, top })
+      // The carried cell is the one thing not sliding: it is where it is.
+      if (id === dragId) continue
+      const was = home.get(id)
+      if (!was) continue
+
+      const drawn = getComputedStyle(cell).transform
+      const shift = drawn === 'none' ? new DOMMatrixReadOnly() : new DOMMatrixReadOnly(drawn)
+      const dx = was.left + shift.e - left
+      const dy = was.top + shift.f - top
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue
+
+      cell.style.transition = 'none'
+      cell.style.transform = `translate(${dx}px, ${dy}px)`
+      // Read something laid out, so the two writes are not collapsed into one.
+      void cell.offsetWidth
+      cell.style.transition = ''
+      cell.style.transform = ''
+    }
+    cellHome.current = next
+  }, [dragOrder, dragId])
+
+  function moveCell(event: React.PointerEvent<HTMLElement>): void {
+    const press = pressed.current
+    if (!press) return
+
+    if (dragId === null) {
+      const far =
+        Math.abs(event.clientX - press.x) > DRAG_THRESHOLD ||
+        Math.abs(event.clientY - press.y) > DRAG_THRESHOLD
+      if (!far) return
+      /* The pointer is captured only now, so a press that turns out to be a
+         click is never taken off the button it landed on. */
+      event.currentTarget.setPointerCapture(event.pointerId)
+      dragged.current = true
+      setDragId(press.id)
+      setDragOrder(images.map((image) => image.id))
+      return
+    }
+
+    if (!dragOrder) return
+
+    pointerAt.current = { x: event.clientX, y: event.clientY }
+    placeCarried(event.clientX, event.clientY)
+
+    edgeHold(event.clientX, event.clientY)
+    carryToPointer(event.clientX, event.clientY)
+  }
+
+  /** Stops whatever page turning the edge was doing. */
+  function releaseEdge(): void {
+    if (edge.current) {
+      // The one id is a timeout while the hold is being counted out and an
+      // interval afterwards; the two share a pool, so both are cleared.
+      window.clearTimeout(edge.current.timer)
+      window.clearInterval(edge.current.timer)
+    }
+    edge.current = null
+  }
+
+  /**
+   * The pointer held against the left or right end of the grid turns the page,
+   * and goes on turning it until it is moved off the edge or let go of.
+   *
+   * The turn is `turnedBack`'s own: a page reached backwards lands at its end,
+   * the way the wheel leaves it, so a picture carried back arrives where it
+   * would have carried on reading from.
+   */
+  function edgeHold(clientX: number, clientY: number): void {
+    const grid = gridRef.current
+    if (!grid) return releaseEdge()
+    const box = grid.getBoundingClientRect()
+    if (box.width <= 0) return releaseEdge()
+    const band = EDGE_BAND * (box.width / BOARD_WIDTH)
+
+    const inside = clientY >= box.top && clientY <= box.bottom
+    const side: -1 | 1 | 0 = !inside
+      ? 0
+      : clientX <= box.left + band
+        ? -1
+        : clientX >= box.right - band
+          ? 1
+          : 0
+    if (side === 0) return releaseEdge()
+    // Already counting out this edge: leave it to finish rather than starting
+    // the wait again on every move.
+    if (edge.current?.side === side) return
+    releaseEdge()
+
+    const pages = Math.max(1, Math.ceil(images.length / PAGE_SIZE))
+    const turn = (): void => {
+      // A page reached backwards lands at its end, the way the wheel leaves it.
+      turnedBack.current = side < 0
+      setPage((was) => {
+        const next = was + side
+        return next < 1 || next > pages ? was : next
+      })
+    }
+    /* The interval is put in the ref *before* the first turn, so a release
+       fired from inside that turn has something to clear. */
+    const timer = window.setTimeout(() => {
+      const repeat = window.setInterval(turn, EDGE_REPEAT_MS)
+      if (!edge.current) return window.clearInterval(repeat)
+      edge.current.timer = repeat
+      turn()
+    }, EDGE_HOLD_MS)
+    edge.current = { side, timer }
+  }
+
+  /* A page turned under a carried picture puts it on that page, in the slot the
+     pointer is standing in — which is the edge it was held at, so it arrives
+     where the pointer already is rather than at some end of the new page. */
+  useLayoutEffect(() => {
+    const at = pointerAt.current
+    if (dragId !== null && at) carryToPointer(at.x, at.y, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current])
+
+  /** Puts the carried picture into whatever slot of the page the pointer is
+      standing in, as an index into the whole list. */
+  function carryToPointer(clientX: number, clientY: number, nearest = false): void {
+    if (dragId === null || !dragOrder) return
+    const slot = slotAt(clientX, clientY, nearest)
+    if (slot === null) return
+    /* A last page is not a full one, so a slot past its end is its end: what is
+       being asked for is the place after everything, and there is no row there
+       to be over. */
+    const to = Math.min((current - 1) * PAGE_SIZE + slot, dragOrder.length - 1)
+    const from = dragOrder.indexOf(dragId)
+    if (from < 0 || to === from) return
+    const next = [...dragOrder]
+    next.splice(from, 1)
+    next.splice(to, 0, dragId)
+    setDragOrder(next)
+  }
+
+  function releaseCell(): void {
+    releaseEdge()
+    const order = dragOrder
+    const carried = dragId
+    /* The picture goes back into its frame, which is now the frame in the slot
+       it was carried to. */
+    const cell = carriedCell()
+    cell?.style.removeProperty('--drag-x')
+    cell?.style.removeProperty('--drag-y')
+    carriedId.current = null
+    grab.current = null
+    pointerAt.current = null
+    pressed.current = null
+    setDragId(null)
+    setDragOrder(null)
+    if (carried === null || !order) return
+
+    const before = images.map((image) => image.id)
+    if (order.every((id, index) => id === before[index])) return
+    void window.library.reorderGameImages(game.id, order).then(setImages)
+  }
 
   /**
    * The wheel pages through the grid. A window too short for all five rows can
@@ -279,7 +673,11 @@ export default function AddThumbnail({
         {!loaded ? null : images.length === 0 ? (
           <p className="thumb-empty">no images yet — use ADD IMAGE</p>
         ) : (
-          <div className={`thumb-grid${ready ? ' is-ready' : ''}`}>
+          <div
+            className={`thumb-grid${ready ? ' is-ready' : ''}${
+              arriving ? ' is-arriving' : ''
+            }${dragId !== null ? ' is-dragging' : ''}`}
+          >
             {visible.map((image, index) => (
               <div
                 key={image.id}
@@ -289,7 +687,11 @@ export default function AddThumbnail({
                    gone — it shrank back under the menu it had just put up. */
                 className={`thumb-cell${selectedId === image.id ? ' selected' : ''}${
                   menu?.image.id === image.id ? ' is-open' : ''
-                }`}
+                }${dragId === image.id ? ' is-carried' : ''}`}
+                /* What the drag hit-tests against: the pointer is over a cell
+                   or it is over the gap between two, and the gap is no answer
+                   at all. */
+                data-thumb-id={image.id}
               >
                 {/* **One click opens it full screen**, which is the one thing a
                     picture in a grid is looked at for. What used to be here —
@@ -299,7 +701,21 @@ export default function AddThumbnail({
                     can be *made* to do is on the right press. */}
                 <button
                   className="thumb-cell-image"
-                  onClick={() => setViewing(images.findIndex((i) => i.id === image.id))}
+                  onPointerDown={(event) => pressCell(event, image.id)}
+                  onPointerMove={moveCell}
+                  onPointerUp={releaseCell}
+                  onPointerCancel={releaseCell}
+                  onClick={() => {
+                    /* The release of a drag raises a click on the cell it set
+                       off from. That press was carrying a picture, not opening
+                       one. */
+                    if (dragged.current) {
+                      dragged.current = false
+                      return
+                    }
+                    pressed.current = null
+                    setViewing(images.findIndex((i) => i.id === image.id))
+                  }}
                   onContextMenu={(event) => {
                     event.preventDefault()
                     // The cell is what a second right-click on it toggles off.
@@ -332,6 +748,12 @@ export default function AddThumbnail({
                   {isVideoPath(image.filePath) ? (
                     <video
                       src={mediaUrl(image.filePath)}
+                      /* **Chromium drags a picture out of a page by itself.**
+                         That native drag takes the pointer with it — the
+                         capture is broken and a `pointercancel` arrives — so
+                         the cell was let go of on the first pixel it moved and
+                         nothing was ever reordered. */
+                      draggable={false}
                       muted
                       autoPlay
                       loop
@@ -347,6 +769,9 @@ export default function AddThumbnail({
                     <img
                       src={mediaUrl(image.filePath)}
                       alt=""
+                      // See the clip above: the browser's own drag is what was
+                      // cancelling this one.
+                      draggable={false}
                       decoding="async"
                       style={{
                         animationDelay: `${

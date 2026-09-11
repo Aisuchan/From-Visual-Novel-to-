@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { NewGroupInput } from '../../../shared/db-types'
+import type { Group, NewGroupInput } from '../../../shared/db-types'
 import { HEX, SWATCHES } from '../color'
 import ColorPicker from './ColorPicker'
 import './NewGroupSetting.css'
@@ -11,6 +11,11 @@ const DEFAULT_COLOR = '#e01f1f'
 interface Props {
   onCancel: () => void
   onSubmit: (input: NewGroupInput) => void
+  /* The group this board was opened *on*, where it was opened by a right press
+     on one in the list rather than by 「グループを追加」. The same board either
+     way — a group is a name and a colour whether it is being made or changed —
+     so what it opens with is all that differs, and its heading. */
+  group?: Group
 }
 
 /**
@@ -18,9 +23,13 @@ interface Props {
  * 416x479 — a name and a colour under the same "Color Setting" board the Add
  * Route Menu carries, over the design's CANCEL / OK pair.
  */
-export default function NewGroupSetting({ onCancel, onSubmit }: Props): React.JSX.Element {
-  const [name, setName] = useState('')
-  const [color, setColor] = useState(DEFAULT_COLOR)
+export default function NewGroupSetting({
+  onCancel,
+  onSubmit,
+  group
+}: Props): React.JSX.Element {
+  const [name, setName] = useState(group?.name ?? '')
+  const [color, setColor] = useState(group?.color ?? DEFAULT_COLOR)
 
   function submit(): void {
     if (!name.trim()) return
@@ -31,7 +40,7 @@ export default function NewGroupSetting({ onCancel, onSubmit }: Props): React.JS
     <div className="dialog-backdrop" onClick={onCancel}>
       <div className="new-group" onClick={(e) => e.stopPropagation()}>
         {/* Penpot: "New Group" — Girassol 36px, #e1e8ed */}
-        <span className="ng-title">New Group</span>
+        <span className="ng-title">{group ? t('グループを編集') : 'New Group'}</span>
 
         {/* Penpot: Rectangle — 356x2 #B1B2B5, 5px above and below */}
         <div className="ng-rule" />

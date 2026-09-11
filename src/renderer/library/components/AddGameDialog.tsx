@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { parseErogamescape, parseVndb, referenceUrl } from '../reference'
 import type {
   GameWithStats,
   Group,
   NewGameInput,
   NewGroupInput,
-  Tag
+  Tag,
+  VndbReleaseLanguage
 } from '../../../shared/db-types'
 import { mediaUrl } from '../../../shared/media-url'
 import { suggestsGroup } from '../filter'
@@ -23,8 +25,15 @@ interface Props {
   onGroupsChanged: (groups: Group[]) => void
   /** The tag vocabulary, which is what names the game's own tags. */
   tags: Tag[]
+  /* The Setting board's own row: which language's release the VN Database's
+     date is read off. It is the shell's, like every other setting, and reaches
+     the dialog as the one thing about the settings this row needs. */
+  vndbReleaseLanguage: VndbReleaseLanguage
   onCancel: () => void
   onSubmit: (input: NewGameInput) => void
+  /* A right press on one of the rows the group list drops. It is the shell's
+     to answer: the list is the shell's, and so is the board that edits one. */
+  onGroupContext?: (key: string, event: React.MouseEvent) => void
 }
 
 /** The key the add row answers to, which is no group's id — as in the panel. */
@@ -32,6 +41,14 @@ const ADD_GROUP_KEY = 'add-group'
 /* Penpot: Group — the 426x39 row, and the menu drops out of it 5px below.
    The design's own list is five long; eight groups stand before it scrolls,
    as they do in the panel, and the add row stands over them. */
+/* Penpot's Top Right, which the row fills — and what the list is until the row
+   has been measured. **The row is not that wide here.** The dialog's 10px stroke
+   is an inner one in Penpot and a CSS `border` in this app, so the box the
+   children are laid out in is 850 rather than the design's 870 and every figure
+   inside the Top Container comes out 20 short: the row is 406. Written down, the
+   design's 426 put the list 20px past the row's right edge and it was cut off
+   there, so the list takes the row's own `offsetWidth` instead — unzoomed CSS
+   pixels, which are design pixels, so nothing has to be scaled. */
 const GROUP_MENU_WIDTH = 426
 const GROUP_MENU_TOP = 44
 const GROUP_MENU_ROWS = 8
@@ -47,8 +64,10 @@ export default function AddGameDialog({
   groups,
   onGroupsChanged,
   tags,
+  vndbReleaseLanguage,
   onCancel,
-  onSubmit
+  onSubmit,
+  onGroupContext
 }: Props): React.JSX.Element {
   const editing = !!game
 
@@ -59,9 +78,15 @@ export default function AddGameDialog({
   const [thumbnailPath, setThumbnailPath] = useState<string | null>(game?.thumbnailPath ?? null)
   const [iconPath, setIconPath] = useState<string | null>(game?.iconPath ?? null)
   const [useExeIcon, setUseExeIcon] = useState(game?.useExeIcon ?? true)
-  const [useShortName, setUseShortName] = useState(game?.useShortName ?? false)
+  /* **A game being registered opens with all three of them on.** They are what
+     the dialog does for you rather than choices about the game itself — the
+     icon off the executable, the short name where the full one will not fit,
+     the thumbnail carried over — so a game added without a thought given to
+     them is filed the way the app files one. A game being edited keeps
+     whatever it was stored with. */
+  const [useShortName, setUseShortName] = useState(game?.useShortName ?? true)
   const [useThumbnailAsDefault, setUseThumbnailAsDefault] = useState(
-    game?.useThumbnailAsDefault ?? false
+    game?.useThumbnailAsDefault ?? true
   )
   const [error, setError] = useState<string | null>(null)
   /* The Group row, worked the way the side panel's Select Group is: the button
@@ -89,6 +114,30 @@ export default function AddGameDialog({
   })
   const [editingChip, setEditingChip] = useState<number | null>(null)
   const groupRowRef = useRef<HTMLDivElement | null>(null)
+  /* How wide the group list is: the row's own width rather than the design's
+     figure — see `GROUP_MENU_WIDTH`. Measured as the list opens, since the
+     dialog can be resized under it by the window. */
+  const [groupMenuWidth, setGroupMenuWidth] = useState(GROUP_MENU_WIDTH)
+  /* **The Reference row.** The URL is the row's own state; what the site said
+     is kept beside it, so what is written when OK is pressed is what the row
+     actually read rather than whatever the fields have been edited to since.
+     `reading` is what the button says while the one request is in flight, and
+     is also what stops a second press from making a second one. */
+  const [referenceUrlText, setReferenceUrlText] = useState(game?.referenceUrl ?? '')
+  const [reading, setReading] = useState(false)
+  const [referenceError, setReferenceError] = useState<string | null>(null)
+  const [reference, setReference] = useState<{
+    brand: string | null
+    releaseDate: string | null
+    releaseLanguage: VndbReleaseLanguage | null
+    medianScore: number | null
+    averageScore: number | null
+  } | null>(null)
+
+  useLayoutEffect(() => {
+    const row = groupRowRef.current
+    if (row && row.offsetWidth > 0) setGroupMenuWidth(row.offsetWidth)
+  }, [groupMenu])
   const tagAreaRef = useRef<HTMLDivElement | null>(null)
   const chipCount = useRef(chips.length)
 
@@ -198,6 +247,83 @@ export default function AddGameDialog({
     if (result) setIconPath(result)
   }
 
+  /* What the button is dead until: a URL that is one of the pages this can
+     read. The same test the main process makes before it opens anything, so the
+     row can say whether it will work without asking the site. */
+  const readable = referenceUrl(referenceUrlText)
+  const canRead = !reading && readable !== null
+
+  /**
+   * **One press, one read.** The page is fetched, what it says is read out of
+   * it here, and the fields it can fill are filled — the title, the picture,
+   * and the three figures the library sorts on. The brand joins the Tag row as
+   * a chip: it is a thing a library is filed by and the row already filters on
+   * one, and standing there it can be taken off again before OK.
+   *
+   * **What is already typed is left alone.** The title is only written into an
+   * empty field and the picture only into an empty slot: a person who has named
+   * the game themselves has said what they want it called, and a row read
+   * afterwards is a source of what they did *not* fill in.
+   */
+  async function readReference(): Promise<void> {
+    if (!canRead || !readable) return
+    const { url, site } = readable
+    setReading(true)
+    setReferenceError(null)
+    try {
+      const html = await window.library.fetchReferencePage(url)
+      /* Two sites, two shapes of page, one row: which parser reads it follows
+         from the address, which is what said the button could be pressed. */
+      const entry =
+        site === 'vndb' ? parseVndb(html, vndbReleaseLanguage) : parseErogamescape(html)
+
+      if (entry.title && !title.trim()) setTitle(entry.title)
+      /* **The brand goes to both places, because it is two things.** It is a
+         fact about the game, which the Game Info board's BRAND row states; and
+         it is something a library is filed by, which is what a tag is. Put on
+         the row it can be searched on and taken off again before OK, and the
+         row already drops a name it is carrying. */
+      if (entry.brand) {
+        const name = entry.brand
+        setChips((was) =>
+          was.some((chip) => chip.name.toLowerCase() === name.toLowerCase())
+            ? was
+            : [...was, { id: nextChipId.current++, name }]
+        )
+      }
+      setReference({
+        brand: entry.brand,
+        releaseDate: entry.releaseDate,
+        /* Which of the page's per-language releases answered — the row's own
+           choice, or the Japanese one it fell back to. ErogameScape lists one
+           date and hands back nothing here, which is what leaves its games
+           without the mark. */
+        releaseLanguage: entry.releaseLanguage ?? null,
+        medianScore: entry.medianScore,
+        averageScore: entry.averageScore
+      })
+
+      /* **The picture is the second and last request, and its own to fail.**
+         It is on whatever shop's host the page happens to point at, so it can
+         be gone, or refused, when everything else about the read went through.
+         Caught here, the title, the brand and the figures stay where they have
+         been put and the row says the one thing that did not arrive. */
+      if (entry.imageSrc && !thumbnailPath) {
+        try {
+          setThumbnailPath(await window.library.fetchReferenceImage(entry.imageSrc, url))
+        } catch (error) {
+          setReferenceError(
+            t('画像だけ取得できませんでした（{0}）', error instanceof Error ? error.message : '')
+          )
+        }
+      }
+    } catch (error) {
+      setReferenceError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setReading(false)
+    }
+  }
+
   function submit(): void {
     if (!title.trim()) {
       setError(t('ゲーム名を入力してください'))
@@ -217,7 +343,16 @@ export default function AddGameDialog({
       tagNames: chips.map((chip) => chip.name).filter((name) => name !== ''),
       useExeIcon,
       useShortName,
-      useThumbnailAsDefault
+      useThumbnailAsDefault,
+      /* Null where the row was never pressed, which is what leaves a game
+         registered by hand with whatever it already had. The URL is the one
+         exception: it is the row's own field and is written as it stands. */
+      releaseDate: reference?.releaseDate ?? null,
+      releaseLanguage: reference?.releaseLanguage ?? null,
+      medianScore: reference?.medianScore ?? null,
+      averageScore: reference?.averageScore ?? null,
+      brand: reference?.brand ?? null,
+      referenceUrl: referenceUrlText.trim() || null
     })
   }
 
@@ -231,14 +366,39 @@ export default function AddGameDialog({
 
           {/* Penpot: Reference — 870x157, 15px/36px padding, 15px row gap */}
           <div className="dialog-reference">
-            <label className="field-label">Reference ErogeScape / VN DataBase</label>
+            <label className="field-label">
+              {t('erogamescape(批評空間)/VN DataBase を参照')}
+            </label>
 
             <div className="url-box">
-              <input className="url-input" placeholder="URL..." disabled />
-              <button className="url-button" disabled>
-                SUBMIT
+              <input
+                className="url-input"
+                placeholder="URL..."
+                value={referenceUrlText}
+                onChange={(event) => {
+                  setReferenceUrlText(event.target.value)
+                  setReferenceError(null)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && canRead) void readReference()
+                }}
+              />
+              {/* **Nothing is fetched until this is pressed.** Typing a URL
+                  asks the site for nothing, and the button is dead until what
+                  has been typed is a page this can read — so a half-typed
+                  address is never opened. */}
+              <button
+                className="url-button"
+                onClick={() => void readReference()}
+                disabled={!canRead}
+              >
+                {reading ? t('取得中') : t('送信')}
               </button>
             </div>
+
+            {referenceError !== null && (
+              <p className="url-error">{referenceError}</p>
+            )}
 
             <label className="setting-row">
               <input
@@ -311,7 +471,7 @@ export default function AddGameDialog({
                       middle of the sentence; where the other language breaks it
                       is the other language's, so the run carries its own. */}
                   <span className="setting-text small">
-                    {t('GAME NAMEを表示するスペースが足りない場合、\nSHORT NAMEを代わりに表示')
+                    {t('GAME NAMEを表示するスペースが\n足りない場合、SHORT NAMEを代わりに表示')
                       .split('\n')
                       .map((line, index) => (
                         <span key={index}>
@@ -376,9 +536,10 @@ export default function AddGameDialog({
                     {groupOptions.length > 0 && (
                       <OptionMenu
                         options={groupOptions}
+                        onRowContext={onGroupContext}
                         top={GROUP_MENU_TOP}
                         left={0}
-                        width={GROUP_MENU_WIDTH}
+                        width={groupMenuWidth}
                         /* The groups are what the count is of; the row that
                            adds one is not one of them, and the suggestions
                            leave it off entirely. */
@@ -435,12 +596,12 @@ export default function AddGameDialog({
 
           {/* Penpot: Reference (bottom) — 870x127, 36px side padding */}
           <div className="dialog-reference bottom">
-            <label className="field-label">Location of the executable</label>
+            <label className="field-label">{t('実行ファイルの場所')}</label>
 
             <div className="url-box">
               <input className="url-input" value={exePath} readOnly placeholder="Path..." />
               <button className="url-button ref" onClick={pickExe}>
-                REF
+                {t('参照')}
               </button>
             </div>
 

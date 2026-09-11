@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import type { FooterStats, Plan } from '../../../shared/db-types'
+import type { FooterStats, Language, Plan } from '../../../shared/db-types'
 import { formatHours, yearProgress } from '../format'
 import Notification from './Notification'
 import './FooterBar.css'
-import { t } from '../../../shared/i18n'
+/* The square cut of the ErogameScape mark, rather than the roundel the Game
+   Info board carries: this row is Font Awesome glyphs, which are ink to the
+   edges of their box, and a roundel beside them read as the one that had been
+   shrunk. */
+import eroScaMark from '../../assets/erosca_square.png'
+import vndbMark from '../../assets/VNDB.png'
+import { maskOf } from '../mask'
+import { getLanguage, t } from '../../../shared/i18n'
 
 interface Props {
   stats: FooterStats | null
@@ -20,6 +27,15 @@ interface Props {
       the mark goes and the run is the footer's dim ink again. */
   dueSeen: boolean
   onDueSeen: () => void
+}
+
+/* Where the footer's database mark leads, per language. The Japanese one is
+   the 統計・解析 index rather than the site's root — it is the part of
+   erogamescape the app reads, and the root is a portal page that has to be
+   clicked through to reach it. */
+const SITE_HOME: Record<Language, string> = {
+  ja: 'https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/',
+  en: 'https://vndb.org'
 }
 
 export default function FooterBar({
@@ -159,9 +175,30 @@ export default function FooterBar({
         <span className="footer-icon" title={t('note（未実装）')}>
           <i className="fa-solid fa-book" />
         </span>
-        <span className="footer-icon" title={t('ErogeScape / VNDB（未実装）')}>
-          🔞
-        </span>
+        {/* **The database, named by the language the app is kept in — and the
+            button opens it.** Unlike the Game Info board's own mark, which says
+            where *that game's* registered page is and so is read off its
+            address, this one stands for no particular game: it is the site
+            itself, in the system's own browser, and which of the two that is
+            follows the reader. Japanese is erogamescape's own 統計・解析 index,
+            which is the part of the site the Reference row reads; English is
+            the VN Database's front page.
+
+            `getLanguage()` is read as the mark is drawn, the way `t` is: the
+            shell sets the language during its own render and re-renders the
+            tree, so a row changed on the Setting board is answered here without
+            a prop or a restart. */}
+        <button
+          className="footer-icon footer-site"
+          onClick={() => void window.library.openExternal(SITE_HOME[getLanguage()])}
+          title={SITE_HOME[getLanguage()]}
+          aria-label={t('データベースを開く')}
+        >
+          <span
+            className="footer-site-mark"
+            style={maskOf(getLanguage() === 'ja' ? eroScaMark : vndbMark)}
+          />
+        </button>
       </div>
     </footer>
   )

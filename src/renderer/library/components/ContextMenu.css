@@ -13,7 +13,13 @@
 
 .context-menu {
   position: absolute;
-  z-index: 40;
+  /* **Above every window, backdrop included.** A right-click plate is the last
+     thing the reader asked for, so nothing may be drawn over it — and the group
+     list drops inside the Add Game dialog, whose backdrop is 50: at 40 the plate
+     was raised behind it and the press appeared to do nothing at all. It is also
+     what makes the dismissal's own rule hold, that nothing can be right-clicked
+     *through* an open menu. */
+  z-index: 60;
   font-size: 26px;
   background: var(--color-bg-alt);
   /* Penpot's own margins, kept as they are drawn rather than scaled with the

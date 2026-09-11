@@ -245,7 +245,6 @@ export default function PlanPanel({
             className={`plan-panel-close${deleting ? ' is-on' : ''}`}
             onClick={() => setDeleting((on) => !on)}
             aria-pressed={deleting}
-            title={deleting ? t('削除をやめる') : t('予定を削除する')}
           >
             －
           </button>
@@ -330,7 +329,6 @@ export default function PlanPanel({
                       setColor(swatch)
                       setCode('')
                     }}
-                    title={swatch}
                   />
                 ))}
               </div>
@@ -378,7 +376,6 @@ export default function PlanPanel({
                 onDoubleClick={() => {
                   if (!deleting) editPlan(plan)
                 }}
-                title={t('ダブルクリックで編集')}
               >
                 <span className="plan-panel-plan-name">
                   {/* Not in the design: a plan that has asked to be notified

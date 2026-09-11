@@ -4,6 +4,7 @@ import { setLanguage, t } from '../../shared/i18n'
 import type {
   AppSettings,
   FooterStats,
+  GameReference,
   GameWithStats,
   Group,
   Plan,
@@ -26,6 +27,8 @@ import FooterBar from './components/FooterBar'
 import AddGameDialog from './components/AddGameDialog'
 import NewGroupSetting from './components/NewGroupSetting'
 import ConfirmDialog from './components/ConfirmDialog'
+import ContextMenu from './components/ContextMenu'
+import { useContextMenuDismiss } from './context-menu'
 import Confetti, { type ConfettiClip } from './components/Confetti'
 import Balloons from './components/Balloons'
 import './App.css'
@@ -42,6 +45,14 @@ type MainView =
     App.css, which is what the Calender board's own cells wait out. */
 const BOARD_FADE_MS = 300
 
+/** The shell's own width in design pixels, which a measured point is scaled
+    back by: the side panel's 335 and the content column's 1585. */
+const SHELL_WIDTH = 1920
+/* Penpot: Right Click Menu — 201 wide, and two options tall at the design's own
+   row and gap plus its 10 of padding either side. */
+const GROUP_MENU_WIDTH = 201
+const GROUP_MENU_HEIGHT = 10 + 42 * 2 + 5 + 10
+
 export default function App(): React.JSX.Element {
   const [games, setGames] = useState<GameWithStats[]>([])
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null)
@@ -52,6 +63,19 @@ export default function App(): React.JSX.Element {
   // wide and stands over the whole window, as every other dialog does.
   const [groups, setGroups] = useState<Group[]>([])
   const [showNewGroup, setShowNewGroup] = useState(false)
+  /* **A group is edited and deleted from the list it stands in.** The four
+     screens that drop that list — the side panel, the Home board, the PlayTime
+     Graph and the Add Game dialog — all hand the press up here rather than
+     answering it themselves: the list is the shell's, the board that edits one
+     is the shell's, and the same right press would otherwise be written out
+     four times. What they hand up is the press itself, so the plate is placed
+     against the shell the way every other one in the app is. */
+  const [groupMenu, setGroupMenu] = useState<{ group: Group; left: number; top: number } | null>(
+    null
+  )
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null)
+  const [deletingGroup, setDeletingGroup] = useState<Group | null>(null)
+  const groupMenuOpener = useContextMenuDismiss(groupMenu !== null, () => setGroupMenu(null))
   /* The tag vocabulary. It is the shell's rather than either screen's: the Add
      Game dialog names a game's tags out of it and the side panel matches its
      filter chips against it, and both want it in hand rather than a round trip
@@ -64,6 +88,7 @@ export default function App(): React.JSX.Element {
   const [settings, setSettings] = useState<AppSettings>({
     // The store's own defaults, which stand for the frame before it answers.
     language: 'ja',
+    vndbReleaseLanguage: 'en',
     screenshotFormat: 'png',
     videoFormat: 'mp4',
     audioFormat: 'mp3',
@@ -83,7 +108,9 @@ export default function App(): React.JSX.Element {
     screenshotSound: 'off',
     videoSound: 'off',
     audioSound: 'off',
+    launchAtLogin: 'off',
     launchWindowMode: 'window',
+    gpuMode: 'auto',
     backupOnLaunch: 'off',
     backupDirectory: '',
     backupRestorePath: '',
@@ -316,6 +343,53 @@ export default function App(): React.JSX.Element {
     setSelectedGameId(created.id)
   }
 
+  /* The row's own press, in the shell's own design pixels. The shell is laid
+     out at 1920 under a fractional zoom, so a client point is scaled back by
+     that known width — the conversion every menu in the app makes against a box
+     whose design width it knows. */
+  function openGroupMenu(key: string, event: React.MouseEvent): void {
+    /* A menu's rows are keyed by the group's id, and the rows that are not a
+       group — 「グループを追加 ＋」 and 「すべて」 — carry a word for a key
+       instead, so they simply match nothing and the press does nothing. */
+    const group = groups.find((one) => String(one.id) === key)
+    const shell = document.querySelector('.app-shell')
+    if (!group || !shell) return
+    event.preventDefault()
+    groupMenuOpener.current = event.currentTarget as HTMLElement
+    const box = shell.getBoundingClientRect()
+    const scale = box.width / SHELL_WIDTH
+    /* Held inside the shell, which is what clips: the plate is drawn at the
+       pointer and a press near an edge would otherwise put it half outside. */
+    setGroupMenu({
+      group,
+      left: Math.min((event.clientX - box.left) / scale, SHELL_WIDTH - GROUP_MENU_WIDTH),
+      top: Math.min((event.clientY - box.top) / scale, box.height / scale - GROUP_MENU_HEIGHT)
+    })
+  }
+
+  async function handleEditGroup(input: NewGroupInput): Promise<void> {
+    const group = editingGroup
+    setEditingGroup(null)
+    if (!group) return
+    setGroups(await window.library.updateGroup(group.id, input))
+    /* A rename is written onto the games as well, so the list they are drawn
+       from has to be read again. */
+    await refreshGames()
+  }
+
+  async function handleDeleteGroup(group: Group): Promise<void> {
+    setGroups(await window.library.deleteGroup(group.id))
+    await refreshGames()
+  }
+
+  /* The Game Info board's own gear. It writes four columns and nothing else, so
+     what comes back is the game — and the library is read again, the board being
+     drawn from that list rather than from what the panel was handed. */
+  async function handleSaveReference(gameId: number, input: GameReference): Promise<void> {
+    await window.library.setGameReference(gameId, input)
+    await refreshGames()
+  }
+
   async function handleAddGroup(input: NewGroupInput): Promise<void> {
     setGroups(await window.library.addGroup(input))
     setShowNewGroup(false)
@@ -398,6 +472,7 @@ export default function App(): React.JSX.Element {
         <Home
           games={games}
           groups={groups}
+          onGroupContext={openGroupMenu}
           tags={tags}
           onGamesChanged={refreshGames}
           layout={settings.homeLayout}
@@ -432,6 +507,7 @@ export default function App(): React.JSX.Element {
           defaultPeriod={settings.graphPeriod}
           tags={tags}
           groups={groups}
+          onGroupContext={openGroupMenu}
           onSetDefaultPeriod={async (graphPeriod) =>
             setSettings(await window.library.setSettings({ graphPeriod }))
           }
@@ -496,6 +572,7 @@ export default function App(): React.JSX.Element {
           setFinishing(false)
         }}
         onGamesChanged={refreshGames}
+        onSaveReference={handleSaveReference}
       />
     )
   }
@@ -508,6 +585,7 @@ export default function App(): React.JSX.Element {
         <SidePanel
           games={games}
           groups={groups}
+          onGroupContext={openGroupMenu}
           tags={tags}
           /* The panel's highlight is where the content column *is*, not what
              was last opened: the Home, Setting and Calender boards are the
@@ -615,8 +693,10 @@ export default function App(): React.JSX.Element {
       {showAddGame && (
         <AddGameDialog
           groups={groups}
+          onGroupContext={openGroupMenu}
           onGroupsChanged={setGroups}
           tags={tags}
+          vndbReleaseLanguage={settings.vndbReleaseLanguage}
           onCancel={() => setShowAddGame(false)}
           onSubmit={handleAddGame}
         />
@@ -627,8 +707,10 @@ export default function App(): React.JSX.Element {
           key={editingGame.id}
           game={editingGame}
           groups={groups}
+          onGroupContext={openGroupMenu}
           onGroupsChanged={setGroups}
           tags={tags}
+          vndbReleaseLanguage={settings.vndbReleaseLanguage}
           onCancel={() => setEditingGame(null)}
           onSubmit={handleUpdateGame}
         />
@@ -636,6 +718,53 @@ export default function App(): React.JSX.Element {
 
       {showNewGroup && (
         <NewGroupSetting onCancel={() => setShowNewGroup(false)} onSubmit={handleAddGroup} />
+      )}
+
+      {/* The two things a group in the list can be made to do, on the same
+          plate and the same rule every other right press in the app follows. */}
+      {groupMenu && (
+        <ContextMenu
+          style={{ left: `${groupMenu.left}px`, top: `${groupMenu.top}px` }}
+          items={[
+            {
+              label: t('編集'),
+              onSelect: () => {
+                setEditingGroup(groupMenu.group)
+                setGroupMenu(null)
+              }
+            },
+            {
+              label: t('削除'),
+              danger: true,
+              onSelect: () => {
+                setDeletingGroup(groupMenu.group)
+                setGroupMenu(null)
+              }
+            }
+          ]}
+        />
+      )}
+
+      {editingGroup && (
+        <NewGroupSetting
+          group={editingGroup}
+          onCancel={() => setEditingGroup(null)}
+          onSubmit={handleEditGroup}
+        />
+      )}
+
+      {deletingGroup && (
+        <ConfirmDialog
+          title="delete group"
+          message={t('「{0}」を削除しますか？', deletingGroup.name)}
+          note={t('このグループのゲームはグループなしになります。')}
+          onCancel={() => setDeletingGroup(null)}
+          onConfirm={() => {
+            const group = deletingGroup
+            setDeletingGroup(null)
+            void handleDeleteGroup(group)
+          }}
+        />
       )}
 
       {launchError !== null && (

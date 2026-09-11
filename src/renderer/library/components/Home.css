@@ -543,8 +543,19 @@
   --gap: 40px;
   --side: calc((1585px - 5 * (304px * 5 / 6) - 4 * var(--gap)) / 2);
   --card-height: calc(var(--card-width) * 6 / 5);
+  /* **The design's own 55, and the type is what fits it.** That 55 is the
+     rule and two lines of Penpot's 0.7em raster, and it is not an arbitrary
+     figure: 40 above the first row, two rows of 304 + 55, the 50 between them
+     and the 10 under the last come to exactly the 818 the board leaves under
+     its Border — so **two rows fill the container and no more**, which is what
+     the design draws. Grown to 66 to hold two lines of real ink at 25, the pair
+     came to 840 against the 821 a 16:9 column has and the second row was cut
+     off, one notch of scrolling from being read. The row goes back to the
+     design's height and the title is set to what two lines of it hold; see
+     `.home-card-title-text`. */
+  --title-height: 55px;
   display: grid;
-  grid-auto-rows: calc(var(--card-height) + 55px);
+  grid-auto-rows: calc(var(--card-height) + var(--title-height));
   column-gap: var(--gap);
   row-gap: 50px;
   /* Penpot's own padding is 40/80/0/80 — its two rows fill the Container's 808
@@ -761,6 +772,10 @@
    lose the hover to its own panel. */
 .home-card-hover {
   position: absolute;
+  /* **A quarter of the screen is as wide as it may get.** The cap is on the
+     panel's own unscaled width, and the panel is drawn here at three fifths, so
+     800 of its pixels are the 480 that a quarter of the 1920 shell comes to. */
+  --game-hover-max: 800px;
   transform: scale(0.6);
   transform-origin: top left;
   pointer-events: none;
@@ -836,7 +851,23 @@
   margin: 5px 0 -5px;
 }
 
-/* Penpot: Title — whatever the card leaves, its run centred in it. */
+/* Penpot: Title — whatever the card leaves, its run centred in it.
+
+   **The rule stands inside this box, and the run has to begin under it.**
+   Penpot's own column puts the Border in the flow at the thumbnail's bottom
+   edge and then draws the shape itself 5px lower (measured on the design's own
+   card: thumbnail ends at 1082, the Title board begins at 1083, the Border is
+   drawn at 1087) — so the design's title box overlaps the rule by 4px, and the
+   margin pair on `.home-card-border` reproduces exactly that. Penpot gets away
+   with it because its sample is two 0.7em lines: 42 of ink centred in 53 sits
+   5.5 down, which is just clear of the rule.
+
+   Real ink is not 0.7em. Two lines of it very nearly fill the box, so centred
+   they began 0.6 down — 4.4px **above** the rule — and the title climbed over
+   it and into the picture. The 6 the rule and its air come to is taken as
+   padding here instead, so the run starts below the rule whatever it comes to,
+   and the centring then places a one-line title in what is left rather than
+   against the rule. */
 .home-card-title {
   flex: 1;
   min-height: 0;
@@ -844,37 +875,90 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding-top: 6px;
   color: var(--color-text);
 }
 
-/* Penpot: "title\ntitle" — Girassol 30px at a 0.7 line height, #e1e8ed,
-   centred: two tight lines is what the design draws and what the card has room
-   for, so a longer title is cut off after the second.
+/* Penpot: "title
+title" — Girassol 30px, #e1e8ed, centred: two tight lines
+   is what the design draws and what the card has room for, so a longer title is
+   cut off after the second.
 
-   The clamp needs `overflow: hidden`, and at 0.7 the line box is shorter than
-   the ink standing in it (see the note in Setting.css), so the padding box is
-   grown above — which is what `overflow` clips against — and the same taken
-   back off the margin, leaving the box the card centres unchanged.
+   **The design's 0.7 line height is its own raster's, not this build's.**
+   Penpot sets that sample in Girassol lowercase, which is small caps whose ink
+   is the 0.7 the line box already is — so its two lines exactly touch and
+   nothing collides. Real titles are not that: a Japanese glyph is very nearly
+   the whole em and a Latin capital about 0.8 of it, so two lines 0.7em apart
+   ran into one another, and the 0.3em the clamp used to be grown by above put
+   the first line's ink over the rule and into the picture. Both are the same
+   mistake — a line box shorter than the ink standing in it — which is the
+   Setting board's own note again.
 
-   **Only above.** The room a second line's foot would want and the room a
-   clipped third line's head would show through are the same pixels: at 0.7 a
-   line's box ends exactly where the next line's ink begins, so any padding
-   under the clamp puts the tops of a third line on screen (measured: 0.3em let
-   9px of the next row of capitals through, which reads as a broken third
-   line). The design's own case is unaffected either way — Girassol sets
-   lowercase as small caps, whose ink is the 0.7 cap height the line box
-   already is — and what a title in Japanese loses to it is the last two or
-   three pixels of the second line. */
+   **So the line box holds the ink and the type is set to what the slot holds.**
+   The slot is the design's own — the 55 that makes two rows of cards fill the
+   container exactly — so it is the size that gives way rather than the row.
+   Nothing is grown or pulled back any more: the clamp clips at its own content
+   box, which is where the ink now is, so a third line is cut off cleanly and
+   neither line reaches the picture. */
 .home-card-title-text {
   font-family: var(--font-display);
-  font-size: 30px;
-  line-height: 0.7;
+  /* **The line box has to be taller than the ink, not equal to it.** At a line
+     height of 1 the box is the em, and a font's ink is not held to the em: the
+     face this falls back to for Japanese draws to about 1.18 of it, so the
+     first line climbed over the rule and into the picture. 1.2 is the box every
+     other run in this app is set on and it is the one that holds that ink.
+
+     **The size is then what two of those boxes fit under the rule.** The slot
+     is the design's own 55; the rule and the 5 of air it stands in take 6 of it
+     (see `.home-card-title`) and the rule's own line takes 1 more, so 48 is
+     left and two lines at 1.2 come to exactly that at 20. The design's 30 is
+     what gives way — a title is what the card is for, and the whole of it
+     standing under the rule, with the second row of cards still on the board,
+     is worth more than the size. */
+  font-size: 20px;
+  line-height: 1.2;
   text-align: center;
   overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  padding: 0.3em 0 0;
-  margin: -0.3em 0 0;
+}
+
+/* **A title that stands on one line is set at the design's own 30.** Two lines
+   are what 20 is for, and most titles are not two lines — the slot holds a
+   single 1.2 line box of 30 with 12 to spare, so where there is room for the
+   size the design drew, that is the size. Which titles those are is measured
+   rather than asked in CSS, there being no way to set a size by how many lines
+   the run came to; `useOneLineTitles` in Home.tsx is where.
+
+   **Clamped to one line rather than two.** The class is only put on a run that
+   was measured to fit, and a measurement can be a fraction out; clamped at two
+   a run that wrapped anyway would come to 72 in a 48px box and paint back over
+   the rule, where clamped at one the worst that happens is an ellipsis. */
+.home-card-title-text.one-line {
+  font-size: 30px;
+  -webkit-line-clamp: 1;
+}
+
+/* **A title that has to wrap is broken where a reader would break it.**
+   Chromium's rule for Japanese is that a line may end between very nearly any
+   two characters, so 蒼穹のカレイドスコープ came apart in the middle of
+   カレイド and read as a mistake rather than as a long name. The place is
+   chosen instead (`nameBreaks` in `wrap.ts`, shared with the PlayTime Graph's
+   own two-line names) and the two lines are written as a line each — so there
+   is nothing left for the browser to break, and no clamp to count.
+
+   Each line carries its own ellipsis. A title too long for two lines still has
+   to end somewhere, and it ends at the end of the line it overran rather than
+   mid-word in the middle of the card. */
+.home-card-title-text.two-line {
+  display: block;
+}
+
+.home-card-title-line {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

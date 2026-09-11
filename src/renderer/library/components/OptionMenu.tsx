@@ -69,6 +69,11 @@ interface Props {
       for one. It does not pick the row: the button is the row's sibling
       rather than a button inside a button, so the press never reaches it. */
   onAudition?: (key: string) => void
+  /** A right press on a row. The list itself has no idea which of its rows can
+      be made to do anything — a group's can be edited or deleted, the row that
+      adds one and the 「すべて」 row cannot — so the whole press is handed over
+      and the caller answers for the keys it owns. */
+  onRowContext?: (key: string, event: React.MouseEvent) => void
 }
 
 export default function OptionMenu({
@@ -82,7 +87,8 @@ export default function OptionMenu({
   width = OPTION_MENU_WIDTH,
   fontSize = OPTION_FONT_SIZE,
   scrollToKey,
-  onAudition
+  onAudition,
+  onRowContext
 }: Props): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const optionsRef = useRef<HTMLDivElement | null>(null)
@@ -104,15 +110,40 @@ export default function OptionMenu({
     setMore((was) => (was.above === above && was.below === below ? was : { above, below }))
   }, [])
 
-  // Anything outside the menu dismisses it, the way the Setting popover goes.
+  /* Anything outside the menu dismisses it, the way the Setting popover goes —
+     **except a window standing over it**. A dialog put up *from* this list (a
+     group being renamed, or the question asked before one is deleted) covers it
+     entirely, so every press that answers the dialog is a press outside the
+     menu, and the list the dialog is about was gone by the time it was answered.
+     The same holds for Escape, which is that window's way out.
+
+     **Which backdrop it is decides that.** A list can also be dropped from
+     *inside* a dialog — the Add Game dialog's own Group row is one — and there
+     the backdrop is what the list is standing on rather than something over it,
+     so a press anywhere else on that dialog is an ordinary press outside the
+     list and puts it away. So the test is whether the backdrop the press landed
+     in holds this menu: if it does not, it is a window over the list and the
+     press is not the list's. */
   useEffect(() => {
+    const overlaying = (from: HTMLElement | null): boolean => {
+      const backdrop = from?.closest('.dialog-backdrop')
+      return backdrop != null && !backdrop.contains(rootRef.current)
+    }
+
     const onPointerDown = (event: MouseEvent): void => {
-      const target = event.target as Node
+      const target = event.target as HTMLElement
       if (rootRef.current?.contains(target) || anchorRef.current?.contains(target)) return
+      if (overlaying(target)) return
       onDismiss()
     }
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onDismiss()
+      if (event.key !== 'Escape') return
+      /* The topmost backdrop is the last one in the document; Escape belongs to
+         it unless this list is the thing standing on it. */
+      const backdrops = document.querySelectorAll<HTMLElement>('.dialog-backdrop')
+      const top = backdrops[backdrops.length - 1] ?? null
+      if (top && !top.contains(rootRef.current)) return
+      onDismiss()
     }
     document.addEventListener('mousedown', onPointerDown)
     document.addEventListener('keydown', onKey)
@@ -284,6 +315,9 @@ export default function OptionMenu({
             onAudition={
               option.audition && onAudition ? () => onAudition(option.key) : undefined
             }
+            onContext={
+              onRowContext ? (event) => onRowContext(option.key, event) : undefined
+            }
           />
         ))}
       </div>
@@ -302,7 +336,8 @@ function MenuRow({
   fontSize,
   maxWidth,
   onClick,
-  onAudition
+  onAudition,
+  onContext
 }: {
   label: string
   color?: string
@@ -311,6 +346,7 @@ function MenuRow({
   maxWidth: number
   onClick: () => void
   onAudition?: () => void
+  onContext?: (event: React.MouseEvent) => void
 }): React.JSX.Element {
   const textRef = useRef<HTMLSpanElement | null>(null)
 
@@ -336,6 +372,7 @@ function MenuRow({
         className={`option-menu-option${current ? ' is-current' : ''}`}
         role="menuitem"
         onClick={onClick}
+        onContextMenu={onContext}
       >
         <span className="option-menu-label" ref={textRef} style={color ? { color } : undefined}>
           {label}

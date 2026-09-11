@@ -1,6 +1,8 @@
 import { app } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import fsp from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import Database from 'better-sqlite3'
 import type {
   AppSettings,
@@ -10,6 +12,7 @@ import type {
   Plan,
   FooterStats,
   GameImage,
+  GameReference,
   GameWithStats,
   Group,
   HomeColumns,
@@ -27,6 +30,8 @@ import type {
 } from '../shared/db-types'
 import { t } from '../shared/i18n'
 import {
+  GPU_MODES,
+  VNDB_RELEASE_LANGUAGES,
   GRAPH_PERIODS,
   HOME_COLUMNS,
   HOME_SPINES,
@@ -151,7 +156,15 @@ export function initDb(): void {
   addMissingColumns('game_images', {
     // The file the picture was copied *from*, which is what its row in the
     // gallery opens the folder on. Null on every row made before it existed.
-    source_path: 'TEXT'
+    source_path: 'TEXT',
+    /* Where the picture stands in the gallery, which the grid's drag writes.
+       **Every row made before this column existed carries 0**, and the list is
+       ordered by it and then by id — so an untouched gallery is in exactly the
+       insertion order it always was, and a gallery that has been dragged is in
+       the order it was left. A picture added afterwards takes the next number
+       up rather than the default, or it would arrive at the front of a list
+       somebody had ordered. */
+    sort_order: 'INTEGER NOT NULL DEFAULT 0'
   })
 
   addMissingColumns('launch_prefs', {
@@ -175,7 +188,15 @@ export function initDb(): void {
     // Game Info's RELEASE DATE and MEDIAN, which the Sort field also orders by.
     // The ErogeScape/VNDB import that would fill them is deferred.
     release_date: 'TEXT',
+    // Which language's release that date is, where it came off a page that
+    // lists one per language; see `Game.releaseLanguage`.
+    release_language: 'TEXT',
     median_score: 'REAL',
+    // ErogameScape's average beside its median; see `Game.averageScore`.
+    average_score: 'REAL',
+    // And the studio, and the page the three of them were read from.
+    brand: 'TEXT',
+    reference_url: 'TEXT',
     clear_score: 'INTEGER',
     cleared_at: 'TEXT',
     clear_play_seconds: 'INTEGER',
@@ -267,7 +288,11 @@ function rowToGameWithStats(row: any): GameWithStats {
     useThumbnailAsDefault: !!row.use_thumbnail_default,
     progressState: (row.progress_state as GameWithStats['progressState']) ?? null,
     releaseDate: row.release_date ?? null,
+    releaseLanguage: row.release_language ?? null,
     medianScore: row.median_score ?? null,
+    averageScore: row.average_score ?? null,
+    brand: row.brand ?? null,
+    referenceUrl: row.reference_url ?? null,
     clearScore: row.clear_score ?? null,
     tagIds,
     clearedAt: row.cleared_at ?? null,
@@ -311,11 +336,14 @@ function linkThumbnail(gameId: number, thumbnailPath: string | null): void {
 
 /**
  * The Add Thumbnail grid pages through these, so the order has to be stable as
- * images are added: oldest first, newest on the last page.
+ * images are added: **the order the grid was left in**, and inside that the
+ * insertion order — oldest first, newest on the last page, which is what every
+ * gallery that has never been dragged is still in, `sort_order` being 0 on all
+ * of them.
  */
 export function listGameImages(gameId: number): GameImage[] {
   const rows = db
-    .prepare('SELECT * FROM game_images WHERE game_id = ? ORDER BY id ASC')
+    .prepare('SELECT * FROM game_images WHERE game_id = ? ORDER BY sort_order ASC, id ASC')
     .all(gameId) as {
     id: number
     game_id: number
@@ -350,12 +378,38 @@ export function addGameImages(
   source: GameImage['source'] = 'manual'
 ): GameImage[] {
   const insert = db.prepare(
-    'INSERT INTO game_images (game_id, file_path, source_path, source) VALUES (?, ?, ?, ?)'
+    `INSERT INTO game_images (game_id, file_path, source_path, source, sort_order)
+     VALUES (?, ?, ?, ?, ?)`
   )
+  /* A picture is filed at the end of the gallery, which is where the grid pages
+     to when it is added. The column's own default is 0, which on a list
+     somebody has dragged is the *front* — so the next number up is read off
+     the list rather than left to the default. */
+  const last = db
+    .prepare('SELECT MAX(sort_order) AS last FROM game_images WHERE game_id = ?')
+    .get(gameId) as { last: number | null }
   const tx = db.transaction((rows: typeof files) => {
-    for (const row of rows) insert.run(gameId, row.filePath, row.sourcePath ?? null, source)
+    let order = (last.last ?? 0) + 1
+    for (const row of rows) {
+      insert.run(gameId, row.filePath, row.sourcePath ?? null, source, order)
+      order += 1
+    }
   })
   tx(files)
+  return listGameImages(gameId)
+}
+
+/**
+ * The order the Add Thumbnail grid was dragged into. Every row of the game is
+ * rewritten, the way `reorderGames` rewrites the library: the list handed in is
+ * the whole of the gallery, so its index is the row's place in it.
+ */
+export function reorderGameImages(gameId: number, orderedIds: number[]): GameImage[] {
+  const update = db.prepare('UPDATE game_images SET sort_order = ? WHERE id = ? AND game_id = ?')
+  const tx = db.transaction((ids: number[]) => {
+    ids.forEach((id, index) => update.run(index, id, gameId))
+  })
+  tx(orderedIds)
   return listGameImages(gameId)
 }
 
@@ -572,6 +626,58 @@ export function addGroup(input: NewGroupInput): Group[] {
   return listGroups()
 }
 
+/**
+ * Renames a group and recolours it.
+ *
+ * **The games are renamed with it.** A game carries its group by *name*
+ * (`games.group_name` is free text and always was), so a row renamed on its own
+ * would leave every game under the old name — and `listGroups` would then adopt
+ * that name straight back into the list as a group of its own. The rename is
+ * the pair, in one transaction.
+ */
+export function updateGroup(id: number, input: NewGroupInput): Group[] {
+  const before = db.prepare('SELECT name FROM groups WHERE id = ?').get(id) as
+    | { name: string }
+    | undefined
+  if (!before) return listGroups()
+  const name = input.name.trim()
+  if (!name) return listGroups()
+
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE groups SET name = ?, color = ? WHERE id = ?').run(name, input.color, id)
+    if (name !== before.name) {
+      db.prepare('UPDATE games SET group_name = ? WHERE TRIM(group_name) = ?').run(
+        name,
+        before.name
+      )
+    }
+  })
+  tx()
+  return listGroups()
+}
+
+/**
+ * Takes a group off the list, and off the games that were filed under it.
+ *
+ * **Both halves are the delete.** The row alone is not what a game reads — the
+ * name on the game is — so a row deleted on its own leaves every game still
+ * saying it is in that group, and `listGroups` adopts the name back on the very
+ * next read. The games are set to no group instead, which is what the list
+ * showed the group *as*.
+ */
+export function deleteGroup(id: number): Group[] {
+  const row = db.prepare('SELECT name FROM groups WHERE id = ?').get(id) as
+    | { name: string }
+    | undefined
+  if (!row) return listGroups()
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE games SET group_name = NULL WHERE TRIM(group_name) = ?').run(row.name)
+    db.prepare('DELETE FROM groups WHERE id = ?').run(id)
+  })
+  tx()
+  return listGroups()
+}
+
 /* --------------------------------------------------------------- tags ---- */
 
 /* One flat vocabulary of names. Nothing outside this file writes it: a tag
@@ -594,6 +700,9 @@ function rowToTag(row: { id: number; name: string; created_at: string }): Tag {
 const DEFAULT_SETTINGS: AppSettings = {
   // The app is written in Japanese, so that is what it opens in.
   language: 'ja',
+  // The release the reference row has always read: the first complete English
+  // one, which is what `parseVndb` looked for before there was a row to ask.
+  vndbReleaseLanguage: 'en',
   // What each of the three captures is written as today, so an install that
   // predates these rows keeps making exactly the files it already made.
   screenshotFormat: 'png',
@@ -632,9 +741,13 @@ const DEFAULT_SETTINGS: AppSettings = {
   screenshotSound: 'off',
   videoSound: 'off',
   audioSound: 'off',
+  // Nothing about the machine is touched until the row is turned on.
+  launchAtLogin: 'off',
   // The window the app has always opened at, and no backup until one is asked
   // for and told where to go.
   launchWindowMode: 'window',
+  // Chromium's own defaults, which is what every install has always run on.
+  gpuMode: 'auto',
   backupOnLaunch: 'off',
   backupDirectory: '',
   backupRestorePath: '',
@@ -665,6 +778,11 @@ export function getSettings(): AppSettings {
   const stored = new Map(rows.map((row) => [row.key, row.value]))
   return {
     language: oneOf(stored.get('language'), ['ja', 'en'], DEFAULT_SETTINGS.language),
+    vndbReleaseLanguage: oneOf(
+      stored.get('vndbReleaseLanguage'),
+      VNDB_RELEASE_LANGUAGES,
+      DEFAULT_SETTINGS.vndbReleaseLanguage
+    ),
     screenshotFormat: oneOf(
       stored.get('screenshotFormat'),
       ['png', 'jpg'],
@@ -718,6 +836,8 @@ export function getSettings(): AppSettings {
        keeps it, on the screen recording and on the audio alike. */
     videoSound: soundKey(stored.get('videoSound') ?? stored.get('recordingSound')),
     audioSound: soundKey(stored.get('audioSound') ?? stored.get('recordingSound')),
+    launchAtLogin: oneOf(stored.get('launchAtLogin'), ['on', 'off'], DEFAULT_SETTINGS.launchAtLogin),
+    gpuMode: oneOf(stored.get('gpuMode'), GPU_MODES, DEFAULT_SETTINGS.gpuMode),
     launchWindowMode: oneOf(
       stored.get('launchWindowMode'),
       ['window', 'fullscreen'],
@@ -875,9 +995,13 @@ export function addGame(input: NewGameInput): GameWithStats {
   const info = db
     .prepare(
       `INSERT INTO games (title, short_name, thumbnail_path, icon_path, exe_path, group_name,
-                          use_exe_icon, use_short_name, use_thumbnail_default, sort_order)
+                          use_exe_icon, use_short_name, use_thumbnail_default, sort_order,
+                          release_date, release_language, median_score, average_score, brand,
+                          reference_url)
        VALUES (@title, @shortName, @thumbnailPath, @iconPath, @exePath, @groupName,
-               @useExeIcon, @useShortName, @useThumbnailAsDefault, @sortOrder)`
+               @useExeIcon, @useShortName, @useThumbnailAsDefault, @sortOrder,
+               @releaseDate, @releaseLanguage, @medianScore, @averageScore, @brand,
+               @referenceUrl)`
     )
     .run({
       title: input.title,
@@ -889,7 +1013,13 @@ export function addGame(input: NewGameInput): GameWithStats {
       useExeIcon: input.useExeIcon ? 1 : 0,
       useShortName: input.useShortName ? 1 : 0,
       useThumbnailAsDefault: input.useThumbnailAsDefault ? 1 : 0,
-      sortOrder: maxOrder + 1
+      sortOrder: maxOrder + 1,
+      releaseDate: input.releaseDate ?? null,
+      releaseLanguage: input.releaseLanguage ?? null,
+      medianScore: input.medianScore ?? null,
+      averageScore: input.averageScore ?? null,
+      brand: input.brand ?? null,
+      referenceUrl: input.referenceUrl ?? null
     })
 
   linkThumbnail(info.lastInsertRowid as number, input.thumbnailPath)
@@ -910,7 +1040,20 @@ export function updateGame(gameId: number, input: NewGameInput): GameWithStats {
        group_name = @groupName,
        use_exe_icon = @useExeIcon,
        use_short_name = @useShortName,
-       use_thumbnail_default = @useThumbnailAsDefault
+       use_thumbnail_default = @useThumbnailAsDefault,
+       /* **Only written where the Reference row was pressed.** A game edited
+          without touching that row keeps whatever it was registered with rather
+          than having it cleared by a dialog that never asked. */
+       release_date = COALESCE(@releaseDate, release_date),
+       release_language = COALESCE(@releaseLanguage, release_language),
+       median_score = COALESCE(@medianScore, median_score),
+       average_score = COALESCE(@averageScore, average_score),
+       brand = COALESCE(@brand, brand),
+       /* Not coalesced: the URL is the Reference row's own field rather than
+          something it read, so what the field says is what the game carries —
+          emptied, the game has none and the Game Info board's mark becomes the
+          gear that opens this dialog again. */
+       reference_url = @referenceUrl
      WHERE id = @gameId`
   ).run({
     gameId,
@@ -922,11 +1065,52 @@ export function updateGame(gameId: number, input: NewGameInput): GameWithStats {
     groupName: input.groupName,
     useExeIcon: input.useExeIcon ? 1 : 0,
     useShortName: input.useShortName ? 1 : 0,
-    useThumbnailAsDefault: input.useThumbnailAsDefault ? 1 : 0
+    useThumbnailAsDefault: input.useThumbnailAsDefault ? 1 : 0,
+    releaseDate: input.releaseDate ?? null,
+    releaseLanguage: input.releaseLanguage ?? null,
+    medianScore: input.medianScore ?? null,
+    averageScore: input.averageScore ?? null,
+    brand: input.brand ?? null,
+    referenceUrl: input.referenceUrl ?? null
   })
 
   linkThumbnail(gameId, input.thumbnailPath)
   setGameTags(gameId, input.tagNames ?? [])
+
+  const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
+  if (!row) throw new Error(t('ゲームが見つかりません (id={0})', gameId))
+  return rowToGameWithStats(row)
+}
+
+/**
+ * The four values the Game Info board draws, written as the board's own gear
+ * left them.
+ *
+ * Not `updateGame`: that one takes the whole of what the Add Game dialog holds,
+ * and this is four fields on a board that knows nothing about the rest of the
+ * game. Written plainly rather than coalesced — the board is where these are
+ * typed, so an emptied field means the game has no such value, which is what
+ * the board then draws as "--".
+ */
+export function setGameReference(gameId: number, input: GameReference): GameWithStats {
+  db.prepare(
+    `UPDATE games SET
+       brand = @brand,
+       release_date = @releaseDate,
+       /* **A date typed here is nobody's release but this game's.** The mark
+          beside it says which of the VN Database's per-language releases the
+          date came from, and one written by hand came from none of them. */
+       release_language = NULL,
+       median_score = @medianScore,
+       average_score = @averageScore
+     WHERE id = @gameId`
+  ).run({
+    gameId,
+    brand: input.brand,
+    releaseDate: input.releaseDate,
+    medianScore: input.medianScore,
+    averageScore: input.averageScore
+  })
 
   const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
   if (!row) throw new Error(t('ゲームが見つかりません (id={0})', gameId))
@@ -1264,6 +1448,38 @@ const BACKUP_MEDIA_DIRS = ['game-images', 'home-images', 'icons', 'images']
    backup made before this was — by looking next to what it was handed. */
 const BACKUP_MANIFEST = 'from-visual-novel-backup.json'
 
+/**
+ * **The pictures are held once for the whole backup folder, not once per
+ * backup.**
+ *
+ * Every backup used to carry its own copy of all four media folders, and the
+ * copies were very nearly the same every time: measured on a real library, one
+ * backup came to 106MB of which 100.5MB was `game-images`, and the tiers keep
+ * about thirty of them — some 3.5GB of the same pictures written over and over.
+ * Zipping answers none of that: those files are PNG and MP4, which are
+ * compressed already (measured: the largest 40 of them, four fifths of the
+ * gallery, came out of `Compress-Archive` at exactly their own size).
+ *
+ * So there is one `media/` beside the dated folders, and each dated folder
+ * holds the database and a manifest saying **which of the pool's files it
+ * needs and where each one goes back to**. Thirty backups then cost the pool
+ * once and about 2MB apiece.
+ *
+ * **A pool entry is named for its contents** — the sha1 of the bytes, keeping
+ * the file's own extension — rather than for where it came from. The app's own
+ * copies are named with a UUID and never rewritten, so their names would nearly
+ * have done; the exception is `icons`, whose file is named for the executable
+ * it was pulled from (`GamesExtractExeIcon`) and *is* written again when that
+ * executable's icon changes. Named for its bytes, a file that has changed is a
+ * different entry and an old backup still restores what it actually had. Two
+ * copies of the same picture also become one entry, whichever folders they are
+ * in — measured on that same library, 2523 files came to 2510 entries and
+ * 106.25MB came to 87.99MB, before a single second backup was taken. The first
+ * two characters fan the pool out into 256 directories, so no one of them holds
+ * thousands of files.
+ */
+const BACKUP_POOL = 'media'
+
 /*
  * **How long a backup is kept depends on what it stands for.** Every launch
  * makes one and the folder would otherwise grow without end, so each is filed
@@ -1316,6 +1532,51 @@ function monthsBefore(at: Date, months: number): Date {
 function weekStart(at: Date): Date {
   const out = midnight(at)
   out.setDate(out.getDate() - out.getDay())
+  return out
+}
+
+/**
+ * A pool entry's name: the sha1 of the file's contents with its own extension
+ * kept, so what is in the pool can still be opened by hand. Read in chunks
+ * rather than whole — a gallery holds clips as well as pictures.
+ *
+ * **Asynchronous, and the whole of why the copy below is.** Reading a gallery
+ * through takes real time (measured on 2523 files and 106MB: 1.85s), and this
+ * runs in the main process while the library window is coming up. Done with
+ * `readSync` it was 1.85s in which nothing was painted; awaited, the work is
+ * handed to the thread pool and the window is drawn through it.
+ */
+async function poolId(file: string): Promise<string> {
+  const hash = createHash('sha1')
+  const handle = await fsp.open(file, 'r')
+  try {
+    const chunk = Buffer.alloc(1 << 20)
+    for (;;) {
+      const { bytesRead } = await handle.read(chunk, 0, chunk.length, null)
+      if (bytesRead <= 0) break
+      hash.update(chunk.subarray(0, bytesRead))
+    }
+  } finally {
+    await handle.close()
+  }
+  return hash.digest('hex') + path.extname(file).toLowerCase()
+}
+
+/** Where an entry of that name lives, fanned out by its first two characters. */
+function poolPath(directory: string, id: string): string {
+  return path.join(directory, BACKUP_POOL, id.slice(0, 2), id)
+}
+
+/** Every file under a folder, as paths relative to it with `/` separators —
+    which is what a manifest writes, a manifest being read on whatever machine
+    the backup is carried to. */
+function filesUnder(root: string, prefix = ''): string[] {
+  const out: string[] = []
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name
+    if (entry.isDirectory()) out.push(...filesUnder(path.join(root, entry.name), rel))
+    else if (entry.isFile()) out.push(rel)
+  }
   return out
 }
 
@@ -1397,6 +1658,7 @@ export async function backupDatabase(directory: string): Promise<string> {
   ].join('-')
 
   fs.mkdirSync(directory, { recursive: true })
+  await absorbOwnCopies(directory)
   const kept = keptBackups(directory)
   const tier = tierFor(now, kept)
 
@@ -1417,21 +1679,36 @@ export async function backupDatabase(directory: string): Promise<string> {
   fs.rmSync(target, { force: true })
   await db.backup(target)
 
+  /* **The pictures go into the pool, and what this backup writes down is which
+     of them it needs.** A file already in the pool is already this file — the
+     name is its contents — so nothing is copied for it. */
   const root = app.getPath('userData')
-  const carried: string[] = []
+  const files: Record<string, string> = {}
   for (const name of BACKUP_MEDIA_DIRS) {
     const from = path.join(root, name)
     if (!fs.existsSync(from)) continue
-    const to = path.join(folder, name)
-    fs.rmSync(to, { recursive: true, force: true })
-    fs.cpSync(from, to, { recursive: true })
-    carried.push(name)
+    for (const rel of filesUnder(from)) {
+      const source = path.join(from, ...rel.split('/'))
+      const id = await poolId(source)
+      const dest = poolPath(directory, id)
+      if (!fs.existsSync(dest)) {
+        await fsp.mkdir(path.dirname(dest), { recursive: true })
+        /* Written beside itself and moved into place: a copy interrupted
+           halfway would otherwise leave a short file standing under a name that
+           says what its contents are, and every backup after it would trust
+           that name and copy nothing. */
+        const half = `${dest}.part`
+        await fsp.copyFile(source, half)
+        await fsp.rename(half, dest)
+      }
+      files[`${name}/${rel}`] = id
+    }
   }
 
   fs.writeFileSync(
     path.join(folder, BACKUP_MANIFEST),
     JSON.stringify(
-      { app: 'from-visual-novel', createdAt: now.toISOString(), tier, media: carried },
+      { app: 'from-visual-novel', createdAt: now.toISOString(), tier, pool: BACKUP_POOL, files },
       null,
       2
     )
@@ -1447,7 +1724,124 @@ export async function backupDatabase(directory: string): Promise<string> {
       fs.rmSync(path.join(directory, one.name), { recursive: true, force: true })
     }
   }
+
+  sweepPool(directory)
   return target
+}
+
+/**
+ * Takes the backups that carry their own copies of the pictures into the pool.
+ *
+ * Without this the saving only ever applies to backups made from here on, and a
+ * folder filed as the year's is **kept forever** — so a library that had been
+ * backed up before this would go on holding a whole copy of itself for good.
+ *
+ * **Nothing is removed until the pool has the file.** Each of the folder's own
+ * files is put in the pool first, then the list is written — under a temporary
+ * name and renamed, so a folder is either the one thing or the other and never
+ * half of each — and only then are its copies deleted. Interrupted before the
+ * rename, the folder is exactly as it was; interrupted after it, the copies are
+ * simply still there and the next run takes them, which is what the second half
+ * of this does for a folder whose list already says pool.
+ */
+async function absorbOwnCopies(directory: string): Promise<void> {
+  for (const one of keptBackups(directory)) {
+    const folder = path.join(directory, one.name)
+    if (!fs.existsSync(path.join(folder, BACKUP_MANIFEST))) continue
+    const manifest = readManifest(folder)
+    if (!manifest) continue
+
+    const own = BACKUP_MEDIA_DIRS.filter((name) => fs.existsSync(path.join(folder, name)))
+    if (own.length === 0) continue
+
+    // Already listed against the pool: its copies are what was left behind by
+    // a run that stopped between the two steps.
+    if (manifest.files) {
+      for (const name of own) fs.rmSync(path.join(folder, name), { recursive: true, force: true })
+      continue
+    }
+
+    const files: Record<string, string> = {}
+    for (const name of own) {
+      const from = path.join(folder, name)
+      for (const rel of filesUnder(from)) {
+        const source = path.join(from, ...rel.split('/'))
+        const id = await poolId(source)
+        const dest = poolPath(directory, id)
+        if (!fs.existsSync(dest)) {
+          await fsp.mkdir(path.dirname(dest), { recursive: true })
+          const half = `${dest}.part`
+          await fsp.copyFile(source, half)
+          await fsp.rename(half, dest)
+        }
+        files[`${name}/${rel}`] = id
+      }
+    }
+
+    const list = path.join(folder, BACKUP_MANIFEST)
+    const half = `${list}.part`
+    await fsp.writeFile(
+      half,
+      JSON.stringify({ ...manifest, media: undefined, pool: BACKUP_POOL, files }, null, 2)
+    )
+    await fsp.rename(half, list)
+    for (const name of own) fs.rmSync(path.join(folder, name), { recursive: true, force: true })
+  }
+}
+
+/** What a manifest holds. `files` and `pool` are what a backup sharing the pool
+    writes; `media`, a list of folder names, is what one carrying its own copies
+    wrote, and those are still read back as they were. */
+interface BackupManifest {
+  pool?: string
+  files?: Record<string, string>
+  media?: string[]
+}
+
+function readManifest(folder: string): BackupManifest | null {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(folder, BACKUP_MANIFEST), 'utf8')) as BackupManifest
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Clears the pool of every file no surviving backup asks for.
+ *
+ * This is the whole of what keeps it from growing: a picture taken out of the
+ * library stops being listed by new backups, but stays in the pool while any
+ * backup that had it is still there, and goes with the last of them. It runs
+ * after the sweep of the folders above, so what it reads is what is left.
+ *
+ * **A manifest that cannot be read stops it.** A folder whose list is
+ * unreadable is a backup whose files cannot be accounted for, and the pool is
+ * the only copy of them — so nothing is swept that run rather than something
+ * being deleted that is still needed. A folder with no manifest at all is a
+ * bare database and asks for nothing.
+ */
+function sweepPool(directory: string): void {
+  const poolDir = path.join(directory, BACKUP_POOL)
+  if (!fs.existsSync(poolDir)) return
+
+  const needed = new Set<string>()
+  for (const one of keptBackups(directory)) {
+    const folder = path.join(directory, one.name)
+    if (!fs.existsSync(path.join(folder, BACKUP_MANIFEST))) continue
+    const manifest = readManifest(folder)
+    if (!manifest) return
+    for (const id of Object.values(manifest.files ?? {})) needed.add(id)
+  }
+
+  for (const bucket of fs.readdirSync(poolDir)) {
+    const dir = path.join(poolDir, bucket)
+    if (!fs.statSync(dir).isDirectory()) continue
+    for (const entry of fs.readdirSync(dir)) {
+      // A `.part` left by an interrupted copy is asked for by nothing either.
+      if (!needed.has(entry)) fs.rmSync(path.join(dir, entry), { force: true })
+    }
+    if (fs.readdirSync(dir).length === 0) fs.rmSync(dir, { recursive: true, force: true })
+  }
 }
 
 /**
@@ -1557,7 +1951,12 @@ export function restoreDatabase(source: string): void {
      about the database has been touched yet, so a failure leaves the app
      running on the library it already had. */
   const folder = path.dirname(source)
-  if (fs.existsSync(path.join(folder, BACKUP_MANIFEST))) {
+  const manifest = fs.existsSync(path.join(folder, BACKUP_MANIFEST))
+    ? readManifest(folder)
+    : null
+  if (manifest?.files) {
+    restoreFromPool(folder, manifest.files)
+  } else if (manifest) {
     restoreMedia(folder)
   }
 
@@ -1569,10 +1968,65 @@ export function restoreDatabase(source: string): void {
   fs.copyFileSync(source, target)
 }
 
-/* Puts each media folder back as the backup has it. **The one it replaces is
-   moved aside rather than deleted**, and put back if the copy fails partway:
-   what is being replaced is the only copy of those pictures this machine has,
-   and half of it is worse than either. */
+/**
+ * Builds each media folder back out of the pool, from the list the backup
+ * wrote: every entry says where a file goes and which of the pool's files holds
+ * its bytes.
+ *
+ * **The pool is beside the dated folder, not inside it**, which is the one
+ * thing about this arrangement a person carrying a backup somewhere has to
+ * know: the folder alone is a database and a list of files it does not have. It
+ * is checked for before anything is moved, so being handed one on its own is
+ * answered with a sentence rather than with a half-restored library.
+ */
+function restoreFromPool(folder: string, files: Record<string, string>): void {
+  const directory = path.dirname(folder)
+  const poolDir = path.join(directory, BACKUP_POOL)
+  if (!fs.existsSync(poolDir)) {
+    throw new Error(t('バックアップの {0} フォルダが見つかりません', BACKUP_POOL))
+  }
+
+  /* Grouped by the folder each file belongs to, so a folder is replaced whole
+     and can be put back whole if it fails. */
+  const byDir = new Map<string, { rel: string; id: string }[]>()
+  for (const [key, id] of Object.entries(files)) {
+    const cut = key.indexOf('/')
+    if (cut < 0) continue
+    const dir = key.slice(0, cut)
+    if (!BACKUP_MEDIA_DIRS.includes(dir)) continue
+    const list = byDir.get(dir) ?? []
+    list.push({ rel: key.slice(cut + 1), id })
+    byDir.set(dir, list)
+  }
+
+  const root = app.getPath('userData')
+  for (const name of BACKUP_MEDIA_DIRS) {
+    const list = byDir.get(name)
+    if (!list) continue
+    const to = path.join(root, name)
+    const aside = `${to}.restoring`
+    fs.rmSync(aside, { recursive: true, force: true })
+    if (fs.existsSync(to)) fs.renameSync(to, aside)
+    try {
+      for (const { rel, id } of list) {
+        const dest = path.join(to, ...rel.split('/'))
+        fs.mkdirSync(path.dirname(dest), { recursive: true })
+        fs.copyFileSync(poolPath(directory, id), dest)
+      }
+    } catch (error) {
+      fs.rmSync(to, { recursive: true, force: true })
+      if (fs.existsSync(aside)) fs.renameSync(aside, to)
+      throw error
+    }
+    fs.rmSync(aside, { recursive: true, force: true })
+  }
+}
+
+/* Puts each media folder back as a backup that carried its own copies has it —
+   which is every backup made before the pool. **The one it replaces is moved
+   aside rather than deleted**, and put back if the copy fails partway: what is
+   being replaced is the only copy of those pictures this machine has, and half
+   of it is worse than either. */
 function restoreMedia(folder: string): void {
   const root = app.getPath('userData')
   for (const name of BACKUP_MEDIA_DIRS) {

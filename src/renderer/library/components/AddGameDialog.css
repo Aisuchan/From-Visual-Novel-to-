@@ -105,6 +105,19 @@
   padding: 0 36px;
 }
 
+/* Not in the design: what the Reference row says when the site could not be
+   read. It stands under the box rather than in a dialog — the row is where the
+   press was and a window over the dialog for a line of text would be a second
+   thing to dismiss. Set at the description's own size in the app's red, and
+   pulled up out of the row's 15px gap so it reads as belonging to the box above
+   it rather than as another row. */
+.url-error {
+  margin-top: -8px;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--color-danger);
+}
+
 /* Penpot: field captions — Girassol 24px, #e1e8ed */
 .field-label {
   font-size: 24px;
@@ -152,8 +165,12 @@
   line-height: 1.2;
 }
 
+/* Penpot's own 28 either side is what puts "REF" where the design draws it,
+   and it leaves 32 of a 92px button: 参照 is two full-width glyphs at this
+   size and comes to 48. The run is centred in the button either way, so the
+   padding gives way to the word and nothing moves for the English. */
 .url-button.ref {
-  padding: 5px 28px;
+  padding: 5px 10px;
 }
 
 .url-button:disabled,
@@ -276,8 +293,30 @@
 .icon-image img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
   display: block;
+}
+
+/* **The thumbnail slot shows the whole picture rather than the middle of it.**
+   The slot is the design's 311x175 and a thumbnail is whatever shape it came
+   in: cropped to fill it, a tall picture was shown as a band across its middle
+   and there was no telling from the preview what had actually been picked. Fitted
+   instead, the picture is as large as it can be inside the slot with its own
+   proportions kept, and what is left over is the design's own #B1B2B5 plate —
+   which is what an empty slot is anyway, so the letterboxing reads as the slot
+   rather than as part of the picture.
+
+   **The Home board's cells still crop, on purpose**: there the frame is what
+   makes every card in the grid the same shape. This is a preview of one file,
+   where what matters is seeing what the file is. */
+.thumbnail-image img {
+  object-fit: contain;
+}
+
+/* The icon is square in a square slot, so filling it and fitting it are the
+   same thing — an executable's icon is not a picture that can be the wrong
+   shape. */
+.icon-image img {
+  object-fit: cover;
 }
 
 /* Penpot: "Thumbnail" / "Icon" captions — Girassol 24px, #657786, 3px above */

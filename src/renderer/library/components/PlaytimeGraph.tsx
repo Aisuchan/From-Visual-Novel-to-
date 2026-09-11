@@ -17,6 +17,7 @@ import PieChart from './PieChart'
 import TagChip from './TagChip'
 import { motionOff } from '../motion'
 import './PlaytimeGraph.css'
+import { nameBreaks } from '../wrap'
 import { t } from '../../../shared/i18n'
 
 /** Penpot: PlayTime Graph — the board's own width, which the period menu's
@@ -47,6 +48,15 @@ const PIE_TOP = 118
     it starts to move, so the two overlap rather than queue. Waiting the whole
     fade out left a beat where the board simply stood there. */
 const ARRIVAL_MS = 250
+/* How long the board is clipped to its own edges for. **Three of the things on
+   this board arrive from outside it** — the two plates slide out of the rules
+   they are set into, and the Period Setting comes in from the left — and what
+   is still outside the board on its way in must not be drawn on the header, the
+   footer or the side panel. The board cannot simply clip: its own menus are
+   meant to hang past its edges, and the date fields' lists depend on it. So it
+   clips for exactly as long as something is arriving — the last of them being
+   the period stamps, which set off at 390 and run 780. */
+const ARRIVAL_CLIP_MS = 1200
 
 /** Penpot: Hover Pie Game — 375x136, the panel a wedge puts up. */
 const HOVER_W = 375
@@ -157,6 +167,9 @@ interface Props {
   onSetDefaultPeriod: (key: GraphPeriod) => void
   /** Back to the Calender board, which is what put this one up. */
   onBack: () => void
+  /* A right press on one of the rows the group list drops. It is the shell's
+     to answer: the list is the shell's, and so is the board that edits one. */
+  onGroupContext?: (key: string, event: React.MouseEvent) => void
 }
 
 export default function PlaytimeGraph({
@@ -165,7 +178,8 @@ export default function PlaytimeGraph({
   tags,
   groups,
   onSetDefaultPeriod,
-  onBack
+  onBack,
+  onGroupContext
 }: Props): React.JSX.Element {
   const today = new Date()
   /* One of Penpot's twelve rows, or null while a range typed into SPECIFY THE
@@ -231,11 +245,17 @@ export default function PlaytimeGraph({
      True from the first frame while the Setting board's アニメーション row is
      off: there is no fade to come out of, and nothing to hold back. */
   const [arrived, setArrived] = useState(() => motionOff())
+  /** True while anything is still on its way in; see `ARRIVAL_CLIP_MS`. */
+  const [clipping, setClipping] = useState(() => !motionOff())
 
   useEffect(() => {
     if (motionOff()) return
     const id = window.setTimeout(() => setArrived(true), ARRIVAL_MS)
-    return () => window.clearTimeout(id)
+    const clip = window.setTimeout(() => setClipping(false), ARRIVAL_CLIP_MS)
+    return () => {
+      window.clearTimeout(id)
+      window.clearTimeout(clip)
+    }
   }, [])
 
   // A chip added past the end of the row is scrolled to.
@@ -538,7 +558,7 @@ export default function PlaytimeGraph({
   }
 
   return (
-    <div className="graph-board" ref={boardRef}>
+    <div className={`graph-board${clipping ? ' is-arriving' : ''}`} ref={boardRef}>
       {/* Penpot: Left — the period, its preset and the histogram */}
       <div className="graph-left">
         {/* The two stamps are typed into as well as read: a figure clicked is
@@ -836,6 +856,7 @@ export default function PlaytimeGraph({
       {groupMenu && groupOptions.length > 0 && (
         <OptionMenu
           options={groupOptions}
+          onRowContext={onGroupContext}
           top={groupMenu.top}
           left={groupMenu.left}
           width={GROUP_WIDTH}
@@ -918,74 +939,6 @@ function LegendRow({
       {children}
     </div>
   )
-}
-
-/* Where a two-line name is allowed to come apart. Chromium's rule for Japanese
-   is that a line may end between very nearly any two characters, so a title
-   broke in the middle of a word and read as a mistake rather than as a long
-   name. These are the places a reader would break one instead: at a space,
-   around a bracket, after a mark that is already a separator, and at a change
-   of script, which in Japanese is where one word tends to end and the next
-   begin. */
-const NAME_OPENERS = '「『（〔［【《〈｛(['
-const NAME_CLOSERS = '」』）〕］】》〉｝)]'
-const NAME_MARKS = '・/／｜|：:；;，,、。．.！!？?〜~＆&＋+－—―–-'
-/* Kinsoku: a closing bracket, a mark, a small kana or a 長音符 belongs to the
-   line the character before it is on and can never start one of its own. */
-const NAME_NO_START = NAME_CLOSERS + NAME_MARKS + 'ーぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ々'
-
-type NameScript = 'latin' | 'digit' | 'hira' | 'kata' | 'han' | 'other'
-
-function nameScript(ch: string): NameScript {
-  const code = ch.codePointAt(0) ?? 0
-  if (code >= 0x3041 && code <= 0x309f) return 'hira'
-  if ((code >= 0x30a1 && code <= 0x30fa) || code === 0x30fd || code === 0x30fe) return 'kata'
-  if ((code >= 0x4e00 && code <= 0x9fff) || (code >= 0x3400 && code <= 0x4dbf) || code === 0x3005)
-    return 'han'
-  if ((code >= 0x30 && code <= 0x39) || (code >= 0xff10 && code <= 0xff19)) return 'digit'
-  if (
-    (code >= 0x41 && code <= 0x5a) ||
-    (code >= 0x61 && code <= 0x7a) ||
-    (code >= 0xc0 && code <= 0x24f) ||
-    (code >= 0xff21 && code <= 0xff3a) ||
-    (code >= 0xff41 && code <= 0xff5a)
-  )
-    return 'latin'
-  return 'other'
-}
-
-/** Every place the name may be broken, with how good a place it is: 0 for a
-    mark that is already a separator, 1 for a kana ending a word, 2 for any
-    other change of script. */
-function nameBreaks(text: string): { at: number; tier: number }[] {
-  /* A 長音符 is part of the run it stands in rather than a script of its own,
-     so it takes the class of what is before it — ドール is one word. */
-  const scripts: NameScript[] = []
-  for (let index = 0; index < text.length; index += 1) {
-    const ch = text[index]
-    scripts.push(ch === 'ー' || ch === 'ｰ' ? scripts[index - 1] ?? 'other' : nameScript(ch))
-  }
-
-  const breaks: { at: number; tier: number }[] = []
-  for (let at = 1; at < text.length; at += 1) {
-    const prev = text[at - 1]
-    const cur = text[at]
-    if (cur === ' ' || cur === '　') continue
-    if (NAME_NO_START.includes(cur)) continue
-    if (NAME_OPENERS.includes(prev)) continue
-    let tier = -1
-    if (prev === ' ' || prev === '　') tier = 0
-    else if (NAME_CLOSERS.includes(prev) || NAME_MARKS.includes(prev)) tier = 0
-    else if (NAME_OPENERS.includes(cur)) tier = 0
-    else if (scripts[at - 1] !== scripts[at]) {
-      /* Hiragana after a word is its okurigana or the particle holding it to
-         the next one, so it is never left to start a line by itself. */
-      if (scripts[at] === 'hira') continue
-      tier = scripts[at - 1] === 'hira' ? 1 : 2
-    }
-    if (tier >= 0) breaks.push({ at, tier })
-  }
-  return breaks
 }
 
 /** The size the name is measured at. What is compared is one width against

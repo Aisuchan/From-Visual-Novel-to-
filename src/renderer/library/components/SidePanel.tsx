@@ -14,12 +14,9 @@ import {
   displayName,
   hasDirection,
   MANUAL_SORT,
-  parseSortOption,
   sortGames,
   sortLabel,
-  SORT_OPTIONS,
-  sortOptionLabel,
-  sortOptionId,
+  SORTS,
   type SortDirection,
   type SortKey
 } from '../sort'
@@ -51,6 +48,9 @@ interface Props {
   onCalendar: () => void
   /** Whether that board is the one up, which the clock stays lit for. */
   calendarOpen: boolean
+  /* A right press on one of the rows the group list drops. It is the shell's
+     to answer: the list is the shell's, and so is the board that edits one. */
+  onGroupContext?: (key: string, event: React.MouseEvent) => void
 }
 
 interface ContextMenu {
@@ -64,19 +64,20 @@ const SIDE_PANEL_WIDTH = 335
 const GAME_LIST_PADDING_TOP = 5
 const GAME_COLUMN_HEIGHT = 60
 
-/* The design's rows are all 55 tall, so a menu's top is the rows above it: the
-   Search Box row, then the Select Group row the Sort row follows. */
-const GROUP_MENU_TOP = 110
-const SORT_MENU_TOP = 165
+/* The design's rows are all 55 tall, so a menu's top is the rows above it.
+   Penpot draws the Search Box row first, then Choose Way To Sort, then Select
+   Tag and Select Group, and they are in that order here. */
+const SORT_MENU_TOP = 110
+const GROUP_MENU_TOP = 165
 /** The groups that stand before the list scrolls. The design draws five; eight
     is what was asked for, and the row that adds one stands over them. */
 const GROUP_MENU_ROWS = 8
-/* The Sort menu's own count. Every order but 50音順 is offered twice, which
-   makes fifteen rows, and the panel has no room for them: the menu drops at 165
-   of a container that itself begins 390 down, so ten rows (405 with its
-   paddings) end at 960 and leave the shortest window the shell is laid out for
-   its own room underneath. Past that it scrolls, and the rules down the left
-   say so — and the list opens brought to the row it stands on. */
+/* The Sort menu's own count. **It is the eight orders now and nothing else**:
+   the direction moved out to the Reverse Order Button the design draws beside
+   the field, where it used to double every order that can be turned round into
+   a pair of rows and make fifteen of them. Ten is what the panel has room for —
+   the menu drops at 110 of a container that itself begins 390 down — so all
+   eight stand and nothing scrolls. */
 const SORT_MENU_ROWS = 10
 /** The key the add row answers to, which is no group's id. */
 const ADD_GROUP_KEY = 'add-group'
@@ -109,7 +110,8 @@ export default function SidePanel({
   onHome,
   homeOpen,
   onCalendar,
-  calendarOpen
+  calendarOpen,
+  onGroupContext
 }: Props): React.JSX.Element {
   const [now, setNow] = useState(new Date())
   /** What is typed in the box, and the term actually applied to the list. */
@@ -146,6 +148,7 @@ export default function SidePanel({
   const panelRef = useRef<HTMLElement | null>(null)
   const listRef = useRef<HTMLUListElement | null>(null)
   const dateRef = useRef<HTMLSpanElement | null>(null)
+  const timeRef = useRef<HTMLSpanElement | null>(null)
   const groupRowRef = useRef<HTMLDivElement | null>(null)
   const sortRowRef = useRef<HTMLDivElement | null>(null)
   const sortFieldRef = useRef<HTMLInputElement | null>(null)
@@ -155,7 +158,7 @@ export default function SidePanel({
     return () => clearInterval(timer)
   }, [])
 
-  const { dateLabel, timeLabel } = formatClock(now)
+  const { dateLabel, timeLabel, timeSuffix } = formatClock(now)
 
   // Penpot draws the date at 60px for "2026 8/1 (Sat.)". Longer dates would
   // overrun the 311px clock, so step down just far enough to fit.
@@ -167,6 +170,21 @@ export default function SidePanel({
     const width = el.scrollWidth
     if (width > available) el.style.fontSize = `${Math.floor(60 * (available / width))}px`
   }, [dateLabel])
+
+  /* The same for the figure under it, which Penpot draws at 110 for
+     「11:23:58」. English says the half of the day after those eight glyphs,
+     and the clock is `overflow: hidden`, so what would not fit was simply cut
+     off. Measured on what has *changed shape* rather than every second: the
+     run is rewritten on the tick, but its length only moves when the hour
+     gains a figure or the language is switched. */
+  useEffect(() => {
+    const el = timeRef.current
+    if (!el) return
+    el.style.fontSize = '110px'
+    const available = 299
+    const width = el.scrollWidth
+    if (width > available) el.style.fontSize = `${Math.floor(110 * (available / width))}px`
+  }, [timeLabel.length, timeSuffix])
 
   /* Penpot draws Way of Sort 144 wide, which is the room "Sort..." needs. The
      orders it names are sentences, so the label steps down just far enough to
@@ -248,12 +266,6 @@ export default function SidePanel({
     [filtered, sortKey, sortDir]
   )
   const canReorder = sortKey === MANUAL_SORT
-  /* Which of the menu's rows the list stands on, which is the pair rather than
-     the order alone. */
-  const currentSortId = sortOptionId(sortKey, sortDir)
-  /* The field is 144 for a label of six Japanese characters, so what it writes
-     is the order's name and nothing else; the direction is said here, where a
-     word costs no room. */
   // While dragging, the list renders `dragOrder` so rows swap under the cursor;
   // the real reorder is only committed on release.
   const rows = useMemo(() => {
@@ -367,7 +379,10 @@ export default function SidePanel({
         <span className="clock-date" ref={dateRef}>
           {dateLabel}
         </span>
-        <span className="clock-time">{timeLabel}</span>
+        <span className="clock-time" ref={timeRef}>
+          {timeLabel}
+          {timeSuffix !== undefined && <span className="clock-time-suffix">{timeSuffix}</span>}
+        </span>
       </button>
 
       <button
@@ -402,7 +417,13 @@ export default function SidePanel({
             title={t('検索')}
             aria-label={t('検索')}
           >
-            <i className="fa-brands fa-sistrix" />
+            {/* Penpot writes 🔍 here — which its own renderer paints as a
+                colour emoji, whatever fill the shape carries. The mark is Font
+                Awesome's own magnifier instead, in the #ffffff the design gives
+                every other glyph that stands on one of these accent plates: an
+                emoji is a picture rather than a mark, and the app's marks are
+                one family. */}
+            <i className="fa-solid fa-magnifying-glass" />
           </button>
         </div>
 
@@ -421,6 +442,54 @@ export default function SidePanel({
             }}
           >
             <div className="search-options-inner">
+              <div className="select-row" ref={sortRowRef}>
+                {/* The order is one of a fixed list, so the field says which one
+                    is on rather than taking anything typed; the menu is the only
+                    way to change it, and the field is the other half of it. */}
+                <input
+                  className="select-field sort"
+                  ref={sortFieldRef}
+                  value={sortLabel(sortKey)}
+                  readOnly
+                  onClick={() => setOpenMenu((menu) => (menu === 'sort' ? 'none' : 'sort'))}
+                />
+                {/* Penpot: Show Way of Sort — drops the Menu below the row.
+                    The direction is the button past it rather than a row of
+                    that menu's own: the design draws a Reverse Order Button
+                    for it. */}
+                <button
+                  className="select-caret sort"
+                  onClick={() => setOpenMenu((menu) => (menu === 'sort' ? 'none' : 'sort'))}
+                  title={t('並び順一覧')}
+                  aria-label={t('並び順一覧')}
+                  aria-expanded={openMenu === 'sort'}
+                >
+                  ▼
+                </button>
+                {/* Penpot: Reverse Order Button — 40x40 past the Selectbox,
+                    drawn with a ♡ the way its "▼ hover" marks are drawn: a
+                    placeholder for whatever the button turns out to be. It is
+                    the direction, which is the one thing about an order the
+                    field cannot say, and the mark is Font Awesome's own pair of
+                    stacked arrows turned the way the list runs. 50音順 has no
+                    direction, so there the button is off rather than gone. */}
+                <button
+                  className="reverse-order"
+                  disabled={!hasDirection(sortKey)}
+                  onClick={() => setSortDir((dir) => (dir === 'asc' ? 'desc' : 'asc'))}
+                  title={t('並び順を逆にする（{0}）', directionLabel(sortDir))}
+                  aria-label={t('並び順を逆にする（{0}）', directionLabel(sortDir))}
+                >
+                  <i
+                    className={
+                      sortDir === 'asc'
+                        ? 'fa-solid fa-arrow-up-short-wide'
+                        : 'fa-solid fa-arrow-down-wide-short'
+                    }
+                  />
+                </button>
+              </div>
+
               <div className="select-row" ref={groupRowRef}>
                 {/* Not in the design: the field carries its own ✕, so a group can
                     be let go of without deleting the name a character at a time. */}
@@ -477,34 +546,9 @@ export default function SidePanel({
                 >
                   ▼
                 </button>
-              </div>
-
-              <div className="select-row" ref={sortRowRef}>
-                {/* The order is one of a fixed list, so the field says which one
-                    is on rather than taking anything typed; the menu is the only
-                    way to change it, and the field is the other half of it. */}
-                <input
-                  className="select-field sort"
-                  ref={sortFieldRef}
-                  value={sortLabel(sortKey)}
-                  readOnly
-                  onClick={() => setOpenMenu((menu) => (menu === 'sort' ? 'none' : 'sort'))}
-                />
-                {/* Penpot: Show Way of Sort — drops the Menu below the row.
-                    The direction is one of that menu's own rows rather than a
-                    mark out here: the row comes to 333 of the panel's 335 and
-                    has nothing left to give a second control. */}
-                <button
-                  className="select-caret sort"
-                  onClick={() => setOpenMenu((menu) => (menu === 'sort' ? 'none' : 'sort'))}
-                  title={t('並び順一覧')}
-                  aria-label={t('並び順一覧')}
-                  aria-expanded={openMenu === 'sort'}
-                >
-                  ▼
-                </button>
-                {/* Penpot: Add Tag — 111x40. What it puts out is the row of
-                    chips below, which the design does not draw. */}
+                {/* Penpot: Add Tag — 93x40 at the row's own right end. What
+                    it puts out is the row of chips below, which the design does
+                    not draw. */}
                 <button className="add-tag" onClick={addTag}>
                   Add Tag
                 </button>
@@ -537,6 +581,7 @@ export default function SidePanel({
         {searchOptionsExpanded && groupOptions.length > 0 && (
           <OptionMenu
             options={groupOptions}
+            onRowContext={onGroupContext}
             top={GROUP_MENU_TOP}
             /* The groups are what the count is of; the row that adds one stands
                over them and is not one of them, and the suggestions leave it
@@ -559,26 +604,28 @@ export default function SidePanel({
           />
         )}
 
-        {/* The Sort menu is the same board, dropped out of the row below.
-            **Every order that can be turned round stands in it twice** — the
-            way its own name reads, and the same order the other way under it,
-            with the direction marked after the name — so the order and the way
-            it runs are picked in the one act. The row it stands on takes the
-            accent, and the list is opened brought to that row. */}
+        {/* The Sort menu is the same board, dropped out of the row above.
+            **It is the orders themselves, once each.** Which way one runs is
+            the Reverse Order Button beside the field, so a row here is a name
+            and the list is eight rows rather than the fifteen the pairs came
+            to. Picking one takes the direction it has always been read in
+            (`DEFAULT_DIRECTION` — dates newest first, figures largest), which
+            the button is then what turns round. The row the order stands on
+            takes the accent. */}
         {searchOptionsExpanded && openMenu === 'sort' && (
           <OptionMenu
-            options={SORT_OPTIONS.map((sort) => ({
-              key: sort.id,
-              label: sortOptionLabel(sort),
-              current: sort.id === currentSortId
+            options={SORTS.map((sort) => ({
+              key: sort.key,
+              label: sortLabel(sort.key),
+              current: sort.key === sortKey
             }))}
             top={SORT_MENU_TOP}
             maxRows={SORT_MENU_ROWS}
-            scrollToKey={currentSortId}
-            onPick={(id) => {
-              const picked = parseSortOption(id)
-              setSortKey(picked.key)
-              setSortDir(picked.direction)
+            scrollToKey={sortKey}
+            onPick={(key) => {
+              const picked = key as SortKey
+              setSortKey(picked)
+              setSortDir(DEFAULT_DIRECTION[picked])
               setOpenMenu('none')
             }}
             onDismiss={() => setOpenMenu('none')}
@@ -619,7 +666,7 @@ export default function SidePanel({
                   a colour standing for no group would be a colour meaning
                   nothing. */}
               <span
-                className={`game-icon ${game.iconPath ? '' : 'empty'}`}
+                className="game-icon"
                 style={{ borderColor: groupInk(game.groupName, groups) }}
               >
                 {game.iconPath ? <img src={mediaUrl(game.iconPath)} alt="" /> : null}

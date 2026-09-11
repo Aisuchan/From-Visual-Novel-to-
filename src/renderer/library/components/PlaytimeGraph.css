@@ -15,6 +15,17 @@
   background: var(--color-bg);
 }
 
+/* **The board clips itself while something is arriving, and not otherwise.**
+   Three of the things on it come in from outside — the two plates out of the
+   rules they are set into, and the Period Setting from the left — and what is
+   still outside the board on the way in would otherwise be drawn on the header,
+   the footer and the side panel. It cannot clip for good: this board's own
+   menus are meant to hang past its edges, and the date fields' lists depend on
+   it. `ARRIVAL_CLIP_MS` in PlaytimeGraph.tsx is how long that is. */
+.graph-board.is-arriving {
+  overflow: hidden;
+}
+
 /* Penpot: Left — 351 wide, its contents 30 in from the board's own edge. */
 .graph-left {
   position: relative;
@@ -1156,4 +1167,79 @@
   color: var(--color-text);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* Not in the design, which draws the two plates and the Period Setting and not
+   how they arrive: **each slides in, carrying what is on it.** The top plate
+   comes down out of the header's own rule, the bottom plate up out of the
+   footer's, and the Period Setting in from the left of the board — the
+   direction each is set against, so each arrives from the side it belongs to.
+   They set off on the same 250 the ring, the bars and the period stamps wait
+   out, half the board slot's fade, so the whole board arrives as one thing.
+
+   It is a `transform`, so the plate and everything written on it travel
+   together; a wipe would have uncovered a plate whose contents were already
+   standing where they end up. What is still outside the board on the way in is
+   not drawn: `.graph-board.is-arriving` clips for as long as this runs.
+
+   **The two are not the same movement.** A plate never stops: one curve takes
+   it out, barely moving at first and then covering most of its travel in the
+   middle of the run before easing into its stop, so an edge appears, hangs
+   there and is then thrown the rest of the way — all of it one movement. The
+   Period Setting does stop: it travels 321 rather than 50, which is far enough
+   that a pause reads as a pause rather than as a stumble, and the run after it
+   is short — a fifth of the distance is already a long way in, so the rest of
+   it is covered in well under half the time. Its two halves each carry their
+   own curve and the run is `linear`, for the reason the period stamps' own two
+   movements are. */
+@keyframes graph-plate-down {
+  from {
+    transform: translateY(-51px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes graph-plate-up {
+  from {
+    transform: translateY(51px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* 321 puts the box's right edge on the board's left: it stands 30 in and is
+   291 wide. Past that there is nothing to see, so that is where it starts. */
+@keyframes graph-plate-right {
+  0% {
+    transform: translateX(-321px);
+    animation-timing-function: ease-out;
+  }
+
+  62% {
+    transform: translateX(-257px);
+    animation-timing-function: ease-out;
+  }
+
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* Slow off the mark, most of the way across in the middle, and easing into the
+   stop — the whole of the plate's own two-part movement in one curve. */
+.graph-averages {
+  animation: graph-plate-down 0.36s cubic-bezier(0.85, 0, 0.15, 1) 250ms backwards;
+}
+
+.graph-filters {
+  animation: graph-plate-up 0.36s cubic-bezier(0.85, 0, 0.15, 1) 250ms backwards;
+}
+
+.graph-period-setting {
+  animation: graph-plate-right 0.6s linear 250ms backwards;
 }

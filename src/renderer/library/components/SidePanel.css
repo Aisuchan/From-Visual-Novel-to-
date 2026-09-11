@@ -74,6 +74,17 @@
   white-space: nowrap;
 }
 
+/* Not the design's: English says which half of the day it is where Japanese
+   counts the seconds. It is a note on the figure rather than a part of it, so
+   it is set at well under half the size. The figure keeps every one of the
+   design's own eight glyphs in both languages, so this stands past them; what
+   holds the whole run inside the clock's 311 is the step-down beside the
+   date's. */
+.clock-time-suffix {
+  margin-left: 0.14em;
+  font-size: 0.42em;
+}
+
 /* Penpot: Home Button — 335x100, fill #090e17, stroke #aab8c2 1px inner, 25px below clock */
 .home-button {
   width: 335px;
@@ -140,8 +151,38 @@
   font-size: 55px;
 }
 
+/* **The mark is stretched back up the way the face was stretched out.**
+   Girassol carries no ♦, so this glyph falls through to the Japanese face at
+   the end of the stack — which is 叛逆明朝 widened by 40% (`theme.css`), and a
+   diamond widened and not heightened is a diamond lying on its side. Measured
+   off the file: the ink is 610 x 564 where the face's own is 436 x 564, so 1.4
+   the other way puts it back on its own proportions — and it is taken past
+   that, to 1.8, which is a mark standing taller than it is wide (610 x 1015).
+   The design's own ♦ is a point beside a word rather than a shape being read,
+   and a narrow one reads as the point.
+
+   A transform is what this is drawn with, where a run of type would want the
+   file changed instead: nothing measures this mark and nothing wraps against
+   it — it is one glyph centred in a plate, so what layout believes about its
+   box does not matter. It needs a box of its own to be transformed at all,
+   which is what the `inline-block` is for. */
+/* **And its ink is put on the word's own middle**, which is not where either
+   box puts it: the two runs are set at different sizes in the same face, so
+   their boxes share a centre and their *ink* does not. Both were measured off
+   the files rather than guessed at. Girassol's "home" spans −21..559 of its
+   1000 em, so its ink centre stands 0.269em over the baseline — 4.29px below
+   the box's own centre at 55, and 1.29 once the −3 the word carries is taken
+   off. The diamond spans 28..592 of 叛逆明朝's 1024, a centre 0.3027em over the
+   baseline, which is 1.77px below the box centre at 40 and 3.19 after the 1.8
+   has stretched it about that centre. The 2 closes the difference (1.90 by the
+   face's hhea metrics, 2.32 by its usWin pair, and there is no telling from
+   here which of the two Chromium took). */
 .home-button-diamond {
+  position: relative;
+  top: -2px;
+  display: inline-block;
   font-size: 40px;
+  transform: scaleY(1.8);
 }
 
 /* Penpot: Search Option Container — 335 wide, 10px below the home button.
@@ -181,9 +222,18 @@
   height: 40px;
   margin-left: 15px;
   background: var(--color-bg-deep);
-  border: 2px solid var(--color-text-muted);
+  /* **Penpot's stroke is an inner one**, painted over the shape without taking
+     anything from it, so it is an inset shadow here — the rule this app follows
+     wherever a board is written to the pixel. As a CSS border it came out of the
+     box, and the design's own 10 of side padding was then measured from inside
+     it: the run began 12 from the field's edge where Penpot puts it at 10. */
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
+  border: none;
   border-radius: 10px;
-  color: var(--color-text-muted);
+  /* Penpot writes the field's one run in #657786, which is what it says while
+     nothing is in it — a placeholder. What is typed comes up to the app's own
+     ink, the way every other field in the app answers. */
+  color: var(--color-text);
   padding: 4px 10px 0;
   font-family: var(--font-display);
   font-size: 24px;
@@ -192,13 +242,19 @@
 
 .search-input::placeholder {
   color: var(--color-text-dim);
+  opacity: 1;
 }
 
-/* No focus ring: the field already carries the design's own 2px #aab8c2 stroke
-   and the theme's accent ring drew a second, blue one just inside it. The caret
-   is what says where the typing goes. */
+/* No focus ring: Penpot draws the plate and its 2px stroke and nothing over
+   them, and the theme's accent ring came out as a second, blue one just inside
+   it. The caret is what says where the typing goes.
+
+   **The stroke is written again here rather than cleared.** It is an inset
+   shadow now (see above), so a bare `box-shadow: none` took the design's own
+   stroke off with the ring and the field lost its edge the moment it was typed
+   into. */
 .search-input:focus-visible {
-  box-shadow: none;
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
 }
 
 /* Penpot: Search Submit — 40x40, fill #1da1f2, stroke #aab8c2 2px, r10, 5px gap / 15px from panel edge */
@@ -209,14 +265,26 @@
   margin-right: 15px;
   flex-shrink: 0;
   background: var(--color-accent);
-  border: 2px solid var(--color-text-muted);
+  /* An inner stroke here too; see the field above. */
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
+  border: none;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-display);
+  /* Penpot sets the mark at 24 and it rasters 33x29 in the 40px plate. **The
+     mark is the design's own emoji rather than a Font Awesome glyph**: Penpot
+     draws 🔍 there, which its own renderer paints in colour whatever fill the
+     shape carries, and the app was drawing `fa-sistrix` instead — a heavy solid
+     mark filling the plate edge to edge, which read as a different control
+     altogether. An emoji carries its own colours, so nothing is set here. */
   font-size: 24px;
   line-height: 1;
+  /* The mark on the accent plate is white, which is what Penpot sets every ▼
+     that stands on one of these plates in. Inherited, it came out in the
+     panel's ordinary ink and read as dimmer than the plate it is on. */
+  color: #ffffff;
   padding: 0;
   transition: filter 0.15s ease;
 }
@@ -224,6 +292,7 @@
 .search-submit:hover {
   filter: brightness(1.18);
 }
+
 
 /* The select rows fold out of the Search Box row rather than arriving all at
    once: the block grows from nothing to what its rows take, clipping them until
@@ -263,12 +332,16 @@
   }
 }
 
-/* Penpot: Select Group / Select Tag and Choose Way To Sort — 55px tall,
-   #14171a. Penpot draws these 335 wide, but the side panel's own 1px stroke
-   leaves only 333: at 335 the row painted over that stroke and the panel's
-   side border vanished alongside these two rows. Penpot itself sizes the
-   Search Box row to 333 for the same reason, so these follow suit and their
-   side margins come down from 15 to 14 to keep the contents fitting. */
+/* All of the two condition rows below are literal values from Penpot's own
+   "Choose Way To Sort" (ea432175-bea1-80b7-8008-6cbf42dea4f3) and "Select Tag
+   and Select Group" (0162c08e-0128-8046-8008-6cab4ffbd4eb), both 335x55 on
+   #14171a, and both drawn **under** the Search Box in that order: the sort row
+   first, the group and tag row beneath it.
+
+   Penpot lays them out 15px in from either edge; the panel's own 1px stroke
+   leaves 333 rather than 335, so the margins come down to 14 and **every
+   control keeps its literal width** — 14 + 215 + 40 + 10 + 40 + 14 and
+   14 + 162 + 40 + 10 + 93 + 14 both come to exactly 333. */
 .select-row {
   width: 100%;
   height: 55px;
@@ -281,11 +354,11 @@
 
 /* Not in the design: the Select Group field carries a ✕ inside its own right
    edge, so a filter can be let go of in one click. The box is the field's own
-   265x40 and the field fills it; the button is laid over the end of it, and
-   the field's right padding is what keeps the text out from under it. */
+   162x40 and the field fills it; the button is laid over the end of it, and the
+   field's right padding is what keeps the text out from under it. */
 .select-field-box {
   position: relative;
-  width: 265px;
+  width: 162px;
   height: 40px;
   margin-left: 14px;
   flex-shrink: 0;
@@ -295,14 +368,14 @@
 .select-field-box .select-field {
   width: 100%;
   margin-left: 0;
-  padding-right: 34px;
+  padding-right: 30px;
 }
 
 .select-clear {
   position: absolute;
   top: 0;
   right: 0;
-  width: 34px;
+  width: 30px;
   height: 100%;
   background: transparent;
   border: 0;
@@ -311,7 +384,7 @@
   align-items: center;
   justify-content: center;
   /* The Font Awesome ✕, as every other glyph-button in the app uses. */
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1;
   color: var(--color-text-dim);
   cursor: pointer;
@@ -322,12 +395,13 @@
   color: var(--color-text);
 }
 
-/* Penpot: Search Box (265x40) / Way of Sort (144x40) — fill #090e17,
-   stroke #aab8c2 2px, 10px side padding, 15px from the panel edge. The field
-   and its caret button are rounded on opposite sides so the pair reads as one
-   pill: 10px on the outer corners, square where they meet. */
+/* Penpot: Way of Sort (215x40) and the group row's own Search Box (162x40) —
+   fill #090e17, stroke #aab8c2 2px inner, 10px side padding, the run in
+   Girassol 24 and #657786 where it is a placeholder. The field and the ▼ beside
+   it are rounded on opposite sides so the pair reads as one pill: 10px on the
+   outer corners, square where they meet. */
 .select-field {
-  width: 265px;
+  width: 215px;
   height: 40px;
   margin-left: 14px;
   flex-shrink: 0;
@@ -335,7 +409,12 @@
      above it. */
   padding: 4px 10px 0;
   background: var(--color-bg-deep);
-  border: 2px solid var(--color-text-muted);
+  /* **An inner stroke, so an inset shadow rather than a border** — the rule
+     this app follows wherever a board is written to the pixel. Taken out of the
+     box as a border, the design's own 10 of side padding was measured from
+     inside it and the run began 12 from the field's edge. */
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
+  border: none;
   border-radius: 10px 0 0 10px;
   color: var(--color-text);
   font-family: var(--font-display);
@@ -345,34 +424,40 @@
 
 .select-field::placeholder {
   color: var(--color-text-dim);
+  opacity: 1;
 }
 
-/* No focus ring on the Select Group and Sort fields or the ▼ beside them, for
-   the reason the Search Box above them carries none: the design draws the 2px
-   #aab8c2 stroke and nothing inside it, and the theme's accent ring came out
-   as a second, blue one just within. The caret says where the typing goes. */
-.select-field:focus-visible,
+/* No focus ring on these fields or the ▼ beside them, for the reason the Search
+   Box above them carries none: Penpot draws the 2px #aab8c2 stroke and nothing
+   inside it, and the theme's accent ring came out as a second, blue one just
+   within. The caret says where the typing goes. **The stroke is written again
+   rather than cleared** — it is the same declaration the ring is now, so a bare
+   `none` took the design's own edge off with it. */
+.select-field:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
+}
+
 .select-caret:focus-visible,
-.select-clear:focus-visible {
+.select-clear:focus-visible,
+.reverse-order:focus-visible {
   outline: none;
   box-shadow: none;
 }
 
 /* The sort field says which order is on rather than taking anything typed, so
-   it is the menu's other half and answers to the pointer the same way. Its
-   size is set inline where the order's name is longer than the field. */
+   it is the menu's other half and answers the pointer the same way. Its size is
+   stepped down inline where the order's name is longer than the field. */
 .select-field.sort {
-  width: 144px;
   cursor: pointer;
 }
 
-/* Penpot: Show List of Group / Show Way of Sort — 40x40, fill #1da1f2,
-   stroke #aab8c2 2px, rounded on the outer (right) corners only,
-   ▼ Girassol 24px #ffffff */
+/* Penpot: Show Way of Sort / Show List of Group — 40x40, fill #1da1f2, stroke
+   #aab8c2 2px inner, rounded on the outer (right) corners only, ▼ Girassol 24
+   in #ffffff. */
 .select-caret {
   width: 40px;
   height: 40px;
-  margin-right: 14px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -382,7 +467,8 @@
      and the flex centring is left to place it across. */
   padding: 2px 0 0;
   background: var(--color-accent);
-  border: 2px solid var(--color-text-muted);
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
+  border: none;
   border-radius: 0 10px 10px 0;
   color: #ffffff;
   font-family: var(--font-display);
@@ -391,20 +477,68 @@
   transition: filter 0.15s ease;
 }
 
-/* Not in the design: both buttons lift under the pointer, as every other
-   control does. */
-.select-caret:hover {
+/* Not in the design: every one of these lifts under the pointer, as every
+   other control does. */
+.select-caret:hover,
+.reverse-order:hover:not(:disabled),
+.add-tag:hover {
   filter: brightness(1.18);
 }
 
 .select-caret.sort {
-  margin-right: 0;
   padding-top: 3px;
 }
 
-/* Penpot: Add Tag — 111x40, fill #2f3236, stroke #aab8c2 2px, r5 */
+/* Penpot: Reverse Order Button — 40x40, fill #2a2d31, stroke #aab8c2 2px inner,
+   r10, its glyph set at 28 in #e1e8ed, 10px past the Selectbox and 15 from the
+   panel's edge.
+
+   **The design gives the direction a button of its own, so the menu no longer
+   carries it.** It used to: every order that can be turned round stood in the
+   Sort menu twice, the same order the other way directly under it, because the
+   three controls came to the whole of a 333 row and there was nowhere to put a
+   mark. There is one now — this is it — so the menu is the eight orders and
+   this says which way the one that is on runs. 50音順 has no direction (it is
+   数字 → 日本語 → その他, three groups rather than one run of values), so on
+   that order the button is simply off.
+
+   The design's ♡ is a placeholder, the way its "▼ hover" marks are. What
+   stands there is Font Awesome's own pair of stacked arrows, which turn over
+   with the direction. */
+.reverse-order {
+  width: 40px;
+  height: 40px;
+  margin: 0 14px 0 10px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
+  border: none;
+  border-radius: 10px;
+  color: var(--color-text);
+  /* Penpot sets its glyph at 28 in a 40px plate. A Font Awesome mark is ink
+     edge to edge where a typographic one carries its own side bearings, so it
+     is set to what the design's own box measures rather than to the 28. */
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+/* The one order with no direction: the button says so rather than being taken
+   away, the row's own shape being the design's. */
+.reverse-order:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Penpot: Add Tag — 93x40, fill #2f3236, stroke #aab8c2 2px inner, r5, the word
+   at Girassol 24 in #e1e8ed with 10px of side padding. */
 .add-tag {
-  width: 111px;
+  width: 93px;
   height: 40px;
   margin: 0 14px 0 10px;
   flex-shrink: 0;
@@ -413,7 +547,8 @@
   justify-content: center;
   padding: 0 10px;
   background: var(--color-chip);
-  border: 2px solid var(--color-text-muted);
+  box-shadow: inset 0 0 0 2px var(--color-text-muted);
+  border: none;
   border-radius: 5px;
   color: var(--color-text);
   font-family: var(--font-display);
@@ -423,16 +558,12 @@
   transition: filter 0.15s ease;
 }
 
-.add-tag:hover {
-  filter: brightness(1.18);
-}
-
-/* Not in the design: the tags Add Tag makes, in the space under the Sort row.
-   They line up with the fields above them — 14px in from either edge — and wrap
-   onto another line rather than running out of the panel.
+/* Not in the design: the tags Add Tag makes, in the space under the row that
+   button stands in. They line up with the fields above them — 14px in from
+   either edge — and wrap onto another line rather than running out of the panel.
 
    Every gap around them is 10px — two thirds of the 15 the Search Box and
-   Select Group fields have between them. The Sort row already leaves 7.5 under
+   Select Group fields have between them. The row above already leaves 7.5 under
    its own box and the Strech bar below brings its own 10, so the padding here
    is only what those two are short of it; a second line of chips takes the 10
    whole. */
@@ -580,20 +711,26 @@
    nothing has none: `border-color` arrives inline from `groupInk`, and the
    accent the design draws is gone with it, a colour every row shared saying
    nothing about any of them. */
+/* **Penpot's #B1B2B5 plate is not drawn.** It is the design's placeholder —
+   what stands where a picture has not been chosen yet — and every row here has
+   a picture: an icon pulled off the executable, which is a PNG with its own
+   transparent ground. Painted behind one, the plate came through every part of
+   the icon that is meant to be nothing, so each row carried a grey tile with a
+   mark on it rather than a mark.
+
+   What stands there instead is the row's own hover lift — the same 0.08 of the
+   app's text colour `.contents:hover` lays over the row — so the icon has a
+   ground that is a shade of the panel rather than a colour of its own, and a
+   transparent icon still reads as sitting *on* something. Under the pointer the
+   two lifts stack, which is what keeps the tile visible on a lit row. */
 .game-icon {
   width: 45px;
   height: 45px;
   flex-shrink: 0;
-  background: var(--color-border);
+  background: rgba(225, 232, 237, 0.08);
   border: 2px solid transparent;
   border-radius: 5px;
   overflow: hidden;
-}
-
-/* A game with no icon shows nothing at all — the plate goes, and the frame is
-   whatever its group made it. */
-.game-icon.empty {
-  background: transparent;
 }
 
 .game-icon img {

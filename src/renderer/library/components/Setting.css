@@ -295,13 +295,23 @@
    than a measurement — the other row's copy of the same box is 15/15 — and a
    value set in Japanese, whose ink fills far more of its line than "enable"
    does, reads as sitting high off it (measured at zoom 1: 4px above the box's
-   middle). The run is centred instead, which lands its ink within a pixel. */
+   middle). The run is centred instead, which lands its ink within a pixel.
+
+   **And centred across as well as down.** Penpot's "enable" comes to exactly
+   the 117 the padding leaves, so the design cannot say whether the run is held
+   to the left or to the middle — they are the same place for that one word.
+   The values this app writes are not that word: 「自動」, "png", 「右下」, 「中」
+   are a third of the box, and held to the left they stood against one stroke
+   with the whole of the room on the other side. Every run steps down to fit
+   (`SelectLabel`), so none is wider than the box and the centring never has to
+   clip. */
 .setting-select-value {
   flex: 1;
   min-width: 0;
   height: 100%;
   display: flex;
   align-items: center;
+  justify-content: center;
   transition: box-shadow 0.15s ease;
   padding: 0 25px;
   box-shadow: inset 0 0 0 2px var(--color-text-muted);
@@ -338,6 +348,15 @@
    into `auto` — so the padding box is grown by 0.3em above and below, which is
    what `overflow` clips against, and the same amount is taken back off the
    margin so the box the layout sees, and the row centres, is unchanged. */
+
+/* The value's baseline, found rather than computed: an empty inline-block sits
+   on the baseline of the line it is in, so its bottom edge is where the
+   baseline is. See `SelectLabel`. */
+.setting-select-baseline {
+  display: inline-block;
+  width: 0;
+  height: 0;
+}
 
 /* Penpot: Show Option — 40x59, #1da1f2 under the same 2px stroke. */
 .setting-select-arrow {

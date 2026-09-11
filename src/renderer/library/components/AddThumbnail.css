@@ -72,6 +72,56 @@
   border: 5px solid var(--color-accent);
 }
 
+/* Not in the design: **a picture is carried out of its frame to where it is to
+   stand.** The frame stays in the slot — that is where the picture came from
+   and, until the pointer says otherwise, where it is going back to — and the
+   picture itself is lifted out of it and follows the pointer, holding whatever
+   point of itself was taken hold of. So the cell keeps its own place and takes
+   no transform at all (which is also what makes its box the slot's own
+   measurement, the one the offset is worked out against); everything that
+   moves is on the picture. */
+.thumb-cell.is-carried,
+.thumb-cell.is-carried:hover {
+  transform: none;
+  /* The picture is outside the frame now, and a frame that clips is a frame
+     that would cut it off at its own edge. */
+  overflow: visible;
+  z-index: 2;
+  border-color: var(--color-text);
+}
+
+/* While one is being carried, no cell comes up under the pointer: the pointer
+   is holding something rather than pointing at what is under it, and a cell
+   that grew moved the box the drop is worked out against. */
+.thumb-grid.is-dragging .thumb-cell:hover {
+  transform: none;
+}
+
+.thumb-cell.is-carried .thumb-cell-image {
+  /* The two design pixels the drag writes, and a lift a little past the
+     hover's own 1.04 so what is being carried is larger than what it is being
+     carried over. */
+  transform: translate(var(--drag-x, 0px), var(--drag-y, 0px)) scale(1.06);
+  /* A picture is `object-fit: contain`, so what is not the picture would be
+     the grid showing through what is supposed to be off it. */
+  background: var(--color-bg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+
+/* The gesture the pointer is making, said where it is made. `grab` is on the
+   cell rather than the button so it covers the frame as well as the picture.
+   Nothing in a cell is selectable, a run of them dragged across otherwise
+   coming back highlighted. */
+.thumb-cell {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.thumb-cell.is-carried {
+  cursor: grabbing;
+}
+
 .thumb-cell-image {
   position: absolute;
   inset: 0;
@@ -96,8 +146,23 @@
   transform: rotateY(180deg);
 }
 
+/* `is-ready` is the page being face up, which it stays for as long as it is
+   on the screen. */
 .thumb-grid.is-ready .thumb-cell :is(img, video) {
   transform: rotateY(0deg);
+}
+
+/* **The flip is the page arriving, and it is over when the arrival is.** Left
+   on `is-ready`, the `animation-delay` each cell carries — written from where
+   it stands in the grid — was changed by every reorder, and an animation whose
+   delay moves re-enters its own active phase and plays through again.
+
+   **The picture being carried does not arrive.** A page turned under a drag is
+   a page arriving, and the rest of it flips in as one; the one in hand was
+   already on the screen and in the pointer's grip, so it is simply on the new
+   page — turning it face down and flipping it back would be the app taking it
+   away and handing it back. */
+.thumb-grid.is-arriving .thumb-cell:not(.is-carried) :is(img, video) {
   animation: thumb-flip-in 300ms ease-out backwards;
 }
 

@@ -216,6 +216,32 @@
   transition: color 0.15s ease;
 }
 
+/* The site's mark at the size the emoji it stands in for is drawn at: the row
+   sets its glyphs at 34, and an emoji is ink to the edges of its own em, so 34
+   square is what puts the picture where the emoji stood.
+
+   **It is painted rather than drawn** — the file is a mask (`mask.ts`) and what
+   comes through it is `currentColor`, so the mark is the same ink as the three
+   Font Awesome glyphs beside it and comes up with them under the pointer. The
+   file itself is #657786, which is neither of those. */
+.footer-site-mark {
+  width: 34px;
+  height: 34px;
+  display: block;
+  background-color: currentColor;
+  transition: background-color 0.15s ease;
+}
+
+/* The database mark is a button where its neighbours are inert spans: it opens
+   the site. It keeps their box and their ink, and the browser's own button
+   chrome is taken off it. */
+.footer-site {
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
 .footer-icon:hover,
 .footer-icon-gear:hover {
   color: var(--color-text);
