@@ -185,13 +185,25 @@
   background: var(--color-border);
 }
 
-/* Penpot: Show — flex column, align center, 30px row gap, 30px/4px padding */
+/* Penpot: Show — flex column, align center, 30px row gap, 30px/4px padding.
+   **The width is pinned rather than sized to content** so the two side rules
+   stay where the design draws them whatever the brand's length: left to grow,
+   the widest row (a long BRAND, or the AVERAGE + MEDIAN pair that otherwise
+   sets it) would push `.gi-show` wider and the rules out with it. 320.5 leaves
+   the borders at their own ~52.7 either side of the 426 content. **The side
+   padding is dropped and the BRAND is let past this box** into the empty room
+   between it and the side rules: the value is centred, so a width over the box's
+   own overflows evenly, and the rules sit ~26px out from the box's edge, so a
+   brand widened towards them still stops short of them. The other rows are
+   centred and narrower than the box, so their own position does not change —
+   only how wide the BRAND may get before it is stepped down (`.gi-value.fit`). */
 .gi-show {
   display: flex;
   flex-direction: column;
   align-items: center;
   row-gap: 30px;
-  padding: 4px 30px;
+  width: 320.5px;
+  padding: 4px 0;
   flex-shrink: 0;
 }
 
@@ -225,6 +237,21 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The BRAND value is stepped down to fit rather than cut (see `FitValue`), and
+   allowed to grow past the fixed-width `.gi-show` into the room up to the side
+   rules: 360 rather than the design's 261, so a long brand steps down far less
+   while the rules stay put (the width comes from the empty border room, not from
+   the rules — the value overflows the box evenly and stops ~6px short of them).
+   A brand of the usual length keeps the design's 40. The run's size changes, so
+   its line box is pinned to the field's own 48px height to keep it centred
+   whatever size it lands on; the whole run fits, so nothing is clipped. */
+.gi-value.fit {
+  max-width: 360px;
+  line-height: 48px;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 /* Not in the design: which of the VN Database's per-language releases the date

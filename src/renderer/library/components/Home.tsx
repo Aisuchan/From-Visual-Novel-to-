@@ -64,10 +64,10 @@ const SORT_MENU_ROWS = 10
 /** The key the "everything" row answers to, which is no group's id. */
 const ALL_GROUPS_KEY = 'all-groups'
 
-/* Penpot: Game Hover — 346x255 at the three fifths the board is drawn here,
-   and the air the pointer keeps in front of it. */
-const HOVER_WIDTH = 346 * 0.6
-const HOVER_HEIGHT = 255 * 0.6
+/* Penpot: Game Hover — 346x255 at the three fifths the board is drawn here.
+   Its size is not a constant: the panel is `max-content` up to a cap, so it is
+   measured at placement rather than assumed (see the layout effect below). This
+   is only the air the pointer keeps in front of it. */
 const HOVER_GAP = 16
 /** Penpot draws a menu flush under its row; a little air reads better. */
 const MENU_GAP = 6
@@ -408,15 +408,20 @@ export default function Home({
   /* Whether the head is off the board. */
   const [headHidden, setHeadHidden] = useState(false)
 
-  /* The card the pointer is on, which puts its Game Hover up, and
-     where that panel goes — the pointer's lower right, worked out as the
-     pointer moves rather than written on the card, so the panel follows it.
-     Design pixels off the board, which is what the panel hangs in. */
+  /* The card the pointer is on, which puts its Game Hover up, and the pointer's
+     own position in the board's design pixels — the panel follows the pointer,
+     worked out as it moves rather than written on the card. Where the panel then
+     goes is settled in a layout effect against its *measured* width: the panel
+     is as wide as the game's name up to a cap, so a fixed guess would let a long
+     name overrun the board's right edge before the flip fired. */
   const [hover, setHover] = useState<{
     id: number
-    left: number
-    top: number
+    x: number
+    y: number
   } | null>(null)
+  /** The Game Hover panel, so its real rendered size can be measured for the
+      flip — a wide name is what the fixed HOVER_WIDTH could not answer for. */
+  const hoverRef = useRef<HTMLDivElement>(null)
 
   function grow(id: number): void {
     const pending = releases.current.get(id)
@@ -478,12 +483,35 @@ export default function Home({
     const scale = rect.width / BOARD_WIDTH
     const x = (event.clientX - rect.left) / scale
     const y = (event.clientY - rect.top) / scale
-    const height = rect.height / scale
-    let left = x + HOVER_GAP
-    if (left + HOVER_WIDTH > BOARD_WIDTH) left = x - HOVER_GAP - HOVER_WIDTH
-    const top = Math.min(y + HOVER_GAP, height - HOVER_HEIGHT)
-    setHover({ id, left, top })
+    setHover({ id, x, y })
   }
+
+  /* Where the panel lands, settled against its measured size rather than a fixed
+     guess: the panel is `max-content` up to a cap, so a long name makes it far
+     wider than the design's 346, and the flip to the pointer's left has to fire
+     off *that* width or the panel runs past the board's right edge. It is read
+     after the panel has rendered with the game's own name and before the frame
+     is painted, and written straight onto the node, so the placement follows the
+     pointer without a second render per move. Past the board's right edge the
+     panel goes to the pointer's left; past the bottom it is held inside, the
+     way it always was. */
+  useLayoutEffect(() => {
+    if (!hover) return
+    const board = boardRef.current
+    const panel = hoverRef.current
+    if (!board || !panel) return
+    const rect = board.getBoundingClientRect()
+    const scale = rect.width / BOARD_WIDTH
+    const height = rect.height / scale
+    const panelRect = panel.getBoundingClientRect()
+    const width = panelRect.width / scale
+    const panelHeight = panelRect.height / scale
+    let left = hover.x + HOVER_GAP
+    if (left + width > BOARD_WIDTH) left = hover.x - HOVER_GAP - width
+    const top = Math.min(hover.y + HOVER_GAP, height - panelHeight)
+    panel.style.left = `${left}px`
+    panel.style.top = `${top}px`
+  }, [hover])
 
   /* Penpot draws no menu on a cell; this is the app's own, and it is the same
      plate the side panel's rows put up. It is opened on the cell the press
@@ -1148,7 +1176,11 @@ title", two lines. The short
           pointer, so it is a child of the board rather than of the card: the
           grid clips (it scrolls) and the panel has to be free of it. */}
       {hover && hovered && !cardMenu && (
-        <div className="home-card-hover" style={{ left: hover.left, top: hover.top }}>
+        <div
+          ref={hoverRef}
+          className="home-card-hover"
+          style={{ left: hover.x + HOVER_GAP, top: hover.y + HOVER_GAP }}
+        >
           <GameHover game={hovered} />
         </div>
       )}

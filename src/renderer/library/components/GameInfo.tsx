@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { GameReference, GameWithStats, VndbReleaseLanguage } from '../../../shared/db-types'
 import { formatFullDate } from '../format'
 import { maskOf } from '../mask'
@@ -34,6 +34,43 @@ function displayToReleaseDate(text: string): string | null {
     date.getDate() === Number(d)
     ? iso
     : null
+}
+
+/* The BRAND value's box. The design draws it at 40 in a 261-wide field and cut
+   a longer brand with an ellipsis; instead the run is stepped down to fit —
+   measured at the base size and scaled by the ratio it overruns by, the way the
+   Sort field's `FitLabel` and the clock's date are, down to a floor so it never
+   disappears. The field is given 360 rather than 261: the value grows past the
+   fixed-width `.gi-show` into the empty room up to the side rules, so the rules
+   do not move (see the sheet). BRAND_MAX must match that width. */
+const BRAND_MAX = 360
+const BRAND_BASE = 40
+const BRAND_MIN = 16
+
+function FitValue({ text }: { text: string }): React.JSX.Element {
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const fit = (): void => {
+      el.style.fontSize = `${BRAND_BASE}px`
+      const measured = el.scrollWidth
+      const size =
+        measured > BRAND_MAX
+          ? Math.max(BRAND_MIN, Math.floor(BRAND_BASE * (BRAND_MAX / measured)))
+          : BRAND_BASE
+      el.style.fontSize = `${size}px`
+    }
+    fit()
+    // The face may still be a fallback when this first runs; re-fit once Girassol
+    // has loaded, the way `FitLabel` does.
+    void document.fonts.ready.then(fit)
+  }, [text])
+  return (
+    <span className="gi-value fit" ref={ref} title={text}>
+      {text}
+    </span>
+  )
 }
 
 /* What the mark beside the release date says, which is not the code the
@@ -203,9 +240,7 @@ export default function GameInfo({
                 onChange={(event) => setDraft({ ...draft, brand: event.target.value })}
               />
             ) : (
-              <span className="gi-value" title={game.brand ?? undefined}>
-                {value(game.brand)}
-              </span>
+              <FitValue text={value(game.brand)} />
             )}
           </div>
 

@@ -3,6 +3,7 @@ import { pruneCaptureScratch, registerCaptureHandlers } from './capture'
 import { backupDatabase, getSettings, initDb, pruneUnusedIcons } from './db'
 import { applyLaunchAtLogin, registerIpcHandlers } from './ipc'
 import { registerMediaProtocol, registerMediaScheme } from './media-protocol'
+import { checkForUpdates } from './updater'
 import { setLanguage, t } from '../shared/i18n'
 import type { GpuMode } from '../shared/db-types'
 import { createLibraryWindow } from './windows'
@@ -74,6 +75,11 @@ app.whenReady().then(() => {
   registerCaptureHandlers()
   registerIpcHandlers()
   createLibraryWindow()
+
+  /* A newer release on GitHub reaches an installed copy on its own — checked
+     once the window is up so it never delays the app coming on screen, silent,
+     and installed on the next quit. Does nothing in dev. */
+  checkForUpdates()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
