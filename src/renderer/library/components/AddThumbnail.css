@@ -72,6 +72,17 @@
   border: 5px solid var(--color-accent);
 }
 
+/* Not in the design: a picture marked R18 carries its frame in the app's own
+   red, at whatever weight the frame has — the resting 1px and the Main
+   Image's 5 alike — and keeps it under the pointer and while it is carried,
+   the mark being what the frame says rather than a state it is in. */
+.thumb-cell.is-r18,
+.thumb-cell.is-r18.selected,
+.thumb-cell.is-r18.is-carried,
+.thumb-cell.is-r18.is-carried:hover {
+  border-color: var(--color-danger);
+}
+
 /* Not in the design: **a picture is carried out of its frame to where it is to
    stand.** The frame stays in the slot — that is where the picture came from
    and, until the pointer says otherwise, where it is going back to — and the

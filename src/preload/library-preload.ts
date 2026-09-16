@@ -6,6 +6,9 @@ import type {
   LaunchPrefs,
   NewGameInput,
   NewGroupInput,
+  NewVoiceInput,
+  VoicePatch,
+  NewLedgerEntryInput,
   NewPlanInput,
   NewRouteInput,
   ProgressState,
@@ -28,9 +31,9 @@ const libraryApi: LibraryApi = {
   pickExecutable: () => ipcRenderer.invoke(IpcChannels.GamesPickExe),
   pickImage: () => ipcRenderer.invoke(IpcChannels.GamesPickImage),
   extractExeIcon: (exePath: string) => ipcRenderer.invoke(IpcChannels.GamesExtractExeIcon, exePath),
-  setTotalPlaySeconds: (gameId: number, seconds: number) =>
-    ipcRenderer.invoke(IpcChannels.GamesSetPlayTime, gameId, seconds),
-  setThumbnail: (gameId: number, filePath: string) =>
+  setTotalPlaySeconds: (gameId: number, seconds: number, asPlayed?: boolean) =>
+    ipcRenderer.invoke(IpcChannels.GamesSetPlayTime, gameId, seconds, asPlayed === true),
+  setThumbnail: (gameId: number, filePath: string | null) =>
     ipcRenderer.invoke(IpcChannels.GamesSetThumbnail, gameId, filePath),
   pickHomeImage: (gameId: number, face: HomeLayout) =>
     ipcRenderer.invoke(IpcChannels.GamesPickHomeImage, gameId, face),
@@ -39,6 +42,10 @@ const libraryApi: LibraryApi = {
   setProgress: (gameId: number, state: ProgressState | null, score: number | null) =>
     ipcRenderer.invoke(IpcChannels.GamesSetProgress, gameId, state, score),
   listGameImages: (gameId: number) => ipcRenderer.invoke(IpcChannels.GameImagesList, gameId),
+  randomGameImage: (r18Only?: boolean) =>
+    ipcRenderer.invoke(IpcChannels.GameImagesRandom, r18Only === true),
+  setGameImageR18: (gameId: number, imageId: number, r18: boolean) =>
+    ipcRenderer.invoke(IpcChannels.GameImagesSetR18, gameId, imageId, r18),
   addGameImages: (gameId: number) => ipcRenderer.invoke(IpcChannels.GameImagesAdd, gameId),
   deleteGameImage: (gameId: number, imageId: number) =>
     ipcRenderer.invoke(IpcChannels.GameImagesDelete, gameId, imageId),
@@ -68,12 +75,18 @@ const libraryApi: LibraryApi = {
   listDisplays: () => ipcRenderer.invoke(IpcChannels.DisplaysList),
   listSoundEffects: () => ipcRenderer.invoke(IpcChannels.SoundEffectsList),
   pickBackupDirectory: () => ipcRenderer.invoke(IpcChannels.BackupPickDirectory),
+  exportCsv: (directory: string, content: string) =>
+    ipcRenderer.invoke(IpcChannels.CsvExport, directory, content),
   restoreBackup: (filePath: string) => ipcRenderer.invoke(IpcChannels.BackupRestore, filePath),
   pickBackupFile: () => ipcRenderer.invoke(IpcChannels.BackupPickFile),
   checkBackup: (filePath: string) => ipcRenderer.invoke(IpcChannels.BackupCheck, filePath),
   listSessions: (gameId: number) => ipcRenderer.invoke(IpcChannels.SessionsList, gameId),
   deleteSession: (gameId: number, sessionId: number) =>
     ipcRenderer.invoke(IpcChannels.SessionsDelete, gameId, sessionId),
+  listPlayAdjustments: (gameId: number) =>
+    ipcRenderer.invoke(IpcChannels.PlayAdjustmentsList, gameId),
+  deletePlayAdjustment: (gameId: number, adjustmentId: number) =>
+    ipcRenderer.invoke(IpcChannels.PlayAdjustmentsDelete, gameId, adjustmentId),
   showItemInFolder: (filePath: string, fallback?: string | null) =>
     ipcRenderer.invoke(IpcChannels.ShellShowItem, filePath, fallback ?? null),
   getPlaytimeByDay: (fromDate: string, toDate: string) =>
@@ -105,7 +118,24 @@ const libraryApi: LibraryApi = {
   updateGroup: (id: number, input: NewGroupInput) =>
     ipcRenderer.invoke(IpcChannels.GroupsUpdate, id, input),
   deleteGroup: (id: number) => ipcRenderer.invoke(IpcChannels.GroupsDelete, id),
+  listVoices: () => ipcRenderer.invoke(IpcChannels.VoicesList),
+  pickVoiceFile: () => ipcRenderer.invoke(IpcChannels.VoicesPickFile),
+  addVoice: (input: NewVoiceInput) => ipcRenderer.invoke(IpcChannels.VoicesAdd, input),
+  deleteVoice: (id: number) => ipcRenderer.invoke(IpcChannels.VoicesDelete, id),
+  updateVoice: (id: number, patch: VoicePatch) =>
+    ipcRenderer.invoke(IpcChannels.VoicesUpdate, id, patch),
+  listVoiceCharacters: () => ipcRenderer.invoke(IpcChannels.VoiceCharactersList),
+  addVoiceCharacter: (name: string) => ipcRenderer.invoke(IpcChannels.VoiceCharactersAdd, name),
+  renameVoiceCharacter: (id: number, name: string) =>
+    ipcRenderer.invoke(IpcChannels.VoiceCharactersRename, id, name),
+  deleteVoiceCharacter: (id: number) =>
+    ipcRenderer.invoke(IpcChannels.VoiceCharactersDelete, id),
+  listLedgerEntries: () => ipcRenderer.invoke(IpcChannels.LedgerList),
+  addLedgerEntry: (input: NewLedgerEntryInput) =>
+    ipcRenderer.invoke(IpcChannels.LedgerAdd, input),
+  deleteLedgerEntry: (id: number) => ipcRenderer.invoke(IpcChannels.LedgerDelete, id),
   resetSettings: () => ipcRenderer.invoke(IpcChannels.SettingsReset),
+  eraseLibrary: () => ipcRenderer.invoke(IpcChannels.LibraryErase),
   minimizeWindow: () => ipcRenderer.send(IpcChannels.WindowMinimize),
   toggleMaximizeWindow: () => ipcRenderer.send(IpcChannels.WindowToggleMaximize),
   closeWindow: () => ipcRenderer.send(IpcChannels.WindowClose),

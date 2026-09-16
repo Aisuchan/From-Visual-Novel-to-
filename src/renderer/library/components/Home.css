@@ -117,8 +117,13 @@
 
 /* Penpot: Show Condition — 1034x106, the row of fields over the tag row with
    the 15px the two leave between them. */
+/* **1096 rather than the design's 1034**: the 62 is the Reverse Order Button
+   and the 10 before it, which the design does not draw. The block is held to
+   the Top's right end, so what it grows by it grows to the *left* — the SORT
+   pill and the tag row under it both start 62 further left than the design
+   puts them, and the Search Box stays where it is. */
 .home-condition {
-  width: 1034px;
+  width: 1096px;
   height: 106px;
   flex-shrink: 0;
   display: flex;
@@ -134,6 +139,41 @@
   display: flex;
   align-items: flex-start;
   column-gap: 30px;
+}
+
+/* Not in the design: the side panel's Reverse Order Button beside the SORT
+   pill, at this row's own 52 — a disc in the pills' own #2a2d31, the mark set
+   in the ink the SORT label and its ▼ are set in. 10 after the pill rather
+   than the row's 30: it belongs to the pill, the way the panel's stands 10
+   off its Selectbox. It lifts under the pointer as the pills do, and is off
+   rather than gone on 50音順, the one order with no direction. */
+.home-reverse {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  /* Closes the row's 30 down to the 10 the button keeps off its pill. */
+  margin-left: -20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--color-bg-alt);
+  border: none;
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.home-reverse:hover:not(:disabled) {
+  filter: brightness(1.18);
+}
+
+.home-reverse:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* Penpot: Way to Sort (239x52) and Group Select (331x52) — a field and its
@@ -234,7 +274,8 @@
    Box beside them carries none: Penpot draws the plate and nothing over it. */
 .home-select:focus-visible,
 .home-select-caret:focus-visible,
-.home-select-input:focus-visible {
+.home-select-input:focus-visible,
+.home-reverse:focus-visible {
   outline: none;
   box-shadow: none;
 }
@@ -259,6 +300,14 @@
 
 .home-select-value.sort .home-field-label {
   color: var(--color-text-muted);
+}
+
+/* The label's baseline, found rather than computed: an empty inline-block sits
+   on the baseline of the line it is in. See `FitLabel` and `ink.ts`. */
+.home-field-baseline {
+  display: inline-block;
+  width: 0;
+  height: 0;
 }
 
 /* Penpot: SEARCH... — the run is centred in the box, so the field is too. */
@@ -353,13 +402,16 @@
 /* Penpot: Tag Container — 660 wide, its chips 10px apart. */
 /* Penpot draws the container 660 wide and stops there. It runs out to where
    the Search Box above it ends instead — 1034 of the row less the 152 the
-   button, the rule and their gaps take — which is as much room as the board
-   has to give it. Past that the row is scrolled rather than cut off: a chip
+   button, the rule and their gaps take (944 now that the row is 1096; see
+   `.home-condition`) — which is as much room as the board has to give it.
+   Past that the row is scrolled rather than cut off: a chip
    that has silently gone is a filter no one can see. No bar for it: any bar is
    drawn out of the row's own height and would push the chips off it, which is
    the same reason the Add Game dialog's tag row has none. */
+/* 944: the row's 1096 less the 152 the button, the rule and their gaps take,
+   which still ends it under the Search Box above. */
 .home-tag-container {
-  width: 882px;
+  width: 944px;
   height: 34px;
   display: flex;
   align-items: flex-start;

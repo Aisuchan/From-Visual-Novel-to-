@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect x="0" y="0" width="512" height="512" rx="110" fill="#14171a"/>
+    <path d="M260.5,57.05088590295256 A199,199 0 0 1 395.4703991056067,397.94720065335133" fill="none" stroke="#389bd7" stroke-width="54" stroke-linecap="butt"/><path d="M388.909681458814,404.10812460670957 A199,199 0 0 1 142.70122125179017,419.59824795566794" fill="none" stroke="#c83737" stroke-width="54" stroke-linecap="butt"/><path d="M135.42006830241576,414.3081806850357 A199,199 0 0 1 58.05565953978842,235.52958037137844" fill="none" stroke="#bdb42a" stroke-width="54" stroke-linecap="butt"/><path d="M59.18365864186717,226.6005480595482 A199,199 0 0 1 125.71775234280173,105.57548090358253" fill="none" stroke="#249f20" stroke-width="54" stroke-linecap="butt"/><path d="M132.65237152778388,99.83866499584431 A199,199 0 0 1 251.49999999999991,57.05088590295256" fill="none" stroke="#c435c0" stroke-width="54" stroke-linecap="butt"/>
+    <circle cx="256" cy="256" r="150" fill="#090e17"/>
+    <line x1="256" y1="256" x2="177.36140374825675" y2="200.9366621102996" stroke="#e1e8ed" stroke-width="36" stroke-linecap="round"/>
+          <line x1="256" y1="256" x2="372.0474041071148" y2="189" stroke="#e1e8ed" stroke-width="28.8" stroke-linecap="round"/>
+    <circle cx="256" cy="256" r="30" fill="#cd1e1e"/><circle cx="256" cy="256" r="30" fill="none" stroke="#e1e8ed" stroke-width="7"/>
+  </svg>

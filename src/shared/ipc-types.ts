@@ -18,12 +18,19 @@ import type {
   OverlayCorner,
   Plan,
   ProgressState,
+  PlayAdjustment,
   Route,
   RoutePatch,
   ScreenDisplay,
   SoundEffect,
   Session,
-  Tag
+  Tag,
+  NewVoiceInput,
+  Voice,
+  VoiceCharacter,
+  VoicePatch,
+  LedgerEntry,
+  NewLedgerEntryInput
 } from './db-types'
 
 export const IpcChannels = {
@@ -42,6 +49,8 @@ export const IpcChannels = {
   GamesSetProgress: 'games:set-progress',
   GamesSetReference: 'games:set-reference',
   GameImagesList: 'game-images:list',
+  GameImagesRandom: 'game-images:random',
+  GameImagesSetR18: 'game-images:set-r18',
   GameImagesAdd: 'game-images:add',
   GameImagesDelete: 'game-images:delete',
   GameImagesReorder: 'game-images:reorder',
@@ -56,23 +65,39 @@ export const IpcChannels = {
   GroupsAdd: 'groups:add',
   GroupsUpdate: 'groups:update',
   GroupsDelete: 'groups:delete',
+  VoicesList: 'voices:list',
+  VoicesPickFile: 'voices:pick-file',
+  VoicesAdd: 'voices:add',
+  VoicesDelete: 'voices:delete',
+  VoicesUpdate: 'voices:update',
+  LedgerList: 'ledger:list',
+  LedgerAdd: 'ledger:add',
+  LedgerDelete: 'ledger:delete',
+  VoiceCharactersList: 'voice-characters:list',
+  VoiceCharactersAdd: 'voice-characters:add',
+  VoiceCharactersRename: 'voice-characters:rename',
+  VoiceCharactersDelete: 'voice-characters:delete',
   TagsList: 'tags:list',
   SettingsGet: 'settings:get',
   SettingsSet: 'settings:set',
   DisplaysList: 'displays:list',
   SoundEffectsList: 'sound-effects:list',
   BackupPickDirectory: 'backup:pick-directory',
+  CsvExport: 'csv:export',
   ShellShowItem: 'shell:show-item',
   ShellOpenExternal: 'shell:open-external',
   SettingsReset: 'settings:reset',
   BackupPickFile: 'backup:pick-file',
   BackupCheck: 'backup:check',
   BackupRestore: 'backup:restore',
+  LibraryErase: 'library:erase',
   GamesFooterStats: 'games:footer-stats',
   LaunchPrefsGet: 'launch-prefs:get',
   LaunchPrefsSet: 'launch-prefs:set',
   SessionsList: 'sessions:list',
   SessionsDelete: 'sessions:delete',
+  PlayAdjustmentsList: 'play-adjustments:list',
+  PlayAdjustmentsDelete: 'play-adjustments:delete',
   SessionsPlaytimeByDay: 'sessions:playtime-by-day',
   SessionsPlaytimeByDayAndGame: 'sessions:playtime-by-day-and-game',
   PlansList: 'plans:list',
@@ -203,9 +228,15 @@ export interface LibraryApi {
   pickImage(): Promise<string | null>
   /** Writes the executable's icon to a PNG in userData and returns its path. */
   extractExeIcon(exePath: string): Promise<string | null>
-  setTotalPlaySeconds(gameId: number, seconds: number): Promise<void>
-  /** Applies one of the game's registered images as its main thumbnail. */
-  setThumbnail(gameId: number, filePath: string): Promise<GameWithStats>
+  /* Sets TOTAL PLAY by hand. With `asPlayed` the change is written as a
+     session dated now — of negative length for a subtraction — so the footer,
+     the Calender board and the graph count it too; otherwise it is an offset
+     on the game that only its own total reads. */
+  setTotalPlaySeconds(gameId: number, seconds: number, asPlayed?: boolean): Promise<void>
+  /** Applies one of the game's registered images as its main thumbnail —
+      or none, which is what the gallery's CANCEL puts back for a game that
+      had none when the gallery was opened. */
+  setThumbnail(gameId: number, filePath: string | null): Promise<GameWithStats>
   /**
    * What a Home cell's right-click menu asks for: a picture for that one face,
    * picked and copied in one call so the copy lands in the face's own folder
@@ -230,6 +261,11 @@ export interface LibraryApi {
     score: number | null
   ): Promise<GameWithStats>
   listGameImages(gameId: number): Promise<GameImage[]>
+  /** One entry out of every gallery in the library — or out of the ones
+      marked R18 alone — or null with none. */
+  randomGameImage(r18Only?: boolean): Promise<{ gameId: number; imageId: number } | null>
+  /** Marks a picture R18 or unmarks it; the game's list comes back. */
+  setGameImageR18(gameId: number, imageId: number, r18: boolean): Promise<GameImage[]>
   /** Opens the picker, copies the chosen files in, and returns the new list. */
   addGameImages(gameId: number): Promise<GameImage[]>
   deleteGameImage(gameId: number, imageId: number): Promise<GameImage[]>
@@ -268,6 +304,30 @@ export interface LibraryApi {
   /** Takes it off the list and off the games that carried its name. */
   deleteGroup(id: number): Promise<Group[]>
 
+  /* The Voice board. A voice is a clip or a track filed under a game and a
+     character; the characters are one flat list of their own, kept the way
+     the groups are. */
+  listVoices(): Promise<Voice[]>
+  /** The Add Voice dialog's Ref: an audio or video file, or `null` for the
+      dialog closed. Nothing is copied until the voice is written. */
+  pickVoiceFile(): Promise<string | null>
+  /** Copies the file under `userData` and writes the row. */
+  addVoice(input: NewVoiceInput): Promise<Voice[]>
+  /** Takes the row off, and the app's copy of the file with it. */
+  deleteVoice(id: number): Promise<Voice[]>
+  /** Rewrites the row; a `sourcePath` in the patch is a new file, copied in
+      and the old copy removed. */
+  updateVoice(id: number, patch: VoicePatch): Promise<Voice[]>
+  listVoiceCharacters(): Promise<VoiceCharacter[]>
+  addVoiceCharacter(name: string): Promise<VoiceCharacter[]>
+  renameVoiceCharacter(id: number, name: string): Promise<VoiceCharacter[]>
+  deleteVoiceCharacter(id: number): Promise<VoiceCharacter[]>
+
+  /* The Ledger board: a game bought or sold, for a price, on a day. */
+  listLedgerEntries(): Promise<LedgerEntry[]>
+  addLedgerEntry(input: NewLedgerEntryInput): Promise<LedgerEntry[]>
+  deleteLedgerEntry(id: number): Promise<LedgerEntry[]>
+
   /* The tag vocabulary, which is read-only from a renderer: what puts a name
      into it and takes it out again is a game being written (`setGameTags`).
      The side panel's chips only read it to match what has been typed. */
@@ -287,6 +347,9 @@ export interface LibraryApi {
   /* Names the folder the launch backup is written to. Answers with the path
      chosen, or null if the dialog was closed — the row keeps what it had. */
   pickBackupDirectory(): Promise<string | null>
+  /* Writes the CSV export to a dated file in the given directory, returning the
+     full path it was saved to. */
+  exportCsv(directory: string, content: string): Promise<string>
   /* Reads a backup back over the library and restarts. Asks first, in the
      main process, and answers false if that was declined or the file was not
      a database. */
@@ -295,6 +358,10 @@ export interface LibraryApi {
   pickBackupFile(): Promise<string | null>
   /** Puts every row back to what it opens as. `null` if it was not confirmed. */
   resetSettings(): Promise<AppSettings | null>
+  /* Erases the library — every row and every file the app made, the backups
+     excepted — and restarts on an empty one. Asks twice, in the main process,
+     and answers false if either was declined or a session is running. */
+  eraseLibrary(): Promise<boolean>
   /** Whether that path is a file this build would read back — it exists and
       begins the way a SQLite database does. The 読み込み button is dead until
       it answers true. */
@@ -304,6 +371,10 @@ export interface LibraryApi {
   /* Takes one session off the game. Every total in the app is a sum over that
      table, so the time it carried goes with it. */
   deleteSession(gameId: number, sessionId: number): Promise<void>
+  /** The edits made to a game's TOTAL PLAY by hand, for the Play log. */
+  listPlayAdjustments(gameId: number): Promise<PlayAdjustment[]>
+  /** Takes one off, and takes what it moved back off the total and its route. */
+  deletePlayAdjustment(gameId: number, adjustmentId: number): Promise<void>
   /** Shows a file where it lives, in the system's own file browser. */
   /** Opens the folder with `filePath` picked out, or `fallback`'s folder when
       that file is no longer there. */

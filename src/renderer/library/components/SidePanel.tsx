@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { GameWithStats, Group, Tag } from '../../../shared/db-types'
 import { mediaUrl } from '../../../shared/media-url'
+import { getLanguage } from '../../../shared/i18n'
 import { useContextMenuDismiss } from '../context-menu'
 import { formatClock } from '../format'
 import ContextMenu from './ContextMenu'
@@ -97,6 +98,28 @@ function groupInk(name: string | null | undefined, groups: Group[]): string {
   return found ? found.color : 'transparent'
 }
 
+/**
+ * Whether every face the page asked for has arrived — false until
+ * `document.fonts.ready` resolves, and true from then on — so an effect that
+ * measures type can depend on it and run again once the type is the type.
+ * It is one value for the whole panel rather than a `.then` in each effect:
+ * three fits here read it, and a fit is a thing that has to be re-run, not a
+ * promise each of them has to remember to wait on.
+ */
+function useFontsReady(): boolean {
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    let dropped = false
+    void document.fonts.ready.then(() => {
+      if (!dropped) setReady(true)
+    })
+    return () => {
+      dropped = true
+    }
+  }, [])
+  return ready
+}
+
 export default function SidePanel({
   games,
   groups,
@@ -160,16 +183,32 @@ export default function SidePanel({
 
   const { dateLabel, timeLabel, timeSuffix } = formatClock(now)
 
+  /* **A run stepped down to fit is stepped down again once the faces are in.**
+     The clock is set in Alumni Sans Collegiate One, which still comes off the
+     network, and a measurement taken before it has arrived is a measurement of
+     the face standing in for it — Girassol, whose figures are a good deal
+     wider. The run was stepped down to fit *that*, and then Alumni arrived and
+     was drawn at the size Girassol had needed: a clock at 70 rather than 110,
+     on the launches the font lost the race, and staying that way, since the
+     effect only ran again when the run changed shape. So every fit here runs
+     once as it is asked for and once more when `document.fonts` says the
+     faces are all loaded, and a fit taken in the wrong face is overwritten by
+     one taken in the right one. */
+  const fontsReady = useFontsReady()
+
   // Penpot draws the date at 60px for "2026 8/1 (Sat.)". Longer dates would
   // overrun the 311px clock, so step down just far enough to fit.
   useEffect(() => {
     const el = dateRef.current
     if (!el) return
     el.style.fontSize = '60px'
-    const available = 299
+    // English's date is a longer run, so at the design's 299 it fills the clock
+    // edge to edge; held to a narrower width it steps down enough to leave the
+    // same side air the Japanese figures have.
+    const available = getLanguage() === 'en' ? 272 : 299
     const width = el.scrollWidth
     if (width > available) el.style.fontSize = `${Math.floor(60 * (available / width))}px`
-  }, [dateLabel])
+  }, [dateLabel, fontsReady])
 
   /* The same for the figure under it, which Penpot draws at 110 for
      「11:23:58」. English says the half of the day after those eight glyphs,
@@ -181,10 +220,10 @@ export default function SidePanel({
     const el = timeRef.current
     if (!el) return
     el.style.fontSize = '110px'
-    const available = 299
+    const available = getLanguage() === 'en' ? 272 : 299
     const width = el.scrollWidth
     if (width > available) el.style.fontSize = `${Math.floor(110 * (available / width))}px`
-  }, [timeLabel.length, timeSuffix])
+  }, [timeLabel.length, timeSuffix, fontsReady])
 
   /* Penpot draws Way of Sort 144 wide, which is the room "Sort..." needs. The
      orders it names are sentences, so the label steps down just far enough to
@@ -207,7 +246,7 @@ export default function SidePanel({
     if (run > available && available > 0) {
       el.style.fontSize = `${Math.floor(24 * (available / run))}px`
     }
-  }, [sortKey, searchOptionsOpen])
+  }, [sortKey, searchOptionsOpen, fontsReady])
 
   function addTag(): void {
     const id = nextTagFilterId.current++
@@ -493,7 +532,7 @@ export default function SidePanel({
               <div className="select-row" ref={groupRowRef}>
                 {/* Not in the design: the field carries its own ✕, so a group can
                     be let go of without deleting the name a character at a time. */}
-                <div className="select-field-box">
+                <div className={`select-field-box${groupQuery ? ' has-clear' : ''}`}>
                   <input
                     className="select-field"
                     placeholder="Select Group..."
@@ -667,7 +706,7 @@ export default function SidePanel({
                   nothing. */}
               <span
                 className="game-icon"
-                style={{ borderColor: groupInk(game.groupName, groups) }}
+                style={{ '--icon-frame': groupInk(game.groupName, groups) } as CSSProperties}
               >
                 {game.iconPath ? <img src={mediaUrl(game.iconPath)} alt="" /> : null}
               </span>

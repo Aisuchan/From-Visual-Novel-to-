@@ -5,8 +5,36 @@ import { maskOf } from '../mask'
 import { referenceUrl } from '../reference'
 import eroScaMark from '../../assets/EroSca.png'
 import vndbMark from '../../assets/VNDB.png'
-import { t } from '../../../shared/i18n'
+import { getLanguage, t } from '../../../shared/i18n'
 import './GameInfo.css'
+
+/** ISO YYYY-MM-DD → the shape the language writes a whole date in, which is
+    what the release date is edited in so the field matches its own view — the
+    English board reads 06/09/2026, so it is typed that way too rather than in
+    the stored ISO. */
+function releaseDateToDisplay(iso: string): string {
+  return iso ? formatFullDate(new Date(`${iso}T00:00:00`)) : ''
+}
+
+/** The reverse: the localized run back to a stored YYYY-MM-DD, or null where it
+    is not a date the calendar can hold (an impossible day included). */
+function displayToReleaseDate(text: string): string | null {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  const en = getLanguage() === 'en'
+  const parts = en
+    ? trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/) // MM/DD/YYYY
+    : trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/) // YYYY-MM-DD
+  if (!parts) return null
+  const [y, m, d] = en ? [parts[3], parts[1], parts[2]] : [parts[1], parts[2], parts[3]]
+  const iso = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+  const date = new Date(`${iso}T00:00:00`)
+  return date.getFullYear() === Number(y) &&
+    date.getMonth() === Number(m) - 1 &&
+    date.getDate() === Number(d)
+    ? iso
+    : null
+}
 
 /* What the mark beside the release date says, which is not the code the
    setting stores: the board writes jp / en / ch, which is how a reader names
@@ -89,7 +117,7 @@ export default function GameInfo({
      OK — the same rule the Add Game dialog follows. */
   const [draft, setDraft] = useState(() => ({
     brand: game.brand ?? '',
-    releaseDate: game.releaseDate ?? '',
+    releaseDate: releaseDateToDisplay(game.releaseDate ?? ''),
     medianScore: game.medianScore === null ? '' : String(game.medianScore),
     averageScore: game.averageScore === null ? '' : String(game.averageScore)
   }))
@@ -97,7 +125,7 @@ export default function GameInfo({
   function open(): void {
     setDraft({
       brand: game.brand ?? '',
-      releaseDate: game.releaseDate ?? '',
+      releaseDate: releaseDateToDisplay(game.releaseDate ?? ''),
       medianScore: game.medianScore === null ? '' : String(game.medianScore),
       averageScore: game.averageScore === null ? '' : String(game.averageScore)
     })
@@ -116,11 +144,9 @@ export default function GameInfo({
   function commit(): void {
     onSave({
       brand: draft.brand.trim() || null,
-      /* Held to the shape the column is sorted on; anything else is left out
-         rather than stored as something no order can read. */
-      releaseDate: /^\d{4}-\d{2}-\d{2}$/.test(draft.releaseDate.trim())
-        ? draft.releaseDate.trim()
-        : null,
+      /* Typed in the language's own date shape and stored back as the ISO the
+         column is sorted on; anything that is not a date is left out. */
+      releaseDate: displayToReleaseDate(draft.releaseDate),
       medianScore: figure(draft.medianScore),
       averageScore: figure(draft.averageScore)
     })
@@ -186,13 +212,13 @@ export default function GameInfo({
           <div className="gi-field">
             <span className="gi-caption">RELEASE DATE</span>
             {editing ? (
-              /* Typed in the shape the column is sorted on rather than in the
-                 shape the language reads it in: what is being written here is
-                 the stored value, and there is only one of those. */
+              /* Typed in the language's own date shape so the field matches the
+                 view above it — MM/DD/YYYY under ENG, YYYY-MM-DD in Japanese —
+                 and stored back as ISO on OK. */
               <input
                 className="gi-value gi-input"
                 value={draft.releaseDate}
-                placeholder="YYYY-MM-DD"
+                placeholder={getLanguage() === 'en' ? 'MM/DD/YYYY' : 'YYYY-MM-DD'}
                 onChange={(event) => setDraft({ ...draft, releaseDate: event.target.value })}
               />
             ) : (

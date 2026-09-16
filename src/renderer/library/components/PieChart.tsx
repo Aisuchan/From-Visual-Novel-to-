@@ -271,11 +271,24 @@ export default function PieChart({
               stroke="#ffffff"
               strokeWidth={wipeR * 2}
               pathLength={circleUnits.toFixed(3)}
-              /* The gap is the whole circle, so the one dash is the only thing
+              /* The gap is two whole circles, so the one dash is the only thing
                  on the path. The offset starts at the wedge's whole length,
-                 which is where the keyframes pick it up. */
-              strokeDasharray={`${arcUnits.toFixed(3)} ${circleUnits.toFixed(3)}`}
-              strokeDashoffset={arcUnits.toFixed(3)}
+                 which is where the keyframes pick it up — and with a gap of
+                 exactly one circle, that put the *next* dash of the pattern
+                 exactly on the path's end, where float rounding drew a hair of
+                 it: a sliver of the first wedge and the last showed at twelve
+                 o'clock while the ring was still meant to be covered (measured
+                 during the board's fade, before the sweep was armed). A gap of
+                 two puts that dash a whole circle past the end instead. */
+              strokeDasharray={`${arcUnits.toFixed(3)} ${(circleUnits * 2).toFixed(3)}`}
+              /* Half a unit past the wedge's length rather than exactly it: at
+                 exactly it the dash ends on the wedge's own start, and float
+                 rounding left a hairline of the wedge's first edge showing
+                 while the rest of it was still covered (measured: a 1px line
+                 down the second wedge's start while the first was sweeping).
+                 Half a unit is half a percent of a rebound — a fraction of a
+                 degree — so nothing of the run to the stop is changed. */
+              strokeDashoffset={(arcUnits + 0.5).toFixed(3)}
               transform={`rotate(${((segment.from * 180) / Math.PI).toFixed(3)} ${centre} ${centre})`}
               /* Beats the shorthand's own 0, inline styles winning over the
                  sheet — the class is what carries the animation itself. */

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { GameWithStats, Route, Session } from '../../../shared/db-types'
+import type { GameWithStats, PlayAdjustment, Route, Session } from '../../../shared/db-types'
 import { useContextMenuDismiss } from '../context-menu'
 import { formatFullDate } from '../format'
 import ConfirmDialog from './ConfirmDialog'
@@ -33,6 +33,10 @@ type LogTone = 'route-cleared' | 'game-cleared' | null
 interface LogRun {
   text: string
   accent?: 'route' | 'clear'
+  /** A route's name is set in the route's own colour — the one it is written
+      in wherever it is listed — rather than in the design's sample #e35c5c,
+      which is what `accent: 'route'` falls back to for a route that is gone. */
+  color?: string
 }
 
 interface LogEntry {
@@ -86,9 +90,14 @@ export default function PlayLog({
 }: Props): React.JSX.Element {
   const [sessions, setSessions] = useState<Session[] | null>(null)
   const [routes, setRoutes] = useState<Route[]>([])
+  const [adjustments, setAdjustments] = useState<PlayAdjustment[]>([])
   /* Where a right-click landed, in the board's own pixels, and which row it
      landed on. */
-  const [menu, setMenu] = useState<{ entry: LogEntry; x: number; y: number } | null>(null)
+  const [menu, setMenu] = useState<{
+    entry: LogEntry
+    x: number
+    y: number
+  } | null>(null)
   /* The row a confirmation is standing over. Nothing on this board is undone
      by another press, so every one of them is asked about first — the same
      board the side panel asks with. */
@@ -98,6 +107,7 @@ export default function PlayLog({
   const reload = useCallback((): void => {
     window.library.listSessions(game.id).then(setSessions)
     window.library.listRoutes(game.id).then(setRoutes)
+    window.library.listPlayAdjustments(game.id).then(setAdjustments)
   }, [game.id])
 
   useEffect(() => {
@@ -108,10 +118,15 @@ export default function PlayLog({
     window.library.listRoutes(game.id).then((list) => {
       if (!cancelled) setRoutes(list)
     })
+    window.library.listPlayAdjustments(game.id).then((list) => {
+      if (!cancelled) setAdjustments(list)
+    })
     return () => {
       cancelled = true
     }
-  }, [game.id])
+    /* The total moving is a row having been added or taken off — a session, or
+       an edit made by hand — so the log is read again on it. */
+  }, [game.id, game.stats.totalPlaySeconds])
 
   const entries: LogEntry[] = []
   // Newest first, the way the design stacks them: the clear, then the sessions,
@@ -122,7 +137,7 @@ export default function PlayLog({
       date: formatDate(game.clearedAt),
       runs: [
         { text: '★ ' },
-        { text: 'GAME CLEARD', accent: 'clear' },
+        { text: 'GAME CLEARED', accent: 'clear' },
         { text: `  in  ${formatSpan(game.clearPlaySeconds ?? 0)}` }
       ],
       tone: 'game-cleared',
@@ -132,8 +147,7 @@ export default function PlayLog({
          its own: what it writes is a reading of the total, not a part of it. */
       remove: {
         what: t('クリア記録'),
-        run: async () =>
-          window.library.setProgress(game.id, 'playing', game.clearScore ?? null)
+        run: async () => window.library.setProgress(game.id, 'playing', game.clearScore ?? null)
       }
     })
   }
@@ -175,7 +189,7 @@ export default function PlayLog({
       at: toDate(route.clearedAt).getTime(),
       runs: [
         { text: '♡ CLEARED "' },
-        { text: route.name, accent: 'route' },
+        { text: route.name, accent: 'route', color: route.color },
         { text: `"  in   ${formatSpan(route.clearPlaySeconds ?? 0)}` }
       ],
       tone: 'route-cleared',
@@ -190,6 +204,48 @@ export default function PlayLog({
             playSeconds: route.playSeconds,
             cleared: false
           })
+      }
+    })
+  }
+
+  /* Not in the design: an edit made to TOTAL PLAY by hand — `TOTAL PLAY  add
+     99 : 99  (heroine 1)` / `TOTAL PLAY  subtract  99 : 99  (heroine 1)`, named
+     for the figure it moved, the way a session row is named for what it did
+     (PLAYED); a bare `add 99 : 99` said nothing about *what* was added to. The
+     route is the one the figure was banked on, in its own accent the way a
+     clear names its route. An edit made while the stepper stood on 記録しない
+     was banked on nothing and names nothing. It stands in the timeline at the
+     moment it was made. */
+  for (const edit of adjustments) {
+    const runs: LogRun[] = [
+      {
+        text: `TOTAL PLAY  ${edit.seconds < 0 ? 'subtract' : 'add'}  ${formatSpan(Math.abs(edit.seconds))}`
+      }
+    ]
+    if (edit.routeName) {
+      const route = routes.find((one) => one.id === edit.routeId)
+      runs.push(
+        { text: '  (' },
+        { text: edit.routeName, accent: 'route', color: route?.color },
+        { text: ')' }
+      )
+    }
+    timeline.push({
+      key: `adjust-${edit.id}`,
+      date: formatDate(edit.createdAt),
+      at: toDate(edit.createdAt).getTime(),
+      runs,
+      tone: null,
+      /* Undone the way it was done: the total goes back by what the edit moved
+         it, and so does the route it was banked on, where that route is still
+         there. */
+      remove: {
+        what: t(
+          'プレイ時間の変更 ({0} {1})',
+          edit.seconds < 0 ? '−' : '+',
+          formatSpan(Math.abs(edit.seconds))
+        ),
+        run: () => window.library.deletePlayAdjustment(game.id, edit.id)
       }
     })
   }
@@ -210,7 +266,7 @@ export default function PlayLog({
   entries.push({
     key: 'added',
     date: formatDate(game.createdAt),
-    runs: [{ text: 'ADD GAME TO LIBRALY' }],
+    runs: [{ text: 'ADD GAME TO LIBRARY' }],
     tone: null
   })
 
@@ -236,33 +292,43 @@ export default function PlayLog({
             /* The band carries the separator and the 15px clear either side of
                it, so hovering lights the strip from one rule to the next; the
                row inside keeps the design's own 29px height and its tint. */
-            <div className="play-log-entry" key={entry.key}>
-              <div
-                className={`play-log-row ${entry.tone ?? ''}${entry.remove ? ' removable' : ''}`}
-                onContextMenu={(event) => {
-                  if (!entry.remove) return
-                  event.preventDefault()
-                  // The row is what a second right-click on it toggles off.
-                  menuOpener.current = event.currentTarget
-                  const board = event.currentTarget.closest('.play-log') as HTMLElement | null
-                  const box = board?.getBoundingClientRect()
-                  // `.play-log` is 547 design px wide, which is what recovers
-                  // the shell's own scale — the conversion the side panel's
-                  // own menu makes against its 335.
-                  if (!box || box.width <= 0) return
-                  const scale = box.width / LOG_WIDTH
-                  const height = box.height / scale
-                  setMenu({
-                    entry,
-                    x: Math.min((event.clientX - box.left) / scale, LOG_WIDTH - MENU_WIDTH),
-                    y: Math.min((event.clientY - box.top) / scale, height - MENU_HEIGHT)
-                  })
-                }}
-              >
+            /* **The band is what the right press lands on, not the 29px row inside
+               it.** The band is what lights under the pointer — rule to rule,
+               15 either side of the row — and a press answered only inside the
+               row meant the strip the pointer was told was live went dead over
+               half its height. */
+            <div
+              className={`play-log-entry${entry.remove ? ' removable' : ''}`}
+              key={entry.key}
+              onContextMenu={(event) => {
+                if (!entry.remove) return
+                event.preventDefault()
+                // The row is what a second right-click on it toggles off.
+                menuOpener.current = event.currentTarget
+                const board = event.currentTarget.closest('.play-log') as HTMLElement | null
+                const box = board?.getBoundingClientRect()
+                // `.play-log` is 547 design px wide, which is what recovers
+                // the shell's own scale — the conversion the side panel's
+                // own menu makes against its 335.
+                if (!box || box.width <= 0) return
+                const scale = box.width / LOG_WIDTH
+                const height = box.height / scale
+                setMenu({
+                  entry,
+                  x: Math.min((event.clientX - box.left) / scale, LOG_WIDTH - MENU_WIDTH),
+                  y: Math.min((event.clientY - box.top) / scale, height - MENU_HEIGHT)
+                })
+              }}
+            >
+              <div className={`play-log-row ${entry.tone ?? ''}`}>
                 <span className="play-log-date">{entry.date}</span>
                 <span className="play-log-text">
                   {entry.runs.map((run, index) => (
-                    <span key={index} className={run.accent ? `accent-${run.accent}` : undefined}>
+                    <span
+                      key={index}
+                      className={run.accent ? `accent-${run.accent}` : undefined}
+                      style={run.color ? { color: run.color } : undefined}
+                    >
                       {run.text}
                     </span>
                   ))}

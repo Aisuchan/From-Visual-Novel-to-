@@ -15,6 +15,10 @@ interface Props {
   onApplied: () => void
   /** Deleting an image can clear the game's thumbnail, so the list is reread. */
   onGamesChanged: () => void
+  /** A picture to open full screen as the board arrives — the Extra Function
+      board's blue circle lands here on one drawn at random. Read once, on
+      the first list; the viewer is the reader's after that. */
+  openImageId?: number | null
 }
 
 /* Penpot: Image Container — a 5x5 grid of 273x154 cells, so 25 images a page.
@@ -101,7 +105,8 @@ export default function AddThumbnail({
   game,
   onCancel,
   onApplied,
-  onGamesChanged
+  onGamesChanged,
+  openImageId = null
 }: Props): React.JSX.Element {
   const [images, setImages] = useState<GameImage[]>([])
   // "no images yet" is a verdict, not a waiting state: it stays off until the
@@ -112,6 +117,20 @@ export default function AddThumbnail({
   const [deleting, setDeleting] = useState<GameImage | null>(null)
   // Index into `images` of the picture shown full screen, if any.
   const [viewing, setViewing] = useState<number | null>(null)
+  /* What the board has changed and not yet written (see `apply`): the pictures
+     staged for deletion, which are off the list but still in the library, and
+     the ids of the ones added, which are in the library and come out again
+     on CANCEL. `openedOrder` is the list as the board found it, which is what
+     says whether the order has changed. */
+  const [removed, setRemoved] = useState<GameImage[]>([])
+  const [added, setAdded] = useState<number[]>([])
+  const addedRef = useRef<number[]>([])
+  addedRef.current = added
+  const openedOrder = useRef<number[]>([])
+  /** True once APPLY or CANCEL has answered for the board's edits. */
+  const committed = useRef(false)
+  /** `openImageId` as the board arrived, spent on the first list. */
+  const openOnce = useRef<number | null>(openImageId)
   const gridRef = useRef<HTMLDivElement | null>(null)
   const wheelAccum = useRef(0)
   const turnedBack = useRef(false)
@@ -212,10 +231,22 @@ export default function AddThumbnail({
     async (focusPath: string | null): Promise<void> => {
       const list = await window.library.listGameImages(game.id)
       setImages(list)
+      openedOrder.current = list.map((image) => image.id)
       setLoaded(true)
       const index = focusPath ? list.findIndex((image) => image.filePath === focusPath) : -1
       setSelectedId(index >= 0 ? list[index].id : null)
       setPage(index >= 0 ? Math.floor(index / PAGE_SIZE) + 1 : 1)
+      /* The picture the board was opened *on*, if it was opened on one: put up
+         full screen at once, with the page under it turned to where it is so
+         that closing the viewer lands on the cell it came out of. */
+      if (openOnce.current !== null) {
+        const wanted = list.findIndex((image) => image.id === openOnce.current)
+        openOnce.current = null
+        if (wanted >= 0) {
+          setViewing(wanted)
+          setPage(Math.floor(wanted / PAGE_SIZE) + 1)
+        }
+      }
     },
     [game.id]
   )
@@ -569,7 +600,9 @@ export default function AddThumbnail({
 
     const before = images.map((image) => image.id)
     if (order.every((id, index) => id === before[index])) return
-    void window.library.reorderGameImages(game.id, order).then(setImages)
+    /* The order is the board's until APPLY writes it — see `apply`. */
+    const byId = new Map(images.map((image) => [image.id, image]))
+    setImages(order.map((id) => byId.get(id)).filter((image): image is GameImage => !!image))
   }
 
   /**
@@ -611,10 +644,20 @@ export default function AddThumbnail({
   async function addImages(): Promise<void> {
     const before = images.length
     const list = await window.library.addGameImages(game.id)
-    setImages(list)
+    /* The rows are written as they are added — the copies have to be under
+       `userData` for `fvn-media:` to draw them — so what comes back is the
+       whole gallery in the database's own order, with the pictures this board
+       has staged for deletion still in it. Only the new ones are taken, onto
+       the end of the board's own list, and their ids are kept so that CANCEL
+       can take them out again. */
+    const known = new Set([...images, ...removed].map((image) => image.id))
+    const fresh = list.filter((image) => !known.has(image.id))
+    if (fresh.length === 0) return
+    setAdded((ids) => [...ids, ...fresh.map((image) => image.id)])
+    setImages((current) => [...current, ...fresh])
     // Land on the page the first newly added image went to, but leave the
     // selection — and so the applied thumbnail — where it was.
-    if (list.length > before) setPage(Math.floor(before / PAGE_SIZE) + 1)
+    setPage(Math.floor(before / PAGE_SIZE) + 1)
   }
 
   // The index is left unbounded so each slot keeps a distinct key across a
@@ -638,14 +681,17 @@ export default function AddThumbnail({
     return () => document.removeEventListener('keydown', onKey)
   }, [viewing, stepViewer])
 
-  async function confirmDelete(): Promise<void> {
+  /* A deletion is staged rather than done: the file goes off disk with the
+     row, and that is the one edit CANCEL could not take back. It leaves the
+     board's list at once and is written by APPLY. */
+  function confirmDelete(): void {
     if (!deleting) return
-    const remaining = await window.library.deleteGameImage(game.id, deleting.id)
-    setImages(remaining)
-    if (selectedId === deleting.id) setSelectedId(null)
+    const gone = deleting
+    setRemoved((list) => [...list, gone])
+    setImages((current) => current.filter((image) => image.id !== gone.id))
+    if (selectedId === gone.id) setSelectedId(null)
     setDeleting(null)
     setViewing(null)
-    onGamesChanged()
   }
 
   /* The menu's own 「メインサムネイルに設定」. It writes the thumbnail there and
@@ -653,18 +699,69 @@ export default function AddThumbnail({
      still applies whatever is marked, but the row was asked to *set* it. The
      mark follows, so the ring on the grid still says which picture the game's
      Main Image is. */
-  async function makeThumbnail(image: GameImage): Promise<void> {
+  function makeThumbnail(image: GameImage): void {
     setSelectedId(image.id)
-    await window.library.setThumbnail(game.id, image.filePath)
-    onGamesChanged()
   }
 
+  /* **Nothing the board does reaches the library until APPLY, and CANCEL
+     leaves the library as the board found it.** The deletions are made, the
+     order is written, the marked picture becomes the Main Image — in that
+     order, so a picture staged for deletion is never the one applied. Whether
+     there is anything to write is what the button answers to: a mark, an
+     order changed, a picture added or one staged to go. */
+  const dirty =
+    removed.length > 0 ||
+    added.length > 0 ||
+    (selectedId !== null &&
+      images.find((image) => image.id === selectedId)?.filePath !== game.thumbnailPath) ||
+    images.length !== openedOrder.current.length ||
+    images.some((image, index) => image.id !== openedOrder.current[index])
   async function apply(): Promise<void> {
+    committed.current = true
+    for (const image of removed) await window.library.deleteGameImage(game.id, image.id)
+    await window.library.reorderGameImages(
+      game.id,
+      images.map((image) => image.id)
+    )
     const image = images.find((candidate) => candidate.id === selectedId)
-    if (!image) return
-    await window.library.setThumbnail(game.id, image.filePath)
+    if (image) await window.library.setThumbnail(game.id, image.filePath)
     onApplied()
   }
+
+  /* **CANCEL puts the Main Image back to what it was when the board was
+     opened.** 「メインサムネイルに設定」 writes the thumbnail there and then, so
+     without this CANCEL was APPLY without the write — the board was left with
+     whatever had been set from the menu, and the button did nothing that
+     leaving by any other door did not. What it undoes is the thumbnail choice
+     alone, that being what APPLY and CANCEL are about: a picture added,
+     deleted or reordered is a change to the gallery rather than to the choice,
+     and a deletion was asked about in its own right. A picture that was the
+     Main Image on opening and has since been deleted cannot be put back, and
+     the current choice stands. */
+  async function cancel(): Promise<void> {
+    committed.current = true
+    await discardAdded()
+    onCancel()
+  }
+
+  /* The pictures added this time are the one edit that had to be written on
+     the way — and so the one thing CANCEL has to take back out. They go with
+     their files, the way a deletion does. Called on CANCEL, and on the board
+     being left by any other door while it has not been applied. */
+  const discardAdded = useCallback(async (): Promise<void> => {
+    const ids = addedRef.current
+    if (ids.length === 0) return
+    addedRef.current = []
+    for (const id of ids) await window.library.deleteGameImage(game.id, id)
+    onGamesChanged()
+  }, [game.id, onGamesChanged])
+
+  useEffect(
+    () => () => {
+      if (!committed.current) void discardAdded()
+    },
+    [discardAdded]
+  )
 
   return (
     <section className="add-thumbnail" ref={sectionRef}>
@@ -687,7 +784,7 @@ export default function AddThumbnail({
                    gone — it shrank back under the menu it had just put up. */
                 className={`thumb-cell${selectedId === image.id ? ' selected' : ''}${
                   menu?.image.id === image.id ? ' is-open' : ''
-                }${dragId === image.id ? ' is-carried' : ''}`}
+                }${dragId === image.id ? ' is-carried' : ''}${image.r18 ? ' is-r18' : ''}`}
                 /* What the drag hit-tests against: the pointer is over a cell
                    or it is over the gap between two, and the gap is no answer
                    at all. */
@@ -796,13 +893,13 @@ export default function AddThumbnail({
           </button>
           <button
             className="thumb-button apply"
-            onClick={apply}
-            disabled={selectedId === null}
-            title={selectedId === null ? t('画像を選択してください') : undefined}
+            onClick={() => void apply()}
+            disabled={!dirty}
+            title={!dirty ? t('変更はありません') : undefined}
           >
             APPLY
           </button>
-          <button className="thumb-button cancel" onClick={onCancel}>
+          <button className="thumb-button cancel" onClick={() => void cancel()}>
             CANCEL
           </button>
         </div>
@@ -848,11 +945,31 @@ export default function AddThumbnail({
                   {
                     label: t('メインサムネイルに設定'),
                     onSelect: (): void => {
-                      void makeThumbnail(menu.image)
+                      makeThumbnail(menu.image)
                       setMenu(null)
                     }
                   }
                 ]),
+            {
+              /* R18 is a mark on the picture and nothing else: the frame goes
+                 red for it, and the Extra Function board's green circle draws
+                 from the pictures so marked. The row reads as the act it would
+                 do, so a marked picture's row offers the unmarking. */
+              label: menu.image.r18 ? t('R18を解除する') : t('R18に設定する'),
+              onSelect: () => {
+                /* Written at once — it is a mark on the picture rather than
+                   an edit to the gallery — but the list that comes back is
+                   the database's, with this board's staged edits not in it,
+                   so only the mark is taken from it. */
+                const marked = !menu.image.r18
+                void window.library.setGameImageR18(game.id, menu.image.id, marked).then(() =>
+                  setImages((current) =>
+                    current.map((image) => (image.id === menu.image.id ? { ...image, r18: marked } : image))
+                  )
+                )
+                setMenu(null)
+              }
+            },
             {
               label: t('ファイルの場所を開く'),
               onSelect: () => {

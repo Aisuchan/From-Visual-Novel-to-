@@ -157,7 +157,7 @@ export default function PeriodMenu({
 
 /* Penpot: Start Date / End Date — 250x39, a year in 86 and a month and a day
    in 82 each, every one of them a value box with its own ▼ against it. */
-function DateRow({
+export function DateRow({
   value,
   onChange
 }: {

@@ -74,6 +74,7 @@
   white-space: nowrap;
 }
 
+
 /* Not the design's: English says which half of the day it is where Japanese
    counts the seconds. It is a note on the figure rather than a part of it, so
    it is set at well under half the size. The figure keeps every one of the
@@ -183,6 +184,12 @@
   display: inline-block;
   font-size: 40px;
   transform: scaleY(1.8);
+  /* The ♦ is pinned to 叛逆明朝 rather than left to the chosen 日本語フォント:
+     the 1.8 scale and the size are measured off *this* face's glyph, and another
+     face draws its ♦ at another size, so the mark blew up under 金畫字 / 黒華明朝.
+     Kept on 叛逆明朝, it is the same point whatever the rest of the app is set
+     in. */
+  font-family: 'Hangyaku Wide', serif;
 }
 
 /* Penpot: Search Option Container — 335 wide, 10px below the home button.
@@ -368,7 +375,21 @@
 .select-field-box .select-field {
   width: 100%;
   margin-left: 0;
+}
+
+/* **The room for the ✕ is only taken while the ✕ is there.** It stands at the
+   end of the field once something has been typed, and the padding is what
+   keeps the run out from under it — but taken at all times it cost the empty
+   field 20 of its 142, and "Select Group..." was cut off at "Select Gro".
+   Measured in Girassol at 24 the placeholder is 144.3px, so it is set at 23
+   (138.3) to stand inside the 142 the field's own padding leaves; Penpot's
+   own 210-wide text box for it runs 48 past the field it is in. */
+.select-field-box.has-clear .select-field {
   padding-right: 30px;
+}
+
+.select-field-box .select-field::placeholder {
+  font-size: 23px;
 }
 
 .select-clear {
@@ -723,17 +744,51 @@
    ground that is a shade of the panel rather than a colour of its own, and a
    transparent icon still reads as sitting *on* something. Under the pointer the
    two lifts stack, which is what keeps the tile visible on a lit row. */
+/* **The frame is painted over the picture rather than beside it.** As a
+   border it stood next to the clipped picture, and at the corners the two
+   edges — the border's inner arc and the clip's — are both anti-aliased against
+   each other under the shell's fractional zoom, so the frame read thinner
+   round the radius than along the sides. Drawn last, as an inset shadow on a
+   layer over the picture, the frame's inner edge lands on the picture's own
+   pixels and nothing shows through it. The stroke is 1.5 rather than the
+   design's 2 — with its corners filled in (below) the 2 read heavy on a 45px
+   tile — and the picture sits inside it on the same 1.5 of padding, so the
+   frame and the picture still meet.
+
+   **And the ring is laid down three times.** What was left after that was the
+   arc's own anti-aliasing: a straight edge snaps to whole device pixels and
+   comes out solid, while the curve is spread over two of them at part
+   coverage, so at the 1280 default's 0.667 zoom the corner peaked at 193 of
+   255 against the side's 255 — three quarters as dark, which reads as thinner.
+   Each layer composites over the last, so a pixel at part coverage fills in
+   (1 − (1 − a)³) while a solid one stays solid: measured, the corner comes to
+   255 at 0.667, 251 at 0.833, and the sides are unchanged. */
 .game-icon {
+  position: relative;
   width: 45px;
   height: 45px;
   flex-shrink: 0;
+  padding: 1.5px;
+  box-sizing: border-box;
   background: rgba(225, 232, 237, 0.08);
-  border: 2px solid transparent;
   border-radius: 5px;
   overflow: hidden;
 }
 
+.game-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 5px;
+  box-shadow:
+    inset 0 0 0 1.5px var(--icon-frame, transparent),
+    inset 0 0 0 1.5px var(--icon-frame, transparent),
+    inset 0 0 0 1.5px var(--icon-frame, transparent);
+  pointer-events: none;
+}
+
 .game-icon img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;

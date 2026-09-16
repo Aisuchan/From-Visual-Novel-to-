@@ -98,9 +98,34 @@ body {
   -webkit-app-region: drag;
   position: absolute;
   inset: 0;
+  --plate-stroke: var(--color-bg-alt);
   background: var(--color-bg);
-  border: 1px solid var(--color-bg-alt);
   border-radius: 5px 0 0 5px;
+}
+
+/* **The stroke is painted over the boards rather than under them.** As a
+   border on the plate it was painted first, and the Strech / Shrink button's
+   own 4px corner — a sibling drawn after it, sitting exactly inside the
+   stroke's inner arc — was anti-aliased over the stroke's inner edge, so the
+   line read thinner round the radius than along the sides, which showed the
+   moment it went red. Drawn last, as an inset shadow on a layer over the
+   boards, the stroke's inner edge lands on the button's own pixels and nothing
+   blends into it. The layer takes no pointer, so the buttons under it are
+   untouched. The ring is laid down three times for the reason the side
+   panel's icon frame is: the arc is anti-aliased where the sides are not, and
+   three layers fill its part-covered pixels in without touching the solid
+   ones (measured on the 2px case: the corner from 193 to 255 at 0.667 zoom). */
+.overlay-plate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 1px var(--plate-stroke),
+    inset 0 0 0 1px var(--plate-stroke),
+    inset 0 0 0 1px var(--plate-stroke);
+  pointer-events: none;
 }
 
 /* The boards sit at the design's own x-positions inside the plate's 225px
@@ -294,7 +319,10 @@ body {
    board's 1px outer stroke, carried by the plate and by the Move Button that
    supplies it down the right side — goes red, so a paused session reads at a
    glance without anything being drawn over the controls. */
-.overlay-panel.is-paused .overlay-plate,
+.overlay-panel.is-paused .overlay-plate {
+  --plate-stroke: var(--color-recording);
+}
+
 .overlay-panel.is-paused .overlay-move {
   border-color: var(--color-recording);
 }

@@ -1,0 +1,91 @@
+/* The first-launch coach-mark. A full-screen fixed layer over everything; only
+   its own children take the pointer, so the dim it paints does not swallow the
+   clicks that dismiss it. */
+.guide {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+}
+
+/* Transparent, full screen — it is only here to catch a dismissing click in the
+   dimmed area. The dim itself is the spotlight's box-shadow. */
+.guide-backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+}
+
+/* The clear circle over the note. It is transparent, so the note shows through
+   at full brightness; its huge box-shadow is what dims the rest of the screen —
+   若干暗く — inside a thin #657786 ring. */
+.guide-spotlight {
+  position: fixed;
+  border-radius: 50%;
+  border: 1px solid #657786;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+/* The window and its arrow, one block so the two bob together. Positioned by
+   its bottom — the arrow tip — just above the ring, centred on the note. The
+   translateX(-50%) lives in the keyframes so the bob's translateY does not
+   fight it. */
+.guide-callout {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  animation: guide-bob 1.8s ease-in-out infinite;
+}
+
+@keyframes guide-bob {
+  0%,
+  100% {
+    transform: translate(-50%, 0);
+  }
+  50% {
+    transform: translate(-50%, -10px);
+  }
+}
+
+/* A dark board in the app's own palette: #14171a under a #657786 stroke, its
+   text #e1e8ed. */
+.guide-window {
+  max-width: 320px;
+  padding: 14px 20px;
+  border-radius: 5%;
+  background: #14171a;
+  border: 2px solid #657786;
+  color: #e1e8ed;
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* The second line — a quieter parenthetical note that clicking opens a
+   browser. */
+.guide-window-note {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 400;
+  color: #aab8c2;
+}
+
+/* The downward triangle below the window, held clear of it, pointing at the
+   circle in the stroke's own #657786. */
+.guide-arrow {
+  width: 0;
+  height: 0;
+  margin-top: 10px;
+  border-left: 13px solid transparent;
+  border-right: 13px solid transparent;
+  border-top: 16px solid #657786;
+}

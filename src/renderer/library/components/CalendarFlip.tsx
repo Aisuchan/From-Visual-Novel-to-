@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { MONTH_NAMES, WEEKDAYS } from './Calendar'
+import { MonthName, WEEKDAYS } from './Calendar'
 import './CalendarFlip.css'
 
 /** Six rows of seven, which is the Calender board's own grid — the page here is
@@ -104,7 +104,9 @@ export default function CalendarFlip({ onDone }: Props): React.JSX.Element {
         >
           <div className="calendar-flip-top">
             <span className="calendar-flip-year">{page.year}</span>
-            <span className="calendar-flip-month">{MONTH_NAMES[page.month]}</span>
+            <span className="calendar-flip-month">
+              <MonthName month={page.month} />
+            </span>
           </div>
           <div className="calendar-flip-grid">
             {WEEKDAYS.map((weekday) => (

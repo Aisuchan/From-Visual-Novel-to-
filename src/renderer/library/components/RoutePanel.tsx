@@ -5,11 +5,16 @@ import { clamp01, hexToHsv, hsvToHex, HEX, SWATCHES } from '../color'
 import ConfirmDialog from './ConfirmDialog'
 import PieChart from './PieChart'
 import './RoutePanel.css'
+import { centreInk } from '../ink'
 import { t } from '../../../shared/i18n'
 
 interface Props {
   /** The game the routes belong to; changing it starts the list over. */
   gameId: number
+  /** The game's TOTAL PLAY. Not drawn here — it is what says the list has to
+      be read again: an edit made to it by hand moves the active route with it
+      (`setTotalPlaySeconds`), and nothing else tells this board so. */
+  totalPlaySeconds: number
   /** Design-px x of the panel's left edge inside "Under". */
   left: number
   /** Design-px y of its bottom edge, measured from "Under"'s bottom. */
@@ -88,8 +93,55 @@ function formSeconds(form: { hours: string; minutes: string }): number {
  * back with the game's whole list, so this holds nothing but what the database
  * last said. The pie chart over their play time is still deferred.
  */
+/**
+ * The name in the Active Route strip, with its ink put on the strip's middle.
+ *
+ * The box the strip centres is the line box, and what is drawn in it is not
+ * centred in that: a route's name is Japanese off the fallback face on the
+ * primary's baseline, and its ink stands a couple of pixels over the middle
+ * of any box that centres its line — the same thing the Setting board's values
+ * and the Home board's SORT label are moved for, and the same measurement
+ * (`centreInk` in `ink.ts`). A constant `top` used to stand here, tuned to the
+ * face the app fell through to before it bundled one of its own; the face
+ * changed and the constant did not.
+ */
+function RouteName({
+  text,
+  color,
+  className
+}: {
+  text: string
+  color?: string
+  className?: string
+}): React.JSX.Element {
+  const ref = useRef<HTMLSpanElement | null>(null)
+  const probeRef = useRef<HTMLSpanElement | null>(null)
+
+  useEffect(() => {
+    let dropped = false
+    const fit = (): void => {
+      if (ref.current && probeRef.current) centreInk(ref.current, probeRef.current, text, 36)
+    }
+    fit()
+    void document.fonts.ready.then(() => {
+      if (!dropped) fit()
+    })
+    return () => {
+      dropped = true
+    }
+  }, [text])
+
+  return (
+    <span ref={ref} className={className} style={color ? { color } : undefined}>
+      {text}
+      <span className="rp-name-baseline" ref={probeRef} />
+    </span>
+  )
+}
+
 export default function RoutePanel({
   gameId,
+  totalPlaySeconds,
   left,
   bottom,
   open,
@@ -134,7 +186,9 @@ export default function RoutePanel({
 
   // Routes belong to a game, so the list is read back whenever the side panel
   // moves to another one — and again when a session ends, since the main
-  // process has just banked its time on whichever route was active.
+  // process has just banked its time on whichever route was active, and again
+  // when the total moves, since an edit made to it by hand has just done the
+  // same.
   useEffect(() => {
     let cancelled = false
     const load = (): void => {
@@ -151,7 +205,7 @@ export default function RoutePanel({
       cancelled = true
       unsubscribe()
     }
-  }, [gameId])
+  }, [gameId, totalPlaySeconds])
 
   useEffect(() => {
     onRoutes(gameId, routes)
@@ -376,9 +430,9 @@ export default function RoutePanel({
                 </button>
                 <div className="rp-name">
                   {active ? (
-                    <span style={{ color: active.color }}>{active.name}</span>
+                    <RouteName text={active.name} color={active.color} />
                   ) : (
-                    <span className="off">{t('記録しない')}</span>
+                    <RouteName text={t('記録しない')} className="off" />
                   )}
                 </div>
                 <button
@@ -573,7 +627,7 @@ export default function RoutePanel({
 
                   {/* Penpot: Is Cleared — 356x54 */}
                   <label className="rp-row">
-                    <span className="rp-label">Cleard</span>
+                    <span className="rp-label">Cleared</span>
                     <input
                       type="checkbox"
                       className="rp-check"
@@ -625,7 +679,7 @@ export default function RoutePanel({
             {view === 'default' ? (
               /* Penpot: Default Button — 366x52 */
               <button type="button" className="rp-button" onClick={() => setView('manage')}>
-                <span>MANEGE ROUTE</span>
+                <span>MANAGE ROUTE</span>
               </button>
             ) : (
               /* Penpot: Add Route Menu Buttons — 366x52, 30px between them. The

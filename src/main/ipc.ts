@@ -8,6 +8,9 @@ import type {
   HomeLayout,
   NewGroupInput,
   NewRouteInput,
+  NewVoiceInput,
+  VoicePatch,
+  NewLedgerEntryInput,
   ProgressState,
   RoutePatch
 } from '../shared/db-types'
@@ -24,7 +27,11 @@ import {
 import { listSoundEffects } from './sound-effects'
 import { IpcChannels } from '../shared/ipc-types'
 import { setLanguage, t } from '../shared/i18n'
-import { GALLERY_IMAGE_EXTENSIONS, GALLERY_VIDEO_EXTENSIONS } from '../shared/media-url'
+import {
+  GALLERY_IMAGE_EXTENSIONS,
+  GALLERY_VIDEO_EXTENSIONS,
+  VOICE_AUDIO_EXTENSIONS
+} from '../shared/media-url'
 import type { AppSettings, LaunchPrefs, NewGameInput } from '../shared/db-types'
 import type { StartSessionRequest } from '../shared/ipc-types'
 
@@ -168,12 +175,15 @@ export function registerIpcHandlers(): void {
     db.updateGame(gameId, input)
   )
 
-  ipcMain.handle(IpcChannels.GamesSetPlayTime, (_event, gameId: number, seconds: number) =>
-    db.setTotalPlaySeconds(gameId, seconds)
+  ipcMain.handle(
+    IpcChannels.GamesSetPlayTime,
+    (_event, gameId: number, seconds: number, asPlayed: boolean) =>
+      db.setTotalPlaySeconds(gameId, seconds, asPlayed === true)
   )
 
-  ipcMain.handle(IpcChannels.GamesSetThumbnail, (_event, gameId: number, filePath: string) =>
-    db.setThumbnail(gameId, filePath)
+  ipcMain.handle(
+    IpcChannels.GamesSetThumbnail,
+    (_event, gameId: number, filePath: string | null) => db.setThumbnail(gameId, filePath)
   )
 
   ipcMain.handle(
@@ -218,6 +228,14 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle(IpcChannels.GameImagesList, (_event, gameId: number) => db.listGameImages(gameId))
+  ipcMain.handle(IpcChannels.GameImagesRandom, (_event, r18Only: boolean) =>
+    db.getRandomImage(r18Only === true)
+  )
+  ipcMain.handle(
+    IpcChannels.GameImagesSetR18,
+    (_event, gameId: number, imageId: number, r18: boolean) =>
+      db.setGameImageR18(gameId, imageId, r18 === true)
+  )
 
   ipcMain.handle(IpcChannels.RoutesList, (_event, gameId: number) => db.listRoutes(gameId))
 
@@ -249,6 +267,91 @@ export function registerIpcHandlers(): void {
   )
 
   ipcMain.handle(IpcChannels.GroupsDelete, (_e, id: number) => db.deleteGroup(id))
+
+  /* The Voice board and its Add Voice dialog. The Ref button only *picks* the
+     file — the copy under `userData` is made as the voice is written, so a
+     dialog cancelled leaves nothing behind, the way the Add Game dialog's
+     tags do. The filter is audio and the clips the gallery already plays,
+     which is what "音声・動画ファイルのみ" comes to in this runtime. */
+  ipcMain.handle(IpcChannels.VoicesList, () => db.listVoices())
+  ipcMain.handle(IpcChannels.VoicesPickFile, async () => {
+    const result = await showOpen({
+      title: t('音声・動画を選択'),
+      properties: ['openFile'],
+      filters: [
+        {
+          name: t('音声・動画'),
+          extensions: [...VOICE_AUDIO_EXTENSIONS, ...GALLERY_VIDEO_EXTENSIONS]
+        },
+        { name: t('音声'), extensions: [...VOICE_AUDIO_EXTENSIONS] },
+        { name: t('動画'), extensions: [...GALLERY_VIDEO_EXTENSIONS] }
+      ]
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+  /* The copy under `userData` that a voice is played from. Checked here
+     rather than trusted from the renderer: a path that is not something this
+     runtime plays is refused before anything is copied. */
+  const copyVoiceFile = (sourcePath: string): string => {
+    const ext = path.extname(sourcePath).slice(1).toLowerCase()
+    if (![...VOICE_AUDIO_EXTENSIONS, ...GALLERY_VIDEO_EXTENSIONS].includes(ext)) {
+      throw new Error(t('音声・動画ファイルではありません'))
+    }
+    if (!fs.existsSync(sourcePath)) {
+      throw new Error(t('ファイルが見つかりません。\n{0}', sourcePath))
+    }
+    const destDir = path.join(app.getPath('userData'), 'voices')
+    fs.mkdirSync(destDir, { recursive: true })
+    const dest = path.join(destDir, `${randomUUID()}${path.extname(sourcePath)}`)
+    fs.copyFileSync(sourcePath, dest)
+    return dest
+  }
+  const ownVoiceFile = (filePath: string): boolean =>
+    !path.relative(path.join(app.getPath('userData'), 'voices'), filePath).startsWith('..')
+  ipcMain.handle(IpcChannels.VoicesAdd, (_event, input: NewVoiceInput) =>
+    db.addVoice({
+      gameId: input.gameId,
+      characterId: input.characterId,
+      title: input.title,
+      filePath: copyVoiceFile(input.sourcePath),
+      sourcePath: input.sourcePath
+    })
+  )
+  /* 「情報を変更」. A new file is copied in first and the old copy removed
+     only once the row points at the new one. */
+  ipcMain.handle(IpcChannels.VoicesUpdate, (_event, id: number, patch: VoicePatch) => {
+    const before = db.getVoice(id)
+    if (!before) return db.listVoices()
+    const filePath = patch.sourcePath ? copyVoiceFile(patch.sourcePath) : undefined
+    const list = db.updateVoice(id, { ...patch, filePath })
+    if (filePath && ownVoiceFile(before.filePath)) fs.rmSync(before.filePath, { force: true })
+    return list
+  })
+  /* The file goes with the row: it is the app's own copy under `userData`,
+     which nothing else points at. */
+  ipcMain.handle(IpcChannels.VoicesDelete, (_event, id: number) => {
+    const voice = db.getVoice(id)
+    const remaining = db.deleteVoice(id)
+    if (voice && ownVoiceFile(voice.filePath)) fs.rmSync(voice.filePath, { force: true })
+    return remaining
+  })
+  ipcMain.handle(IpcChannels.VoiceCharactersList, () => db.listVoiceCharacters())
+  ipcMain.handle(IpcChannels.VoiceCharactersAdd, (_e, name: string) =>
+    db.addVoiceCharacter(name)
+  )
+  ipcMain.handle(IpcChannels.VoiceCharactersRename, (_e, id: number, name: string) =>
+    db.renameVoiceCharacter(id, name)
+  )
+  ipcMain.handle(IpcChannels.VoiceCharactersDelete, (_e, id: number) =>
+    db.deleteVoiceCharacter(id)
+  )
+
+  ipcMain.handle(IpcChannels.LedgerList, () => db.listLedgerEntries())
+  ipcMain.handle(IpcChannels.LedgerAdd, (_event, input: NewLedgerEntryInput) =>
+    db.addLedgerEntry(input)
+  )
+  ipcMain.handle(IpcChannels.LedgerDelete, (_event, id: number) => db.deleteLedgerEntry(id))
 
   ipcMain.handle(IpcChannels.SettingsSet, (_e, patch) => {
     const settings = db.setSettings(patch)
@@ -384,6 +487,86 @@ export function registerIpcHandlers(): void {
     return true
   })
 
+  /* The 初期化 row: the whole library goes, and only the backups stay. It is
+     asked about *twice*, the second question naming what the first was agreed
+     to — one press on a red button is a slip, and there is no backup being
+     read back here to undo it with. Nothing is touched while a game is being
+     played: the capture worker may be writing into the very folders that go,
+     and the session's own row would be banked into a database that is gone. */
+  ipcMain.handle(IpcChannels.LibraryErase, async () => {
+    if (active) {
+      await showBox({
+        type: 'error',
+        title: t('初期化'),
+        message: t('ゲームのプレイ中は初期化できません'),
+        detail: t('ゲームを終了してからもう一度お試しください。')
+      })
+      return false
+    }
+
+    /* The one promise the row makes is that the backups stay, and a backup
+       folder put *inside* `userData` would go with everything else. Refused
+       rather than worked around: the row cannot keep its word there, and
+       moving the folder is the player's to do. The comparison is on the
+       resolved paths, case-folded the way Windows folds them. */
+    const backupDir = db.getSettings().backupDirectory.trim()
+    if (backupDir) {
+      const root = path.resolve(app.getPath('userData')).toLowerCase()
+      const kept = path.resolve(backupDir).toLowerCase()
+      if (kept === root || kept.startsWith(root + path.sep)) {
+        await showBox({
+          type: 'error',
+          title: t('初期化'),
+          message: t('バックアップの保存先がアプリのデータフォルダの中にあります'),
+          detail: t(
+            '初期化するとバックアップも一緒に消えてしまいます。バックアップの保存先を別の場所に変更してからもう一度お試しください。\n{0}',
+            backupDir
+          )
+        })
+        return false
+      }
+    }
+
+    const first = await showBox({
+      type: 'warning',
+      title: t('初期化'),
+      message: t('バックアップを除くすべてのデータを消去します'),
+      detail: t(
+        'ゲーム・プレイ時間・ルート・予定・画像・設定がすべて消え、アプリは空の状態で再起動します。バックアップフォルダの中身はそのまま残ります。'
+      ),
+      buttons: [t('消去'), t('キャンセル')],
+      defaultId: 1,
+      cancelId: 1
+    })
+    if (first.response !== 0) return false
+
+    const second = await showBox({
+      type: 'warning',
+      title: t('初期化'),
+      message: t('本当に消去しますか？'),
+      detail: t('この操作は元に戻せません。消去したデータは、バックアップからしか戻せません。'),
+      buttons: [t('消去する'), t('キャンセル')],
+      defaultId: 1,
+      cancelId: 1
+    })
+    if (second.response !== 0) return false
+
+    try {
+      db.eraseLibrary()
+    } catch (error) {
+      await showBox({
+        type: 'error',
+        title: t('初期化'),
+        message: t('消去できませんでした'),
+        detail: error instanceof Error ? error.message : String(error)
+      })
+      return false
+    }
+    app.relaunch()
+    app.exit(0)
+    return true
+  })
+
   /* The folder the launch backup goes in. A folder rather than a file: the
      name is the day's, so what the row names is where those days go. */
   ipcMain.handle(IpcChannels.BackupPickDirectory, async () => {
@@ -392,6 +575,21 @@ export function registerIpcHandlers(): void {
       properties: ['openDirectory', 'createDirectory']
     })
     return result.canceled ? null : (result.filePaths[0] ?? null)
+  })
+
+  /* Writes the CSV export to a dated file in the chosen directory. The renderer
+     builds the rows (it has the games and can read the ledger and routes); this
+     only puts the bytes on disk, with a UTF-8 BOM so Excel reads the Japanese. */
+  ipcMain.handle(IpcChannels.CsvExport, async (_event, directory: string, content: string) => {
+    if (!directory || !fs.existsSync(directory)) {
+      throw new Error(t('保存先のフォルダが見つかりません'))
+    }
+    const now = new Date()
+    const p = (n: number): string => String(n).padStart(2, '0')
+    const stamp = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}_${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`
+    const filePath = path.join(directory, `VN_Library_${stamp}.csv`)
+    fs.writeFileSync(filePath, '﻿' + content, 'utf8')
+    return filePath
   })
 
   /* The desktop's displays as they are right now — this is asked again every
@@ -422,6 +620,15 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle(IpcChannels.SessionsList, (_event, gameId: number) => db.listSessions(gameId))
+  ipcMain.handle(IpcChannels.PlayAdjustmentsList, (_event, gameId: number) =>
+    db.listPlayAdjustments(gameId)
+  )
+  ipcMain.handle(
+    IpcChannels.PlayAdjustmentsDelete,
+    (_event, gameId: number, adjustmentId: number) => {
+      db.deletePlayAdjustment(gameId, adjustmentId)
+    }
+  )
 
   ipcMain.handle(IpcChannels.SessionsPlaytimeByDay, (_event, fromDate: string, toDate: string) =>
     db.getPlaytimeByDay(fromDate, toDate)

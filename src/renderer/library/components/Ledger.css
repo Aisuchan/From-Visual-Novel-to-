@@ -1,0 +1,1031 @@
+/* All values below are literal Penpot values from board "Ledger"
+   (103d7b69-a8a6-80ba-8008-a2ba06bea01c), 1585x986 — the same slot in Main
+   Display the PlayTime Graph occupies, and the same three columns: Left 351,
+   Middle 750, Right 484. */
+
+.ledger-board {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-bg);
+}
+
+/* Penpot: the two Rectangles the design sets on the board itself — 600x50 on
+   #2a2d31 under a 1px inner #657786 stroke (an inset shadow, the stroke being
+   an inner one). Each is set against the rule it stands on rather than
+   beside it, as the PlayTime Graph's are: the top one a pixel up into the
+   header's 2px rule, the bottom one a pixel down into the footer's 4px one —
+   all the same #657786, so a plate hangs off one line rather than making a
+   thicker rule with a seam. The bottom plate's 995 would carry 10 of it past
+   the board's own 1585 and off the window; it is held to the edge instead,
+   its run keeping the design's own 90 in from the plate. */
+/* The label is held to the plate's left and the value to its right, with 25
+   of air either side, so the two balance across the plate rather than sitting
+   in a run pinned to one end. */
+.ledger-plate {
+  position: absolute;
+  width: 600px;
+  height: 50px;
+  box-sizing: border-box;
+  padding: 0 25px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 1px var(--color-text-dim);
+  z-index: 1;
+}
+
+/* Penpot: 986/0. */
+.ledger-plate.top {
+  left: 986px;
+  top: -1px;
+}
+
+/* Penpot: 995/935 — held to the board's edge so its 10px does not run off. */
+.ledger-plate.bottom {
+  left: 985px;
+  bottom: -1px;
+}
+
+/* Penpot: the run — Girassol 28 in #e1e8ed. The label may not shrink; the
+   value keeps its own width and sits at the right. */
+.ledger-plate-label,
+.ledger-plate-value {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.ledger-plate-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ledger-plate-value {
+  flex: 0 0 auto;
+}
+
+/* Penpot: Left — 351 wide, 30 of padding, its two blocks at either end. */
+.ledger-left {
+  position: relative;
+  width: 351px;
+  flex-shrink: 0;
+}
+
+/* Penpot: Period — 459x101 at 30/30, running 138 past the column into the
+   Middle, which is the design's own overlap. */
+.ledger-period {
+  position: absolute;
+  left: 30px;
+  top: 30px;
+  width: 459px;
+  height: 101px;
+  /* The box runs past the Left column into the Middle, which is the later
+     sibling — so without this the second stamp's own runs sit under
+     `.ledger-middle` and cannot be clicked. Only the runs take the pointer, so
+     the ring under the rest of the box is left alone. */
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Penpot: Start Day — 151x101, at 32.25 and 275.75 within the Period. */
+.ledger-day {
+  position: absolute;
+  top: 0;
+  width: 151px;
+  height: 101px;
+}
+
+.ledger-day.from {
+  left: 32.25px;
+}
+
+.ledger-day.to {
+  left: 275.75px;
+}
+
+/* Penpot: "»" — Girassol 48 in a 28x101 box at 215.5, set against the box's
+   own bottom (its verticalAlign), level with the day. */
+.ledger-arrow {
+  position: absolute;
+  left: 215.5px;
+  top: 0;
+  width: 28px;
+  height: 101px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 48px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.ledger-day-month,
+.ledger-day-date,
+.ledger-day-year,
+.ledger-day-weekday {
+  position: absolute;
+  font-family: var(--font-display);
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* The Period is `pointer-events: none` so it does not lie over the ring; the
+   three runs that can be typed into take the pointer back. */
+.ledger-day-run,
+.ledger-day-input {
+  pointer-events: auto;
+}
+
+/* The run as drawn: a plateless button that reads as text until it is clicked
+   and lifts under the pointer, the way the PlayTime Graph's stamp does. */
+.ledger-day-run {
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: text;
+  transition: color 0.15s ease;
+}
+
+.ledger-day-run:hover,
+.ledger-day-run:focus-visible {
+  outline: none;
+  color: var(--color-text-bright);
+}
+
+/* An input cannot size itself to its own text, so each takes the width Penpot
+   gives that run's box — 71 for the two big figures and 48 for the year. */
+.ledger-day-input {
+  padding: 0;
+  border: none;
+  background: none;
+  outline: none;
+  caret-color: var(--color-accent);
+}
+
+.ledger-day-month.ledger-day-input,
+.ledger-day-date.ledger-day-input {
+  width: 71px;
+}
+
+.ledger-day-year.ledger-day-input {
+  width: 48px;
+}
+
+/* Penpot: "08" — Girassol 65, 10 above the box's own top. */
+.ledger-day-month {
+  left: 0;
+  top: -10px;
+  font-size: 65px;
+}
+
+/* Penpot: "／" — the great slash, drawn as a line in the box's own 151x101
+   at the ink the design shows (see the PlayTime Graph's own note). */
+.ledger-day-slash {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 151px;
+  height: 101px;
+  overflow: visible;
+}
+
+.ledger-day-slash line {
+  stroke: var(--color-text);
+  stroke-width: 4.5;
+}
+
+/* Penpot: "01" — Girassol 65 at 90/32. */
+.ledger-day-date {
+  left: 90px;
+  top: 32px;
+  font-size: 65px;
+}
+
+/* Penpot: "2026" — Girassol 22 at 0/67. */
+.ledger-day-year {
+  left: 0;
+  top: 67px;
+  font-size: 22px;
+}
+
+/* Penpot: "SAT" — Girassol 24 at 118/8. */
+.ledger-day-weekday {
+  left: 118px;
+  top: 8px;
+  font-size: 24px;
+}
+
+/* Penpot: Under Line — 459x8 at 30/141: a 273 bar in #e1e8ed and a 186 path
+   tapering away past it. */
+.ledger-underline {
+  position: absolute;
+  left: 30px;
+  top: 141px;
+  width: 459px;
+  height: 8px;
+}
+
+.ledger-underline-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 273px;
+  height: 8px;
+  background: var(--color-text);
+}
+
+.ledger-underline-taper {
+  position: absolute;
+  left: 273px;
+  top: 0;
+  width: 186px;
+  height: 8px;
+  background: var(--color-text);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+/* Penpot: Period Setting — 291x39 at 30/159 (the Period's 119 and 10 under
+   it): Now Setting 263 and the 28-wide Show Option Button, each under a 1px
+   inner #e1e8ed stroke, the pair rounded 5 at its outer corners. */
+.ledger-period-setting {
+  position: absolute;
+  left: 30px;
+  top: 159px;
+  width: 291px;
+  height: 39px;
+  display: flex;
+}
+
+/* It is a control now, not a placeholder, so it answers the pointer. */
+.ledger-period-field,
+.ledger-period-caret {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.ledger-period-field:hover,
+.ledger-period-caret:hover,
+.ledger-period-caret[aria-expanded='true'] {
+  background: rgba(225, 232, 237, 0.1);
+}
+
+.ledger-period-field,
+.ledger-period-caret {
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Penpot: "THIS WEEK" — Girassol 24, centred in the 263 by its 80 / 5 of
+   padding. */
+.ledger-period-field {
+  flex: 0 0 263px;
+  border-radius: 5px 0 0 5px;
+  font-size: 24px;
+}
+
+/* Penpot: "▼" — Girassol 18 in the 28. */
+.ledger-period-caret {
+  flex: 0 0 28px;
+  border-radius: 0 5px 5px 0;
+  font-size: 18px;
+}
+
+/* Penpot: Buy / Sell Box — 291x506 at 30/450, which is the Left's 986 less
+   its 30 of padding and the box's own height: it is held to the bottom, so
+   in a taller window it stays on the column's foot. */
+.ledger-box {
+  position: absolute;
+  left: 30px;
+  bottom: 30px;
+  width: 291px;
+  height: 506px;
+}
+
+/* Penpot: Rectangle — 291x1 in #B1B2B5, at 0, 50, 179, 308 and 437. */
+.ledger-rule {
+  position: absolute;
+  left: 0;
+  width: 291px;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.ledger-rule.r1 {
+  top: 0;
+}
+
+.ledger-rule.r2 {
+  top: 50px;
+}
+
+.ledger-rule.r3 {
+  top: 179px;
+}
+
+.ledger-rule.r4 {
+  top: 308px;
+}
+
+.ledger-rule.r5 {
+  top: 437px;
+}
+
+/* Penpot: Buy / Sell — 291x39 at 6: two 145 halves about a 1x39 rule, BUY on
+   #1da1f2 at a 5px radius, both runs at Girassol 32 in #e1e8ed. */
+.ledger-toggle {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 291px;
+  height: 39px;
+  display: flex;
+}
+
+.ledger-toggle-half {
+  flex: 0 0 145px;
+  height: 39px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+/* The half that is on carries the accent and the app's text; the other is
+   muted and lifts under the pointer, the way the Setting board's On / Off is. */
+.ledger-toggle-half.on {
+  color: var(--color-text);
+}
+
+.ledger-toggle-half:not(.on):hover {
+  background: rgba(225, 232, 237, 0.1);
+}
+
+.ledger-toggle-half.on {
+  background: var(--color-accent);
+}
+
+.ledger-toggle-rule {
+  flex: 0 0 1px;
+  height: 39px;
+  background: var(--color-border);
+}
+
+/* Penpot: Game / Sell Price / Sell Date — 291x88 at 66, 195 and 324: the
+   name at Girassol 32 over its field, 10 between them. */
+.ledger-row {
+  position: absolute;
+  left: 0;
+  width: 291px;
+  height: 88px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ledger-row.game {
+  top: 66px;
+}
+
+.ledger-row.price {
+  top: 195px;
+}
+
+.ledger-row.date {
+  top: 324px;
+}
+
+.ledger-label {
+  height: 39px;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Penpot: Game — 291x39: Selected Group 253 on #2a2d31 rounded 5 on its left
+   corners with "---" at Girassol 24 on 5 / 10 of padding, a 1x39 rule, and
+   Show Option 37 rounded on its right with ▼ at 17 on 3 / 10 / 0 / 10. */
+.ledger-select {
+  position: relative;
+  width: 291px;
+  height: 39px;
+  display: flex;
+}
+
+.ledger-select-value {
+  flex: 0 0 253px;
+  min-width: 0;
+  height: 39px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 5px 0 0 5px;
+  background: var(--color-bg-alt);
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.ledger-select-value.empty {
+  color: var(--color-text-dim);
+}
+
+.ledger-select-divider {
+  flex: 0 0 1px;
+  height: 39px;
+  background: var(--color-border);
+}
+
+.ledger-select-caret {
+  flex: 0 0 37px;
+  height: 39px;
+  padding: 3px 10px 0;
+  border: none;
+  border-radius: 0 5px 5px 0;
+  background: var(--color-bg-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 17px;
+  line-height: 1.2;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.ledger-select-value:hover,
+.ledger-select-caret:hover {
+  filter: brightness(1.15);
+}
+
+/* Penpot: Title Input — 291x39 on #2a2d31 rounded 5, "Title..." at Girassol
+   24 in #657786 on 5 / 10 of padding. */
+.ledger-input {
+  width: 291px;
+  height: 39px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 5px;
+  background: var(--color-bg-alt);
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.ledger-input::placeholder {
+  color: var(--color-text-dim);
+  opacity: 1;
+}
+
+/* The native date control on the app's palette. */
+.ledger-date {
+  color-scheme: dark;
+}
+
+.ledger-date::-webkit-calendar-picker-indicator {
+  filter: invert(0.9);
+  cursor: pointer;
+}
+
+/* Penpot: the price field carries the currency mark at its head — the same
+   box the Add Game More panel's price uses, at this board's own 24. */
+.ledger-price-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 291px;
+  height: 39px;
+  box-sizing: border-box;
+  padding: 5px 10px;
+  border-radius: 5px;
+  background: var(--color-bg-alt);
+}
+
+.ledger-currency {
+  flex: 0 0 auto;
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.ledger-price-input {
+  flex: 1;
+  min-width: 0;
+  height: 29px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.ledger-price-input::placeholder {
+  color: var(--color-text-dim);
+  opacity: 1;
+}
+
+.ledger-price-input::-webkit-outer-spin-button,
+.ledger-price-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Penpot: Cancel OK Button — 291x43 at 463, the two 125x43 buttons 30 apart:
+   clear on #2a2d31 under a 2px inner #657786 stroke, ok on #1da1f2 under a
+   2px inner #e1e8ed one, both rounded 3 with 4 under the run, Girassol 32. */
+.ledger-actions {
+  position: absolute;
+  left: 0;
+  top: 463px;
+  width: 291px;
+  height: 43px;
+  display: flex;
+  gap: 30px;
+}
+
+.ledger-clear,
+.ledger-ok {
+  flex: 0 0 125px;
+  height: 43px;
+  padding: 0 0 4px;
+  border: none;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1.2;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.ledger-clear:hover,
+.ledger-ok:hover {
+  filter: brightness(1.18);
+}
+
+.ledger-clear {
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 2px var(--color-text-dim);
+}
+
+.ledger-ok {
+  background: var(--color-accent);
+  box-shadow: inset 0 0 0 2px var(--color-text);
+}
+
+/* Penpot: Middle — 750 wide. */
+.ledger-middle {
+  position: relative;
+  width: 750px;
+  flex-shrink: 0;
+}
+
+/* Penpot: Pie Chart — 750 at 118, flat in #B1B2B5. */
+.ledger-pie {
+  position: absolute;
+  left: 0;
+  top: 118px;
+  width: 750px;
+  height: 750px;
+  border-radius: 375px;
+  background: var(--color-border);
+}
+
+/* Penpot draws the circle flat in #B1B2B5 — the plate that stands in while
+   nothing has been counted. Once there are wedges the ring is the plate and
+   leaves a hole in the middle for the total. */
+.ledger-pie.charted {
+  background: none;
+}
+
+/* Penpot: "TOTAL PRICE" at Girassol 48 over "¥10,000,000" at 72, both at a
+   0.9 line height in the board's own #14171a, centred on the plate. */
+.ledger-pie-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  line-height: 0.9;
+  color: var(--color-bg);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* On the flat plate the run is the board's dark; in the ring's hole it is the
+   app's text, the way the graph's and the Route board's totals are. */
+.ledger-pie.charted .ledger-pie-label {
+  color: var(--color-text);
+}
+
+.ledger-pie-label .title {
+  font-size: 48px;
+}
+
+/* The price is the thing read off the middle, so it is set larger than the
+   design's 72 against the "TOTAL PRICE" label above it, with a little air
+   between them. */
+.ledger-pie-label .total {
+  margin-top: 12px;
+  font-size: 110px;
+}
+
+/* Penpot: On / Off Buy / Sell — 309x58 at 229/900, the two runs at Girassol
+   48 in #e1e8ed with 50 between them. */
+.ledger-onoff {
+  position: absolute;
+  left: 229px;
+  top: 900px;
+  width: 309px;
+  height: 58px;
+  display: flex;
+  gap: 50px;
+}
+
+.ledger-onoff-run {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-display);
+  font-size: 48px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.ledger-onoff-run:hover {
+  filter: brightness(1.15);
+}
+
+/* The pair below the ring is coloured by kind: BUY blue, SELL red. */
+.ledger-onoff-run.buy {
+  color: var(--color-accent);
+}
+
+.ledger-onoff-run.sell {
+  color: var(--color-danger-bright);
+}
+
+/* Penpot: Right — 484 wide, 40 of padding either side. */
+.ledger-right {
+  position: relative;
+  width: 484px;
+  flex-shrink: 0;
+}
+
+/* Penpot: Rectangle — 404x1 in #B1B2B5 at 40/112 and 40/873. */
+.ledger-right-rule {
+  position: absolute;
+  left: 40px;
+  width: 404px;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.ledger-right-rule.top {
+  top: 112px;
+}
+
+.ledger-right-rule.bottom {
+  top: 873px;
+}
+
+/* Penpot: Game List — 404x700 at 40/143, its rows centred with 10 between
+   them. */
+.ledger-game-list {
+  position: absolute;
+  left: 40px;
+  top: 143px;
+  width: 404px;
+  height: 700px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  gap: 10px;
+}
+
+/* Penpot: Game — 384x79 on #2a2d31 at a 10px radius, 10 of padding, the head
+   and the amount at its two ends. */
+.ledger-game {
+  flex: 0 0 79px;
+  width: 384px;
+  box-sizing: border-box;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--color-bg-alt);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: default;
+  transition:
+    filter 0.15s ease,
+    opacity 0.15s ease;
+}
+
+/* A row points at a wedge: hovered it comes up, and every other row is held
+   back, the way the graph's legend and its ring are. */
+.ledger-game:hover {
+  filter: brightness(1.15);
+}
+
+.ledger-game.dimmed {
+  opacity: 0.4;
+}
+
+/* A period with nothing in it. */
+.ledger-empty {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text-dim);
+}
+
+/* Penpot: Color And Name — 364x30: Game Color 30x30 at a 10px radius, 10
+   clear of "Title Example" at Girassol 24 centred on the row. */
+.ledger-game-head {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Penpot: Game Color — a 30x30 plate at a 10px radius. It carries the game's
+   own icon now, with the rank colour left showing as a 3px frame around it —
+   `padding` is the frame, the inner image on the plate's own ground. A game
+   with no icon keeps the solid colour square. */
+.ledger-game-color {
+  flex: 0 0 30px;
+  height: 30px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.ledger-game-color:has(img) {
+  padding: 3px;
+}
+
+.ledger-game-color img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  background: var(--color-bg-alt);
+}
+
+.ledger-game-name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Penpot: Percent — 364x29, "￥100,000" at Girassol 24 held to the right. */
+.ledger-game-amount {
+  height: 29px;
+  text-align: right;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* When both kinds are shown, a buy figure is the accent blue and a sell is
+   the app's red, so a game's two frames are told apart at a glance. */
+.ledger-game-amount.buy {
+  color: var(--color-accent);
+}
+
+.ledger-game-amount.sell {
+  color: var(--color-danger-bright);
+}
+
+/* Not in the design: the two dates SPECIFY THE PERIOD sets, under the field. */
+.ledger-custom {
+  position: absolute;
+  left: 30px;
+  top: 204px;
+  width: 291px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ledger-custom .ledger-date {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  font-size: 20px;
+}
+
+.ledger-custom-sep {
+  flex: 0 0 auto;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1;
+  color: var(--color-text);
+}
+
+/* ---- Arrivals ---------------------------------------------------------- *
+ * The board comes up the way the PlayTime Graph does. While anything is still
+ * on its way in the board clips to itself, so the Buy / Sell Box rising from
+ * below is not drawn on the footer; the app's own menus are not open this
+ * early, so nothing that needs to hang past the board is lost to it. */
+.ledger-board.is-arriving {
+  overflow: hidden;
+}
+
+/* The period stamps and the » between them slide in and pitch over on their
+   own leading corner — the graph's own `graph-period-arrive`, one block at a
+   time, the Under Line under them held still. */
+.ledger-day,
+.ledger-arrow {
+  transform-origin: 100% 100%;
+  animation: graph-period-arrive 0.78s linear both;
+}
+.ledger-day.from {
+  animation-delay: 250ms;
+}
+.ledger-arrow {
+  animation-delay: 320ms;
+}
+.ledger-day.to {
+  animation-delay: 390ms;
+}
+
+/* The two plates come out of the rules they are set into — the top one down
+   from the header's, the bottom one up from the footer's — the graph's own
+   `graph-plate-down` / `graph-plate-up`. */
+.ledger-plate.top {
+  animation: graph-plate-down 0.36s cubic-bezier(0.85, 0, 0.15, 1) 250ms backwards;
+}
+.ledger-plate.bottom {
+  animation: graph-plate-up 0.36s cubic-bezier(0.85, 0, 0.15, 1) 250ms backwards;
+}
+
+/* The Game List rises row by row on a diagonal — the graph's own
+   `graph-game-arrive`, each row's wait set inline. */
+.ledger-game {
+  transform-origin: 0 50%;
+  animation: graph-game-arrive 0.42s cubic-bezier(0.2, 0, 0.15, 1) both;
+}
+
+/* The Buy / Sell Box grows up from below the board. It is held to the
+   column's foot, so it starts a whole board-height down and slides to nothing;
+   the board's clip keeps it off the footer on the way. */
+.ledger-box {
+  animation: ledger-box-rise 0.5s cubic-bezier(0.2, 0, 0.15, 1) 250ms backwards;
+}
+
+@keyframes ledger-box-rise {
+  from {
+    transform: translateY(560px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* BUY slides in from a little to the left, SELL from the right. */
+.ledger-onoff-run.buy {
+  animation: ledger-slide-left 0.4s cubic-bezier(0.2, 0, 0.15, 1) 300ms backwards;
+}
+.ledger-onoff-run.sell {
+  animation: ledger-slide-right 0.4s cubic-bezier(0.2, 0, 0.15, 1) 300ms backwards;
+}
+
+@keyframes ledger-slide-left {
+  from {
+    transform: translateX(-40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes ledger-slide-right {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* The Period Setting slides in from the left the way the graph's own does —
+   its right edge starts on the board's left (321 = its 30 in plus 291 wide)
+   and it is thrown into place, reusing the graph's `graph-plate-right`. */
+.ledger-period-setting {
+  animation: graph-plate-right 0.6s linear 250ms backwards;
+}
+
+/* The cursor-following tooltip — the PlayTime Graph's Hover Pie Game panel:
+   375 wide on the board's ground under a 2px #657786 frame, the game's name
+   over the amount. It follows the pointer, so it takes no pointer events of
+   its own, and it stands over everything on the board. */
+.ledger-hover {
+  position: absolute;
+  width: 375px;
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 2px var(--color-text-dim);
+  border-radius: 10px;
+  padding: 10px 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.ledger-hover-name {
+  max-width: 335px;
+  height: 44px;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 44px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The amount is the figure the row was pointed at for, so it is the larger of
+   the two — blue for a buy and red for a sell, the way the list's own figures
+   are when both kinds are shown. */
+.ledger-hover-amount {
+  height: 58px;
+  font-family: var(--font-display);
+  font-size: 48px;
+  line-height: 58px;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.ledger-hover-amount.buy {
+  color: var(--color-accent);
+}
+
+.ledger-hover-amount.sell {
+  color: var(--color-danger-bright);
+}

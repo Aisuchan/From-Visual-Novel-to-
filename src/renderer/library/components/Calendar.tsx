@@ -5,8 +5,11 @@ import PlanPanel, { PLAN_PANEL_HEIGHT, PLAN_PANEL_WIDTH, PLAN_STEP_SPACE } from 
 import DayTimeCard from './DayTimeCard'
 import { colorForRank } from '../color'
 import { displayName } from '../sort'
+import { mediaUrl } from '../../../shared/media-url'
 import type { GameWithStats, NewPlanInput, Plan } from '../../../shared/db-types'
 import { motionMs } from '../motion'
+import { maskOf } from '../mask'
+import augustMark from '../../assets/augast.png'
 import './Calendar.css'
 import { t } from '../../../shared/i18n'
 
@@ -26,6 +29,29 @@ export const MONTH_NAMES = [
   'November',
   'December'
 ]
+
+/**
+ * **August is written as the brand's logotype rather than as a word.** The
+ * design's own layer says so (「これだけAugustのロゴにしようぜ」): the mark in
+ * `assets/augast.png` stands where the capital would, and the name beside it is
+ * set in lowercase — which Girassol draws as small caps, so the six letters run
+ * at one height under the mark. The mark is a single-colour silhouette drawn as
+ * a mask, the way the site marks are, so it takes the run's own ink and comes
+ * up with it under the pointer. It stands on the baseline (an inline-block with
+ * nothing in it sits its bottom edge there) and is held out of the line box's
+ * height by its own negative top margin, so the word keeps the place the design
+ * gives it; what the mark reaches up to is the board's own top rule, a little
+ * under it. Every month but this one is the design's own run.
+ */
+export function MonthName({ month }: { month: number }) {
+  if (month !== 7) return <>{MONTH_NAMES[month]}</>
+  return (
+    <>
+      <span className="calendar-august-mark" style={maskOf(augustMark)} />
+      august
+    </>
+  )
+}
 
 /** Penpot: the seven weekday plates, the two ends of the week in their own
     ink and the five between them in #f5f8fa. */
@@ -457,14 +483,16 @@ export default function Calendar({
     return {
       key: String(year),
       label: String(year),
-      current: year === today.getFullYear()
+      current: year === cursor.year,
+      marked: year === today.getFullYear()
     }
   })
 
   const monthOptions = MONTH_NAMES.map((name, index) => ({
     key: String(index),
     label: name,
-    current: index === today.getMonth()
+    current: index === cursor.month,
+    marked: index === today.getMonth()
   }))
 
   /* The card's own rows for one day: its games largest first, each in the
@@ -475,6 +503,7 @@ export default function Calendar({
     name: string
     seconds: number
     color: string
+    iconUrl: string | null
   }[] {
     return dayGames
       .filter((row) => row.date === key)
@@ -485,7 +514,8 @@ export default function Calendar({
         key: String(row.gameId),
         name: row.game ? displayName(row.game) : '',
         seconds: row.seconds,
-        color: colorForRank(index)
+        color: colorForRank(index),
+        iconUrl: row.game?.iconPath ? mediaUrl(row.game.iconPath) : null
       }))
   }
 
@@ -538,7 +568,9 @@ export default function Calendar({
           onClick={(event) => toggleMenu('month', event.currentTarget)}
         >
           <span className="calendar-head-caret">▼</span>
-          <span className="calendar-head-run">{MONTH_NAMES[cursor.month]}</span>
+          <span className="calendar-head-run">
+            <MonthName month={cursor.month} />
+          </span>
         </button>
       </div>
 

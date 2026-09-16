@@ -1,0 +1,495 @@
+/* All values below are literal Penpot values from board "Add Voice"
+   (d3f72a50-bc2e-80de-8008-7ab294474f8f), 1585x984 — the same slot in Main
+   Display that the Game and Add Thumbnail boards occupy. Every figure is the
+   design's own; what the design does not draw is said where it is not. */
+
+.add-voice {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-bg);
+}
+
+/* Penpot: Top — 1515x106 at 35/30, a row with the Headline at one end and the
+   Show Condition at the other. */
+.voice-top {
+  flex: 0 0 auto;
+  height: 106px;
+  margin: 30px 35px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Penpot: Headline — 304x106, the word over the rule with nothing between
+   them: the word's own box is its 81px at 1.2, which is the 98 the rule
+   starts at. */
+.voice-headline {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* Penpot: "VOICE" — Girassol 81px, #e1e8ed, set 10px in from the rule below
+   it (the Home board's own word sits 20 in; this one is the design's 10). */
+.voice-word {
+  margin: 0 0 0 10px;
+  height: 98px;
+  font-family: var(--font-display);
+  font-size: 81px;
+  line-height: 1.2;
+  font-weight: 400;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Penpot: Under Line — 304x8: a 172px bar then a 132px taper, the same rule
+   the Game, Home and Setting boards carry under their own titles. */
+.voice-underline {
+  width: 304px;
+  height: 8px;
+  flex-shrink: 0;
+  display: flex;
+}
+
+.voice-underline-bar {
+  flex: 1;
+  background: var(--color-text);
+}
+
+.voice-underline-tail {
+  width: 132px;
+  height: 8px;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* Penpot: Show Condition — 954x106, the two selects over the Search Box, the
+   column spread to the block's two ends. */
+.voice-condition {
+  width: 954px;
+  height: 106px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Penpot: Game / Select — 954x49, the two 467-wide selects 20 apart. */
+.voice-selects {
+  width: 954px;
+  height: 49px;
+  display: flex;
+  gap: 20px;
+}
+
+/* Penpot: Game Select / Character Select — 467x49, the 417 pill and the 50 ▼
+   beside it. The list hangs off this, so it is what the row is measured
+   from and what a press inside must not dismiss. */
+.voice-select {
+  position: relative;
+  width: 467px;
+  height: 49px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Penpot: the pill — 417x49 on #2a2d31, rounded 30 on its own end, its word
+   centred; Game Select carries 100 of padding either side and Character
+   Select 46, both with 5 above and below. Girassol 32 in #aab8c2. The line box
+   is the pill's own 49 rather than the 39 box centred in it by the 5s, for the
+   reason the Home board's fields do the same: every step of that sum rounds
+   under the shell's zoom, and the run came out high. **It is a field**, the
+   design's own word standing as its placeholder; a name typed into it is in
+   the app's text, and the padding is 20 rather than the design's 100 / 46,
+   which were what centred a word of four letters — a game's name is a
+   sentence and 217 held seven characters of it. No focus ring, for the
+   reason the Home board's fields carry none. */
+.voice-select-value {
+  width: 417px;
+  min-width: 0;
+  height: 49px;
+  flex-shrink: 0;
+  padding: 0 20px;
+  background: var(--color-bg-alt);
+  border: none;
+  border-radius: 30px 0 0 30px;
+  outline: none;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 49px;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.voice-select-value::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+/* Penpot: Show Groups / Show Option — 50x49 on #2a2d31, 10 of air before the
+   caret and 15 after it, ▼ at Girassol 25 in #aab8c2, centred on the pill.
+   The mark turns over while its list is out, on the app's 0.14s clock. */
+.voice-select-caret {
+  width: 50px;
+  height: 49px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 15px 0 10px;
+  background: var(--color-bg-alt);
+  border: none;
+  border-radius: 0 30px 30px 0;
+  font-family: var(--font-display);
+  font-size: 25px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.voice-select-caret:hover {
+  color: var(--color-text);
+}
+
+.voice-select-caret[aria-expanded='true'] > span {
+  display: inline-block;
+  transform: rotate(180deg);
+}
+
+/* Penpot: Search Box — 691x49 on #2a2d31, rounded 30, 30 of padding either
+   side and 5 above and below, held to the block's right end. */
+.voice-search {
+  width: 691px;
+  height: 49px;
+  flex-shrink: 0;
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 30px;
+  background: var(--color-bg-alt);
+  border-radius: 30px;
+}
+
+/* Penpot: "SEARCH..." — Girassol 32 in #aab8c2, centred in the box. The
+   design's own word is what the field says while nothing is in it, which is
+   exactly a placeholder. */
+.voice-search-input {
+  width: 100%;
+  min-width: 0;
+  height: 49px;
+  padding: 0;
+  background: none;
+  border: none;
+  outline: none;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 49px;
+  color: var(--color-text);
+}
+
+.voice-search-input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+/* Penpot: Voice Container — 1585x749, three columns of 475 by six rows, 30
+   between the columns and 20 between the rows, 35 above and 50 either side,
+   filled down the columns (`grid-auto-flow: column`). The rows are the card's
+   own 108 rather than the design's 1fr: six of them at 1fr in the 749 would be
+   102, which is not the card the design draws. **And the design's figures do
+   not add up**: six 108 cards and five 20 gaps under the 35 come to 783 in a
+   box of 749 (753 in this window), so the sixth row was cut off by 30. The
+   gap is what gives — the rows are spread over what the box has
+   (`space-between` over six fixed rows, so the spacing is the same whatever
+   the page holds), which comes to 14 here against the design's 20. */
+.voice-container {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 475px);
+  grid-template-rows: repeat(6, 108px);
+  grid-auto-flow: column;
+  column-gap: 30px;
+  row-gap: 0;
+  padding: 35px 50px 0;
+  align-content: space-between;
+  overflow: hidden;
+}
+
+/* Penpot: Voice — 475x108 on #2a2d31, rounded 5, the head over the player
+   with 5 between them, 10 above and below and 15 either side. */
+.voice-card {
+  position: relative;
+  width: 475px;
+  height: 108px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 15px;
+  background: var(--color-bg-alt);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+/* Not in the design: the game's Main Image as the card's ground, cropped to
+   the card at 30% over the plate the design draws, where the voice is filed
+   under a game that has one. Under everything else in the card, which the
+   head and the player carry a `position` for. */
+.voice-card-ground {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.voice-card-head,
+.voice-card-player {
+  position: relative;
+}
+
+/* Penpot: Title / Name — 445x39: the title filling what the name leaves, a
+   1x39 rule in #B1B2B5 with 10 of air either side, and the name. Both runs at
+   Girassol 32, in the app's text rather than the design's #aab8c2: a card
+   carries a picture under it now, and the muted ink went into it. */
+.voice-card-head {
+  height: 39px;
+  display: flex;
+  align-items: flex-start;
+}
+
+.voice-card-title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.voice-card-rule {
+  width: 1px;
+  height: 39px;
+  flex-shrink: 0;
+  margin: 0 10px;
+  background: #b1b2b5;
+}
+
+.voice-card-name {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Penpot: Player — 445x44 with 10 between its parts: ▶ at Girassol 32, a
+   1x44 rule, 00:00 at Girassol 24 — both runs centred on the row — and the
+   bar, 25 tall in #B1B2B5 rounded 5, taking what is left. */
+.voice-card-player {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The ▶ is a button now, and the glyph is Font Awesome's play / pause pair
+   rather than the design's text ▶ — a pause has to stand in the same slot,
+   and the two marks are then one weight. The box keeps the 32px run's own
+   width (the design's ▶ is 26 wide at 32), and the mark comes up to the
+   app's text under the pointer. */
+.voice-card-play {
+  width: 26px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.voice-card-play:hover {
+  color: var(--color-text);
+}
+
+.voice-card-player-rule {
+  width: 1px;
+  height: 44px;
+  flex-shrink: 0;
+  background: #b1b2b5;
+}
+
+.voice-card-time {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* The bar is the seek bar: the design's plate with the played share filled in
+   the app's text over it, and a press or a drag on it moves the position. */
+.voice-card-bar {
+  position: relative;
+  flex: 1;
+  height: 25px;
+  background: #b1b2b5;
+  border-radius: 5px;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.voice-card-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--color-text);
+  border-radius: 5px;
+}
+
+/* Penpot: Bottom — 1585x99, row-reverse with a 30px gap and 50px side padding,
+   which puts the buttons at the right edge and the pager at the left — the
+   Add Thumbnail board's own row, with ADD VOICE where ADD IMAGE stands.
+   **The right padding is 62 rather than the declared 50**: the design puts
+   its Buttons at 353, which is where the Add Thumbnail board's 1182-wide row
+   begins, and ADD VOICE is 12 narrower than ADD IMAGE — so the row ends at
+   1523 rather than the 1535 the padding would give, and the literal x is what
+   is kept (measured: 353 / 946 / 1250 for the three buttons). */
+.voice-bottom {
+  height: 99px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 30px;
+  padding: 0 62px 0 50px;
+}
+
+/* Penpot: Buttons — 1170x61, 30px gap */
+.voice-buttons {
+  width: 1170px;
+  height: 61px;
+  display: flex;
+  gap: 30px;
+}
+
+/* Penpot: 61 tall, 7/3 of vertical padding, r5, a 1px inner #e1e8ed stroke,
+   Girassol 42. The stroke is an inset shadow rather than a border, Penpot's
+   being an inner stroke: a border would take the 563 to 561. */
+.voice-button {
+  height: 61px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 0 3px;
+  border: none;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px var(--color-text);
+  font-family: var(--font-display);
+  font-size: 42px;
+  line-height: 1.2;
+  transition: filter 0.15s ease;
+}
+
+/* Penpot: Add Image — 563 (201 of padding either side of the 161 word) */
+.voice-button.add-voice {
+  width: 563px;
+  background: var(--color-bg-alt);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+/* Penpot: Apply Button — 274 on #1da1f2, the word in #e1e8ed */
+.voice-button.apply {
+  width: 274px;
+  background: var(--color-accent);
+  color: var(--color-text);
+}
+
+/* Penpot: Cancel Button — 273 */
+.voice-button.cancel {
+  width: 273px;
+  background: var(--color-bg-alt);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+/* Same lift the footer's "Add Game +" button uses. */
+.voice-button:hover:not(:disabled) {
+  filter: brightness(1.18);
+}
+
+.voice-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Penpot: Page Switcher — 273x44, 2px gap, centred. The boxes are 44 tall
+   with 3 of padding either side — 26 for "1", 45 for two figures — at
+   Girassol 36 in #aab8c2; the ⋯ is 36 wide with none and pulled 4 into its
+   neighbours either side; Median Selected is #2a2d31 under a 1px inner
+   #657786 stroke, rounded 5, its figure in #e1e8ed. */
+.voice-pager {
+  width: 273px;
+  height: 44px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.voice-page {
+  height: 44px;
+  padding: 0 3px;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 44px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.voice-page:hover:not(.current) {
+  color: var(--color-text);
+}
+
+.voice-page.gap {
+  width: 36px;
+  padding: 0;
+  margin: 0 -4px;
+  text-align: center;
+}
+
+.voice-page.current {
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 1px var(--color-text-dim);
+  color: var(--color-text);
+  cursor: default;
+}

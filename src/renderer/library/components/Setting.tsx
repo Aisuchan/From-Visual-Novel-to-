@@ -3,6 +3,7 @@ import type {
   AppSettings,
   AudioFormat,
   GpuMode,
+  JpFont,
   Language,
   LaunchWindowMode,
   OverlayCorner,
@@ -16,6 +17,7 @@ import type {
 } from '../../../shared/db-types'
 import { playSound, soundEffectUrl, SOUND_EFFECT_VOLUME } from '../../playSound'
 import { GEAR_PATH, GEAR_VIEW_BOX } from '../gear'
+import { centreInk } from '../ink'
 import OptionMenu from './OptionMenu'
 import { t } from '../../../shared/i18n'
 import './Setting.css'
@@ -191,7 +193,11 @@ function monitorKey(stored: string, displays: ScreenDisplay[]): string {
 function soundOptions({ sounds }: FieldContext): Option[] {
   return [
     { key: 'off', label: t('なし') },
-    ...sounds.map((sound) => ({ key: sound.key, label: sound.key, audition: true }))
+    ...sounds.map((sound) => ({
+      key: sound.key,
+      label: sound.key,
+      audition: true
+    }))
   ]
 }
 
@@ -235,6 +241,27 @@ const ROWS: Row[] = [
     ]
   },
   {
+    kind: 'select',
+    id: 'jpFont',
+    tab: 'ui',
+    name: '日本語フォントを変更',
+    fields: [
+      {
+        id: 'jpFont',
+        title: '日本語フォントを選ぶ',
+        /* A font's name is a name, so — like 日本語 / ENG — it is shown as it is
+           in both languages rather than translated. */
+        options: () => [
+          { key: 'hangyaku', label: '反逆明朝' },
+          { key: 'kinkakuji', label: '金畫字' },
+          { key: 'kurohana', label: '黒華明朝' }
+        ],
+        current: (settings) => settings.jpFont,
+        patch: (key) => ({ jpFont: key as JpFont })
+      }
+    ]
+  },
+  {
     /* Not a thing the app remembers about itself: what this row writes is the
        system's own Run key, so turning it on here is what actually puts the
        app in Windows' startup list. */
@@ -245,6 +272,16 @@ const ROWS: Row[] = [
     title: '自動起動の入り切り',
     current: (settings) => settings.launchAtLogin,
     patch: (value) => ({ launchAtLogin: value })
+  },
+  {
+    kind: 'toggle',
+    id: 'addGameMore',
+    tab: 'general',
+    name: 'Add Gameに高度な設定を追加',
+    description: 'ブランド名・発売日・購入日・購入額を入力できるようにする',
+    title: 'Add Gameの高度な設定の入り切り',
+    current: (settings) => settings.addGameMore,
+    patch: (value) => ({ addGameMore: value })
   },
   {
     kind: 'select',
@@ -288,7 +325,11 @@ const ROWS: Row[] = [
             label: t('DirectComposition を使わない'),
             short: t('DC なし')
           },
-          { key: 'no-gpu-compositing', label: t('GPU 合成を使わない'), short: t('合成なし') },
+          {
+            key: 'no-gpu-compositing',
+            label: t('GPU 合成を使わない'),
+            short: t('合成なし')
+          },
           { key: 'off', label: t('GPU を使わない'), short: t('GPU なし') }
         ],
         current: (settings) => settings.gpuMode,
@@ -379,7 +420,7 @@ const ROWS: Row[] = [
     },
     ready: (settings) => window.library.checkBackup(settings.backupRestorePath),
     run: (settings) => {
-      void window.library.restoreBackup(settings.backupRestorePath);
+      void window.library.restoreBackup(settings.backupRestorePath)
     }
   },
   {
@@ -400,8 +441,25 @@ const ROWS: Row[] = [
        holds them. Cancelled, nothing comes back and nothing is written. */
     run: (_settings, apply) => {
       void window.library.resetSettings().then((fresh) => {
-        if (fresh) apply(fresh);
-      });
+        if (fresh) apply(fresh)
+      })
+    }
+  },
+  {
+    kind: 'action',
+    id: 'libraryErase',
+    tab: 'general',
+    name: '初期化',
+    description: 'バックアップを除くすべてのデータを消去する',
+    label: '消去',
+    title: 'バックアップを除くすべてのデータを消去する',
+    danger: true,
+    /* The whole library goes with this one, so the main process asks twice
+       before anything is touched and restarts the app on an empty library
+       afterwards; nothing comes back to the board, there being no board left
+       to come back to. */
+    run: () => {
+      void window.library.eraseLibrary()
     }
   },
   {
@@ -457,7 +515,10 @@ const ROWS: Row[] = [
         id: 'overlayCorner',
         title: 'レコーダーパネルが開く角を選ぶ',
         options: () =>
-          CORNER_ORDER.map((corner) => ({ key: corner, label: t(CORNER_LABELS[corner]) })),
+          CORNER_ORDER.map((corner) => ({
+            key: corner,
+            label: t(CORNER_LABELS[corner])
+          })),
         current: (settings) => settings.overlayCorner,
         patch: (key) => ({ overlayCorner: key as OverlayCorner })
       }
@@ -634,7 +695,11 @@ export default function Setting({ settings, onChange }: Props): React.JSX.Elemen
   /* Where the menu hangs, in the board's own design pixels. Measured when the
      field is opened rather than written down as a constant: the rows scroll
      once there are more of them than the container is tall. */
-  const [menu, setMenu] = useState<{ id: string; top: number; left: number } | null>(null)
+  const [menu, setMenu] = useState<{
+    id: string
+    top: number
+    left: number
+  } | null>(null)
   /* Which tab is up. It opens on the first every time rather than being kept:
      a tab is where a setting is looked for, not a setting. */
   const [tab, setTab] = useState<TabId>(TABS[0].id)
@@ -769,9 +834,7 @@ export default function Setting({ settings, onChange }: Props): React.JSX.Elemen
           <div className="setting-column" key={row.id}>
             <div className="setting-explain">
               <span className="setting-name">{t(row.name)}</span>
-              {row.description && (
-                <span className="setting-description">{t(row.description)}</span>
-              )}
+              {row.description && <span className="setting-description">{t(row.description)}</span>}
               {row.path && <PathRow field={row.path} settings={settings} onChange={onChange} />}
             </div>
 
@@ -967,48 +1030,14 @@ function SelectBox({
   )
 }
 
-/* One canvas for every measurement: it is a ruler, not a drawing. */
-let inkRuler: CanvasRenderingContext2D | null = null
-
-/** How far a run's ink reaches above and below the baseline, in CSS px at
-    `size` — `measureText`'s own figures, which a pixel scan of the same run
-    drawn on the same canvas agrees with to the pixel. */
-function inkExtent(text: string, size: number): { above: number; below: number } {
-  inkRuler ??= document.createElement('canvas').getContext('2d')
-  if (!inkRuler) return { above: 0, below: 0 }
-  const family = getComputedStyle(document.documentElement).getPropertyValue('--font-display')
-  inkRuler.font = `${size}px ${family}`
-  const m = inkRuler.measureText(text)
-  return { above: m.actualBoundingBoxAscent, below: m.actualBoundingBoxDescent }
-}
-
 /* Penpot sets the value at 41px, and "enable" comes to exactly the 117 the box
    leaves. A language's name is whatever it is called in its own language, so a
-   run past that is stepped down to fit the way the clock's date is.
-
-   **And then its ink is put on the box's middle, which the box does not do for
-   it.** What the flex centres is the line box, and a line box is centred on the
-   font's ascent and descent, not on what is drawn in it — in this face a
-   lowercase run is small caps standing on the baseline with the descender's
-   room empty under it, a figure or a capital reaches higher, and a Japanese
-   glyph, which comes off the *fallback* face on the primary's baseline, reaches
-   higher still. Measured in the engine at the value's 41: 「日本語」 stood 3.0px
-   above the middle and "png" 3.5 below it, 「中」 3.5 above, mp4 1.5 above,
-   「ウインドウ」 dead on. No one constant serves a control that writes all of
-   them, so each run is measured as it is drawn.
-
-   **Two measurements, and neither is worked out from the font's metrics.**
-   Where the baseline stands is read off the DOM — an empty inline-block sits
-   on the baseline, so its bottom edge *is* it — because Blink places it with
-   integer arithmetic of its own (the half-leading is floored) and a baseline
-   computed from `fontBoundingBoxAscent` came out 0.85px from the real one,
-   which left every run a pixel short of centred. How far the ink reaches
-   either side of that baseline is `measureText`'s, which the pixels agree
-   with. The rects are in the shell's zoomed pixels and the canvas in unzoomed
-   ones, so the ink extent is scaled by the zoom before the two are compared,
-   and the shift is scaled back before it is written. Done again once the faces
-   are all in: a run measured in a fallback face is measured at the wrong size
-   and the wrong height. */
+   run past that is stepped down to fit the way the clock's date is — and then
+   its ink is put on the box's middle (`centreInk` in `ink.ts`, which is where
+   the reasoning is), the box itself not doing that for it: measured at 41,
+   「日本語」 stood 3.0px above the middle and "png" 3.5 below it. Both are
+   done again once the faces are all in: a run measured in a fallback face is
+   measured at the wrong size and the wrong height. */
 function SelectLabel({ label }: { label: string }): React.JSX.Element {
   const ref = useRef<HTMLSpanElement | null>(null)
   const probeRef = useRef<HTMLSpanElement | null>(null)
@@ -1027,18 +1056,9 @@ function SelectLabel({ label }: { label: string }): React.JSX.Element {
           ? Math.floor(SELECT_FONT_SIZE * (SELECT_LABEL_WIDTH / width))
           : SELECT_FONT_SIZE
       el.style.fontSize = `${size}px`
-
-      const box = el.getBoundingClientRect()
-      if (box.height === 0 || el.offsetHeight === 0) return
-      const zoom = box.height / el.offsetHeight
-      const baseline = probe.getBoundingClientRect().bottom
-      const { above, below } = inkExtent(label, size)
       /* The label's padding is the same above and below, so the middle of its
          box is the middle of the line box the flex has centred. */
-      const boxMiddle = (box.top + box.bottom) / 2
-      const inkMiddle = baseline - ((above - below) / 2) * zoom
-      const shift = (boxMiddle - inkMiddle) / zoom
-      if (Math.abs(shift) >= 0.25) el.style.transform = `translateY(${shift.toFixed(2)}px)`
+      centreInk(el, probe, label, size)
     }
     fit()
     void document.fonts.ready.then(() => {

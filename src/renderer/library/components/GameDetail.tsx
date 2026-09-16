@@ -139,10 +139,37 @@ function progressMark(game: GameWithStats): { text: string; scored: boolean } {
   return { text: t(state === 'playing' ? '途' : '未'), scored: false }
 }
 
-function slotTransform(offset: number): string {
-  if (offset === 0) return 'translateX(0) scale(1)'
+/* Not in the design: **the carousel arrives turned a little past its stops
+   and settles onto them.** As a game's pictures come up every entry stands
+   this much of a step further round than its slot — a quarter, which is 266px
+   on the middle one — and then slides back onto the slot on the same
+   transition a step makes, so what is seen is the carousel doing the one thing
+   a carousel does. It runs whenever the entries are seeded: the board being
+   mounted, and another game being picked from the side panel. **Not on a game
+   with no pictures**: the only thing in the row is then the gear parked in the
+   empty frame, and a gear sliding in from the side is not a carousel turning —
+   there is nothing to turn — so the slots are put down where they stand. */
+const ARRIVE_TURN = 0.25
+
+/** Where a slot stands, for a whole offset. */
+function slotPose(offset: number): { x: number; scale: number } {
+  if (offset === 0) return { x: 0, scale: 1 }
   const shift = (Math.abs(offset) === 1 ? SIDE_SHIFT : OFF_SHIFT) * Math.sign(offset)
-  return `translateX(${shift}px) scale(${SIDE_SCALE})`
+  return { x: shift, scale: SIDE_SCALE }
+}
+
+/* The transform for a position along the carousel, whole or not: between two
+   slots the shift and the scale are both taken straight between them, which is
+   the path an entry travels on a step and so the one it arrives on. */
+function slotTransform(position: number): string {
+  const lower = Math.floor(position)
+  const along = position - lower
+  const from = slotPose(lower)
+  if (along === 0) return `translateX(${from.x}px) scale(${from.scale})`
+  const to = slotPose(lower + 1)
+  const x = from.x + (to.x - from.x) * along
+  const scale = from.scale + (to.scale - from.scale) * along
+  return `translateX(${x}px) scale(${scale})`
 }
 
 /**
@@ -225,6 +252,11 @@ export default function GameDetail({
   const [carousel, setCarousel] = useState<string[]>([])
   const [imageIndex, setImageIndex] = useState(0)
   const [animated, setAnimated] = useState(false)
+  /* Whether the entries have settled onto their slots. False as a game's
+     pictures are put down, which puts them `ARRIVE_TURN` past those slots;
+     true from the moment the transition is switched on, so the same frame that
+     lets them move is the one that gives them somewhere to move to. */
+  const [arrived, setArrived] = useState(false)
   /* Whether the clip in the middle of the carousel is silent. It starts that
      way — a board opening with sound coming out of it is not something anyone
      asked for, and Chromium will not autoplay an unmuted clip either — and the
@@ -303,9 +335,16 @@ export default function GameDetail({
       }
       setCarousel(paths)
       setImageIndex(Math.max(0, game.thumbnailPath ? paths.indexOf(game.thumbnailPath) : 0))
+      /* Put down turned, in the same commit as the new pictures: the entries
+         are keyed on the game, so these are new elements painted for the first
+         time at the turned position, with the transition still off — nothing
+         of the last game's is seen moving there. */
+      setArrived(false)
       requestAnimationFrame(() =>
         requestAnimationFrame(() => {
-          if (!cancelled) setAnimated(true)
+          if (cancelled) return
+          setAnimated(true)
+          setArrived(true)
         })
       )
     })
@@ -489,6 +528,14 @@ export default function GameDetail({
     const hours = Number(draft.hours || 0)
     const minutes = Number(draft.minutes || 0)
     setEditing(false)
+    /* An editor closed on the figure it opened with has asked for nothing.
+       The fields are hours and minutes and the total has seconds under them,
+       so writing the fields back as they stand would still cut those seconds
+       off — a change of up to 59s the player did not make, and a row in the
+       Play log saying so. The fields are compared against what they were
+       seeded from rather than the sum against the total. */
+    const was = splitPlaytime(game.stats.totalPlaySeconds)
+    if (hours === was.hours && minutes === was.minutes) return
     onEditPlayTime(game.id, hours * 3600 + minutes * 60)
   }
 
@@ -616,7 +663,9 @@ export default function GameDetail({
               <div
                 key={`${game.id}:${virtual}`}
                 className={`carousel-item ${center ? 'center' : 'side'}`}
-                style={{ transform: slotTransform(offset) }}
+                style={{
+                  transform: slotTransform(arrived || !imageCount ? offset : offset + ARRIVE_TURN)
+                }}
               >
                 <div
                   className={`main-image ${
@@ -823,6 +872,7 @@ export default function GameDetail({
             is pressed. Kept mounted so it can fade rather than appear. */}
         <RoutePanel
           gameId={game.id}
+          totalPlaySeconds={game.stats.totalPlaySeconds}
           left={routeMaxLeft}
           bottom={UNDER_HEIGHT - ROUTE_TOP}
           open={routeOpen}

@@ -22,11 +22,18 @@ import type {
   NewGameInput,
   NewGroupInput,
   NewRouteInput,
+  PlayAdjustment,
   ProgressState,
   Route,
   RoutePatch,
   Session,
-  Tag
+  Tag,
+  NewVoiceInput,
+  Voice,
+  VoiceCharacter,
+  VoicePatch,
+  LedgerEntry,
+  NewLedgerEntryInput
 } from '../shared/db-types'
 import { t } from '../shared/i18n'
 import {
@@ -96,6 +103,17 @@ export function initDb(): void {
 
     CREATE INDEX IF NOT EXISTS idx_routes_game ON routes(game_id);
 
+    CREATE TABLE IF NOT EXISTS play_adjustments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+      seconds INTEGER NOT NULL,
+      route_id INTEGER REFERENCES routes(id) ON DELETE SET NULL,
+      route_name TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_play_adjustments_game ON play_adjustments(game_id);
+
     CREATE TABLE IF NOT EXISTS groups (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
@@ -132,6 +150,33 @@ export function initDb(): void {
       value TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS voice_characters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS voices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      game_id INTEGER REFERENCES games(id) ON DELETE SET NULL,
+      character_id INTEGER REFERENCES voice_characters(id) ON DELETE SET NULL,
+      title TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      source_path TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS ledger_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      game_id INTEGER REFERENCES games(id) ON DELETE SET NULL,
+      kind TEXT NOT NULL,
+      price REAL NOT NULL,
+      date TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ledger_date ON ledger_entries(date);
+
     CREATE TABLE IF NOT EXISTS launch_prefs (
       game_id INTEGER PRIMARY KEY REFERENCES games(id) ON DELETE CASCADE,
       use_recorder_panel INTEGER NOT NULL DEFAULT 1,
@@ -164,7 +209,10 @@ export function initDb(): void {
        the order it was left. A picture added afterwards takes the next number
        up rather than the default, or it would arrive at the front of a list
        somebody had ordered. */
-    sort_order: 'INTEGER NOT NULL DEFAULT 0'
+    sort_order: 'INTEGER NOT NULL DEFAULT 0',
+    /* Marked R18 from the cell's own menu. It is what the Extra Function
+       board's green circle draws from, and the cell's frame goes red for it. */
+    is_r18: 'INTEGER NOT NULL DEFAULT 0'
   })
 
   addMissingColumns('launch_prefs', {
@@ -197,6 +245,13 @@ export function initDb(): void {
     // And the studio, and the page the three of them were read from.
     brand: 'TEXT',
     reference_url: 'TEXT',
+    // The Add Game dialog's advanced panel: when the game was bought and for
+    // how much. A bare number, the unit being the app's own currency.
+    purchase_date: 'TEXT',
+    purchase_price: 'REAL',
+    // The advanced panel's list price (定価), a bare number in the app's own
+    // currency the same way the purchase price is.
+    list_price: 'REAL',
     clear_score: 'INTEGER',
     cleared_at: 'TEXT',
     clear_play_seconds: 'INTEGER',
@@ -234,6 +289,13 @@ export function initDb(): void {
     )
     db.pragma('user_version = 2')
   }
+
+  addMissingColumns('play_adjustments', {
+    /* An edit the player asked to count as play: its seconds live in this
+       session rather than in `play_time_offset`, so the footer, the Calender
+       board and the graph pick it up. See `setTotalPlaySeconds`. */
+    session_id: 'INTEGER REFERENCES sessions(id) ON DELETE SET NULL'
+  })
 }
 
 /** SQLite has no `ADD COLUMN IF NOT EXISTS`, so check the table first. */
@@ -248,12 +310,23 @@ function addMissingColumns(table: string, columns: Record<string, string>): void
   }
 }
 
+/* The sessions that are hand edits rather than launches (`setTotalPlaySeconds`
+   with `asPlayed`). They count wherever time is summed — that is what they are
+   for — and nowhere a session means the game was opened: the last-played
+   stamp, the Progress triangle's "played at all", and the Play log's rows. */
+const ADJUSTMENT_SESSIONS =
+  '(SELECT session_id FROM play_adjustments WHERE session_id IS NOT NULL)'
+
 function rowToGameWithStats(row: any): GameWithStats {
   const stats = db
     .prepare(
       /* Sessions launched with "Record Time" off are kept as history but left
          out of the stats the library shows. */
-      `SELECT COALESCE(SUM(duration_seconds), 0) AS total, MAX(started_at) AS last
+      /* `last` is the last *launch*: a session standing for a hand edit
+         (see `ADJUSTMENT_SESSIONS`) counts in the total and not here, the
+         game not having been opened by it. */
+      `SELECT COALESCE(SUM(duration_seconds), 0) AS total,
+              MAX(CASE WHEN id IN ${ADJUSTMENT_SESSIONS} THEN NULL ELSE started_at END) AS last
        FROM sessions WHERE game_id = ? AND recorded = 1`
     )
     .get(row.id) as { total: number; last: string | null }
@@ -263,7 +336,10 @@ function rowToGameWithStats(row: any): GameWithStats {
      off — so it is counted separately from the stats above. */
   const launched = (
     db
-      .prepare('SELECT COUNT(*) AS n FROM sessions WHERE game_id = ? AND ended_at IS NOT NULL')
+      .prepare(
+        `SELECT COUNT(*) AS n FROM sessions
+         WHERE game_id = ? AND ended_at IS NOT NULL AND id NOT IN ${ADJUSTMENT_SESSIONS}`
+      )
       .get(row.id) as { n: number }
   ).n
 
@@ -292,6 +368,9 @@ function rowToGameWithStats(row: any): GameWithStats {
     medianScore: row.median_score ?? null,
     averageScore: row.average_score ?? null,
     brand: row.brand ?? null,
+    purchaseDate: row.purchase_date ?? null,
+    purchasePrice: row.purchase_price ?? null,
+    listPrice: row.list_price ?? null,
     referenceUrl: row.reference_url ?? null,
     clearScore: row.clear_score ?? null,
     tagIds,
@@ -309,8 +388,37 @@ function rowToGameWithStats(row: any): GameWithStats {
 /**
  * Stores the difference between the requested total and what the recorded
  * sessions add up to, so later sessions keep incrementing from the new value.
+ *
+ * **What the total is moved by, the active route is moved by too — and the log
+ * is told.** A session is banked on whichever route is active as it ends, so
+ * the routes' figures are shares of the total; a total edited by hand without
+ * the routes following it left them adding up to something the board no
+ * longer said. The delta goes on the active route, held at zero the way a
+ * route's own figure is (a subtraction past what the route holds takes it to
+ * nothing, not below), and nowhere while the stepper stands on 記録しない —
+ * exactly as a session's time does. The edit itself is written down as a row
+ * of its own (`play_adjustments`), which is what the Play log draws and what a
+ * right press on that row undoes.
+ *
+ * **Asked to count as play, the time goes in as a session instead.** The
+ * footer's totals, the Calender board's days and the graph are all sums over
+ * `sessions`, and an offset on the game reaches none of them: three hours
+ * added by hand raised TOTAL PLAY and nothing else. With `asPlayed` the delta
+ * is written as a session of its own — dated now, so it lands on today — and
+ * the offset is left alone; the game's total comes to the same figure either
+ * way, being the sessions' sum plus the offset. The adjustment row keeps that
+ * session's id (`session_id`), which is how the log knows to draw the edit
+ * rather than a PLAYED row for it and how undoing the edit takes the session
+ * away again. **A subtraction goes the same way, as a session of negative
+ * length**: it comes off today, which is the one day a hand edit can be said
+ * to be about. A day cannot be read as holding less than nothing, so every
+ * reader that sums sessions by day or by span holds its figure at zero
+ * (`getFooterStats`, `getPlaytimeByDay`, `getPlaytimeByDayAndGame`) — a
+ * subtraction larger than today's play empties today and stops there, while
+ * the game's own total, which is the sum over every session, still drops by
+ * the whole of it.
  */
-export function setTotalPlaySeconds(gameId: number, seconds: number): void {
+export function setTotalPlaySeconds(gameId: number, seconds: number, asPlayed = false): void {
   const recorded = (
     db
       .prepare(
@@ -318,10 +426,117 @@ export function setTotalPlaySeconds(gameId: number, seconds: number): void {
       )
       .get(gameId) as { total: number }
   ).total
-  db.prepare('UPDATE games SET play_time_offset = ? WHERE id = ?').run(
-    Math.round(seconds) - recorded,
-    gameId
-  )
+  const before = (
+    db.prepare('SELECT play_time_offset AS offset FROM games WHERE id = ?').get(gameId) as
+      | { offset: number }
+      | undefined
+  )?.offset
+  if (before === undefined) return
+  const offset = Math.round(seconds) - recorded
+  const delta = offset - before
+  if (delta === 0) return
+
+  const active = listRoutes(gameId).find((route) => route.isActive) ?? null
+  const write = db.transaction(() => {
+    let sessionId: number | null = null
+    if (asPlayed) {
+      const now = new Date().toISOString()
+      sessionId = Number(
+        db
+          .prepare(
+            `INSERT INTO sessions (game_id, started_at, ended_at, duration_seconds, recorded)
+             VALUES (?, ?, ?, ?, 1)`
+          )
+          .run(gameId, now, now, delta).lastInsertRowid
+      )
+    } else {
+      db.prepare('UPDATE games SET play_time_offset = ? WHERE id = ?').run(offset, gameId)
+    }
+    if (active) {
+      db.prepare(
+        'UPDATE routes SET play_seconds = MAX(0, play_seconds + ?) WHERE id = ?'
+      ).run(delta, active.id)
+    }
+    db.prepare(
+      `INSERT INTO play_adjustments (game_id, seconds, route_id, route_name, session_id)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(gameId, delta, active?.id ?? null, active?.name ?? null, sessionId)
+  })
+  write()
+}
+
+function rowToAdjustment(row: {
+  id: number
+  game_id: number
+  seconds: number
+  route_id: number | null
+  route_name: string | null
+  current_name: string | null
+  created_at: string
+}): PlayAdjustment {
+  return {
+    id: row.id,
+    gameId: row.game_id,
+    seconds: row.seconds,
+    routeId: row.route_id,
+    /* The route's name as it is *now* where the route is still there, and the
+       name it had where it is not: the log follows a rename and outlives a
+       deletion, the way the design's own 「♡ CLEARED "HEROINE1"」 follows the
+       route it is read off. */
+    routeName: row.current_name ?? row.route_name,
+    createdAt: row.created_at
+  }
+}
+
+/** Every edit made to this game's TOTAL PLAY by hand, newest first. */
+export function listPlayAdjustments(gameId: number): PlayAdjustment[] {
+  return (
+    db
+      .prepare(
+        `SELECT a.*, r.name AS current_name
+         FROM play_adjustments a
+         LEFT JOIN routes r ON r.id = a.route_id
+         WHERE a.game_id = ?
+         ORDER BY a.created_at DESC, a.id DESC`
+      )
+      .all(gameId) as Parameters<typeof rowToAdjustment>[0][]
+  ).map(rowToAdjustment)
+}
+
+/**
+ * Takes an edit off the log, and off the figures it moved: the total goes
+ * back by what the edit moved it, and so does the route it was banked on
+ * where that route is still there — held at zero, as it was on the way in.
+ */
+export function deletePlayAdjustment(gameId: number, adjustmentId: number): void {
+  const row = db
+    .prepare(
+      'SELECT seconds, route_id, session_id FROM play_adjustments WHERE id = ? AND game_id = ?'
+    )
+    .get(adjustmentId, gameId) as
+    | { seconds: number; route_id: number | null; session_id: number | null }
+    | undefined
+  if (!row) return
+  const undo = db.transaction(() => {
+    /* The time goes back out of wherever it went in: the session it was
+       written as, or the offset. */
+    if (row.session_id !== null) {
+      db.prepare('DELETE FROM sessions WHERE id = ?').run(row.session_id)
+    } else {
+      db.prepare('UPDATE games SET play_time_offset = play_time_offset - ? WHERE id = ?').run(
+        row.seconds,
+        gameId
+      )
+    }
+    if (row.route_id !== null) {
+      db.prepare('UPDATE routes SET play_seconds = MAX(0, play_seconds - ?) WHERE id = ?').run(
+        row.seconds,
+        row.route_id
+      )
+    }
+    db.prepare('DELETE FROM play_adjustments WHERE id = ?').run(adjustmentId)
+  })
+  undo()
 }
 
 /** Keeps a thumbnail set outside the gallery listed in it all the same. */
@@ -350,6 +565,7 @@ export function listGameImages(gameId: number): GameImage[] {
     file_path: string
     source_path: string | null
     source: string
+    is_r18: number
     created_at: string
   }[]
 
@@ -360,8 +576,35 @@ export function listGameImages(gameId: number): GameImage[] {
     sourcePath: row.source_path ?? null,
     source:
       row.source === 'screenshot' || row.source === 'recording' ? row.source : 'manual',
+    r18: row.is_r18 === 1,
     createdAt: row.created_at
   }))
+}
+
+/** Marks a picture R18, or unmarks it, and hands the list back. */
+export function setGameImageR18(gameId: number, imageId: number, r18: boolean): GameImage[] {
+  db.prepare('UPDATE game_images SET is_r18 = ? WHERE id = ? AND game_id = ?').run(
+    r18 ? 1 : 0,
+    imageId,
+    gameId
+  )
+  return listGameImages(gameId)
+}
+
+/**
+ * One entry drawn from every gallery in the library at once — the Extra
+ * Function board's blue circle — so a game with a hundred pictures is a
+ * hundred times as likely to answer as one with one. Null while there is
+ * nothing in any of them.
+ */
+export function getRandomImage(r18Only = false): { gameId: number; imageId: number } | null {
+  const row = db
+    .prepare(
+      `SELECT id, game_id FROM game_images ${r18Only ? 'WHERE is_r18 = 1' : ''}
+       ORDER BY RANDOM() LIMIT 1`
+    )
+    .get() as { id: number; game_id: number } | undefined
+  return row ? { gameId: row.game_id, imageId: row.id } : null
 }
 
 /**
@@ -656,6 +899,185 @@ export function updateGroup(id: number, input: NewGroupInput): Group[] {
   return listGroups()
 }
 
+/* ---- Voices ---------------------------------------------------------- */
+
+function rowToVoiceCharacter(row: { id: number; name: string; created_at: string }): VoiceCharacter {
+  return { id: row.id, name: row.name, createdAt: row.created_at }
+}
+
+/** Oldest first, the way the groups are listed. */
+export function listVoiceCharacters(): VoiceCharacter[] {
+  return (
+    db.prepare('SELECT * FROM voice_characters ORDER BY id ASC').all() as Parameters<
+      typeof rowToVoiceCharacter
+    >[0][]
+  ).map(rowToVoiceCharacter)
+}
+
+/** A name already on the list is that row rather than a second one. */
+export function addVoiceCharacter(name: string): VoiceCharacter[] {
+  const trimmed = name.trim()
+  if (trimmed) {
+    db.prepare('INSERT INTO voice_characters (name) VALUES (?) ON CONFLICT(name) DO NOTHING').run(
+      trimmed
+    )
+  }
+  return listVoiceCharacters()
+}
+
+/** Renamed to a name another row already has, the two are merged: the voices
+    under this one move to the other and this row goes. */
+export function renameVoiceCharacter(id: number, name: string): VoiceCharacter[] {
+  const trimmed = name.trim()
+  if (!trimmed) return listVoiceCharacters()
+  const other = db
+    .prepare('SELECT id FROM voice_characters WHERE name = ? AND id <> ?')
+    .get(trimmed, id) as { id: number } | undefined
+  const tx = db.transaction(() => {
+    if (other) {
+      db.prepare('UPDATE voices SET character_id = ? WHERE character_id = ?').run(other.id, id)
+      db.prepare('DELETE FROM voice_characters WHERE id = ?').run(id)
+    } else {
+      db.prepare('UPDATE voice_characters SET name = ? WHERE id = ?').run(trimmed, id)
+    }
+  })
+  tx()
+  return listVoiceCharacters()
+}
+
+/** The voices filed under it are left with no character (ON DELETE SET NULL). */
+export function deleteVoiceCharacter(id: number): VoiceCharacter[] {
+  db.prepare('DELETE FROM voice_characters WHERE id = ?').run(id)
+  return listVoiceCharacters()
+}
+
+function rowToVoice(row: {
+  id: number
+  game_id: number | null
+  character_id: number | null
+  title: string
+  file_path: string
+  source_path: string | null
+  created_at: string
+}): Voice {
+  return {
+    id: row.id,
+    gameId: row.game_id,
+    characterId: row.character_id,
+    title: row.title,
+    filePath: row.file_path,
+    sourcePath: row.source_path,
+    createdAt: row.created_at
+  }
+}
+
+/** Newest last, so the container fills in the order the voices were added. */
+export function listVoices(): Voice[] {
+  return (
+    db.prepare('SELECT * FROM voices ORDER BY id ASC').all() as Parameters<typeof rowToVoice>[0][]
+  ).map(rowToVoice)
+}
+
+export function getVoice(id: number): Voice | null {
+  const row = db.prepare('SELECT * FROM voices WHERE id = ?').get(id) as
+    | Parameters<typeof rowToVoice>[0]
+    | undefined
+  return row ? rowToVoice(row) : null
+}
+
+export function updateVoice(
+  id: number,
+  patch: VoicePatch & { filePath?: string }
+): Voice[] {
+  db.prepare(
+    `UPDATE voices SET game_id = ?, character_id = ?, title = ?,
+       file_path = COALESCE(?, file_path), source_path = COALESCE(?, source_path)
+     WHERE id = ?`
+  ).run(
+    patch.gameId,
+    patch.characterId,
+    patch.title.trim(),
+    patch.filePath ?? null,
+    patch.sourcePath ?? null,
+    id
+  )
+  return listVoices()
+}
+
+export function deleteVoice(id: number): Voice[] {
+  db.prepare('DELETE FROM voices WHERE id = ?').run(id)
+  return listVoices()
+}
+
+/* ---- Ledger ---------------------------------------------------------- */
+
+function rowToLedgerEntry(row: {
+  id: number
+  game_id: number | null
+  kind: string
+  price: number
+  date: string
+  created_at: string
+}): LedgerEntry {
+  return {
+    id: row.id,
+    gameId: row.game_id,
+    kind: row.kind === 'sell' ? 'sell' : 'buy',
+    price: row.price,
+    date: row.date,
+    createdAt: row.created_at
+  }
+}
+
+/** Newest date first, then newest row — the order the Right list and the
+    pie read them in does not matter, but a stable one keeps tests simple. */
+export function listLedgerEntries(): LedgerEntry[] {
+  return (
+    db
+      .prepare('SELECT * FROM ledger_entries ORDER BY date DESC, id DESC')
+      .all() as Parameters<typeof rowToLedgerEntry>[0][]
+  ).map(rowToLedgerEntry)
+}
+
+/**
+ * Writes a ledger entry, **overwriting the one already on that game, of that
+ * kind, on that day** rather than adding a second: an edit to a day's figure
+ * is the same day rewritten, and a new day is a new row. `game_id IS ?` is
+ * null-safe, so a row with no game is matched the same way.
+ */
+export function addLedgerEntry(input: NewLedgerEntryInput): LedgerEntry[] {
+  const kind = input.kind === 'sell' ? 'sell' : 'buy'
+  const existing = db
+    .prepare('SELECT id FROM ledger_entries WHERE game_id IS ? AND kind = ? AND date = ?')
+    .get(input.gameId, kind, input.date) as { id: number } | undefined
+  if (existing) {
+    db.prepare('UPDATE ledger_entries SET price = ? WHERE id = ?').run(input.price, existing.id)
+  } else {
+    db.prepare('INSERT INTO ledger_entries (game_id, kind, price, date) VALUES (?, ?, ?, ?)').run(
+      input.gameId,
+      kind,
+      input.price,
+      input.date
+    )
+  }
+  return listLedgerEntries()
+}
+
+export function deleteLedgerEntry(id: number): LedgerEntry[] {
+  db.prepare('DELETE FROM ledger_entries WHERE id = ?').run(id)
+  return listLedgerEntries()
+}
+
+export function addVoice(
+  input: Omit<NewVoiceInput, 'sourcePath'> & { filePath: string; sourcePath: string }
+): Voice[] {
+  db.prepare(
+    `INSERT INTO voices (game_id, character_id, title, file_path, source_path)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run(input.gameId, input.characterId, input.title.trim(), input.filePath, input.sourcePath)
+  return listVoices()
+}
+
 /**
  * Takes a group off the list, and off the games that were filed under it.
  *
@@ -743,9 +1165,16 @@ const DEFAULT_SETTINGS: AppSettings = {
   audioSound: 'off',
   // Nothing about the machine is touched until the row is turned on.
   launchAtLogin: 'off',
+  // The Add Game dialog is the design's own board alone until the advanced
+  // panel is asked for.
+  addGameMore: 'off',
+  // Not yet seen, so a fresh library gets the coach-mark over the note icon.
+  guideSeen: 'off',
   // The window the app has always opened at, and no backup until one is asked
   // for and told where to go.
   launchWindowMode: 'window',
+  // 叛逆明朝, the app's own Japanese face.
+  jpFont: 'hangyaku',
   // Chromium's own defaults, which is what every install has always run on.
   gpuMode: 'auto',
   backupOnLaunch: 'off',
@@ -837,11 +1266,18 @@ export function getSettings(): AppSettings {
     videoSound: soundKey(stored.get('videoSound') ?? stored.get('recordingSound')),
     audioSound: soundKey(stored.get('audioSound') ?? stored.get('recordingSound')),
     launchAtLogin: oneOf(stored.get('launchAtLogin'), ['on', 'off'], DEFAULT_SETTINGS.launchAtLogin),
+    addGameMore: oneOf(stored.get('addGameMore'), ['on', 'off'], DEFAULT_SETTINGS.addGameMore),
+    guideSeen: oneOf(stored.get('guideSeen'), ['on', 'off'], DEFAULT_SETTINGS.guideSeen),
     gpuMode: oneOf(stored.get('gpuMode'), GPU_MODES, DEFAULT_SETTINGS.gpuMode),
     launchWindowMode: oneOf(
       stored.get('launchWindowMode'),
       ['window', 'fullscreen'],
       DEFAULT_SETTINGS.launchWindowMode
+    ),
+    jpFont: oneOf(
+      stored.get('jpFont'),
+      ['hangyaku', 'kinkakuji', 'kurohana'],
+      DEFAULT_SETTINGS.jpFont
     ),
     backupOnLaunch: oneOf(
       stored.get('backupOnLaunch'),
@@ -930,7 +1366,7 @@ export function setHomeImage(
   return rowToGameWithStats(row)
 }
 
-export function setThumbnail(gameId: number, filePath: string): GameWithStats {
+export function setThumbnail(gameId: number, filePath: string | null): GameWithStats {
   db.prepare('UPDATE games SET thumbnail_path = ? WHERE id = ?').run(filePath, gameId)
   const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
   if (!row) throw new Error(t('ゲームが見つかりません (id={0})', gameId))
@@ -997,11 +1433,11 @@ export function addGame(input: NewGameInput): GameWithStats {
       `INSERT INTO games (title, short_name, thumbnail_path, icon_path, exe_path, group_name,
                           use_exe_icon, use_short_name, use_thumbnail_default, sort_order,
                           release_date, release_language, median_score, average_score, brand,
-                          reference_url)
+                          purchase_date, purchase_price, list_price, reference_url)
        VALUES (@title, @shortName, @thumbnailPath, @iconPath, @exePath, @groupName,
                @useExeIcon, @useShortName, @useThumbnailAsDefault, @sortOrder,
                @releaseDate, @releaseLanguage, @medianScore, @averageScore, @brand,
-               @referenceUrl)`
+               @purchaseDate, @purchasePrice, @listPrice, @referenceUrl)`
     )
     .run({
       title: input.title,
@@ -1019,6 +1455,9 @@ export function addGame(input: NewGameInput): GameWithStats {
       medianScore: input.medianScore ?? null,
       averageScore: input.averageScore ?? null,
       brand: input.brand ?? null,
+      purchaseDate: input.purchaseDate ?? null,
+      purchasePrice: input.purchasePrice ?? null,
+      listPrice: input.listPrice ?? null,
       referenceUrl: input.referenceUrl ?? null
     })
 
@@ -1041,14 +1480,24 @@ export function updateGame(gameId: number, input: NewGameInput): GameWithStats {
        use_exe_icon = @useExeIcon,
        use_short_name = @useShortName,
        use_thumbnail_default = @useThumbnailAsDefault,
-       /* **Only written where the Reference row was pressed.** A game edited
-          without touching that row keeps whatever it was registered with rather
-          than having it cleared by a dialog that never asked. */
-       release_date = COALESCE(@releaseDate, release_date),
+       /* **The panel's own fields are written as they stand**: the dialog
+          opens them from the game, so what comes back is what the game had
+          unless it was edited — which is what lets the advanced panel change
+          or clear a brand or a release date. */
+       release_date = @releaseDate,
+       brand = @brand,
+       /* **The rest are only written where the Reference row was pressed.** A
+          game edited without touching that row keeps whatever it was
+          registered with — the release language, the median and the average
+          are the row's alone, and it hands back null for them otherwise. */
        release_language = COALESCE(@releaseLanguage, release_language),
        median_score = COALESCE(@medianScore, median_score),
        average_score = COALESCE(@averageScore, average_score),
-       brand = COALESCE(@brand, brand),
+       /* Written as they stand, the way the URL is: the advanced panel's own
+          fields, so what they say is what the game carries. */
+       purchase_date = @purchaseDate,
+       purchase_price = @purchasePrice,
+       list_price = @listPrice,
        /* Not coalesced: the URL is the Reference row's own field rather than
           something it read, so what the field says is what the game carries —
           emptied, the game has none and the Game Info board's mark becomes the
@@ -1071,6 +1520,9 @@ export function updateGame(gameId: number, input: NewGameInput): GameWithStats {
     medianScore: input.medianScore ?? null,
     averageScore: input.averageScore ?? null,
     brand: input.brand ?? null,
+    purchaseDate: input.purchaseDate ?? null,
+    purchasePrice: input.purchasePrice ?? null,
+    listPrice: input.listPrice ?? null,
     referenceUrl: input.referenceUrl ?? null
   })
 
@@ -1186,8 +1638,13 @@ export function setLaunchPrefs(prefs: LaunchPrefs): void {
  * session that is still running has no `endedAt`, so the log can leave it out.
  */
 export function listSessions(gameId: number): Session[] {
+  /* A session standing for a hand edit is left out: the log draws the edit
+     itself, and a PLAYED row beside it would say the game was opened. */
   const rows = db
-    .prepare('SELECT * FROM sessions WHERE game_id = ? ORDER BY started_at DESC, id DESC')
+    .prepare(
+      `SELECT * FROM sessions WHERE game_id = ? AND id NOT IN ${ADJUSTMENT_SESSIONS}
+       ORDER BY started_at DESC, id DESC`
+    )
     .all(gameId) as {
     id: number
     game_id: number
@@ -1271,7 +1728,8 @@ export function getFooterStats(): FooterStats {
          FROM sessions WHERE started_at >= ? AND recorded = 1`
       )
       .get(iso) as { total: number }
-    return result.total
+    // Held at nothing: a hand subtraction is a session of negative length.
+    return Math.max(0, result.total)
   }
 
   return {
@@ -1304,7 +1762,7 @@ export function getPlaytimeByDay(fromDate: string, toDate: string): DayPlaytime[
   const rows = db
     .prepare(
       `SELECT started_at, duration_seconds FROM sessions
-       WHERE recorded = 1 AND duration_seconds > 0 AND started_at >= ? AND started_at < ?`
+       WHERE recorded = 1 AND duration_seconds <> 0 AND started_at >= ? AND started_at < ?`
     )
     .all(from.toISOString(), to.toISOString()) as {
     started_at: string
@@ -1320,7 +1778,8 @@ export function getPlaytimeByDay(fromDate: string, toDate: string): DayPlaytime[
     totals.set(key, (totals.get(key) ?? 0) + row.duration_seconds)
   }
 
-  return [...totals].map(([date, seconds]) => ({ date, seconds }))
+  // A day taken under nothing by a hand subtraction is a day with nothing on it.
+  return [...totals].filter(([, seconds]) => seconds > 0).map(([date, seconds]) => ({ date, seconds }))
 }
 
 
@@ -1402,7 +1861,7 @@ export function getPlaytimeByDayAndGame(fromDate: string, toDate: string): DayGa
   const rows = db
     .prepare(
       `SELECT game_id, started_at, duration_seconds FROM sessions
-       WHERE recorded = 1 AND duration_seconds > 0 AND started_at >= ? AND started_at < ?`
+       WHERE recorded = 1 AND duration_seconds <> 0 AND started_at >= ? AND started_at < ?`
     )
     .all(from.toISOString(), to.toISOString()) as {
     game_id: number
@@ -1422,7 +1881,12 @@ export function getPlaytimeByDayAndGame(fromDate: string, toDate: string): DayGa
     else totals.set(key, { date, gameId: row.game_id, seconds: row.duration_seconds })
   }
 
-  return [...totals.values()]
+  /* A game's own net for the day, negative included: a hand subtraction that
+     takes time off a day is a row of that day the same as a session that adds
+     it, so it is kept (shown with a minus) rather than dropped — which is what
+     kept the per-game breakdown from adding up to the day's own total. Only an
+     exact zero, which says nothing, is left off. */
+  return [...totals.values()].filter((row) => row.seconds !== 0)
 }
 
 /*
@@ -1440,7 +1904,7 @@ export function getPlaytimeByDayAndGame(fromDate: string, toDate: string): DayGa
  * in the database points into them, and what is left there is a capture that
  * was thrown away.
  */
-const BACKUP_MEDIA_DIRS = ['game-images', 'home-images', 'icons', 'images']
+const BACKUP_MEDIA_DIRS = ['game-images', 'home-images', 'icons', 'images', 'voices']
 
 /* What says a folder is one of this app's own backups rather than somewhere a
    `.sqlite3` happens to be. It is written beside the database, so a restore
@@ -1966,6 +2430,39 @@ export function restoreDatabase(source: string): void {
     fs.rmSync(target + suffix, { force: true })
   }
   fs.copyFileSync(source, target)
+}
+
+/* Every folder the app itself writes under `userData`: the four the backup
+   carries, and the three a capture is written to before the save dialog moves
+   it. The backups are deliberately not among them — they are in the folder the
+   起動時にバックアップを作成 row names, which is the player's own, and the one
+   thing the 初期化 row promises to leave alone. */
+const OWN_DIRS = [...BACKUP_MEDIA_DIRS, 'screenshots', 'videos', 'audio']
+
+/**
+ * Takes the library away entirely: the database — the games, the play time,
+ * the routes, the plans, the settings — and every file it points at. What is
+ * left under `userData` is what Chromium keeps there, which is nothing of the
+ * player's. The caller restarts the app on an empty library, the way the
+ * restore does, since every query in this process is against a handle that is
+ * now closed.
+ *
+ * The files go first, for the reason the restore's come back first: a folder
+ * that could not be removed leaves the database standing and the app running
+ * on the library it already had, rather than a database gone from under
+ * pictures nobody can reach any more.
+ */
+export function eraseLibrary(): void {
+  const root = app.getPath('userData')
+  for (const dir of OWN_DIRS) {
+    fs.rmSync(path.join(root, dir), { recursive: true, force: true })
+  }
+
+  const target = path.join(root, 'library.sqlite3')
+  db.close()
+  for (const suffix of ['', '-wal', '-shm']) {
+    fs.rmSync(target + suffix, { force: true })
+  }
 }
 
 /**

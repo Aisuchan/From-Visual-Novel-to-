@@ -3,6 +3,7 @@ import { parseErogamescape, parseVndb, referenceUrl } from '../reference'
 import type {
   GameWithStats,
   Group,
+  Language,
   NewGameInput,
   NewGroupInput,
   Tag,
@@ -10,11 +11,12 @@ import type {
 } from '../../../shared/db-types'
 import { mediaUrl } from '../../../shared/media-url'
 import { suggestsGroup } from '../filter'
+import AddGameMore from './AddGameMore'
 import NewGroupSetting from './NewGroupSetting'
 import OptionMenu from './OptionMenu'
 import TagChip from './TagChip'
 import './AddGameDialog.css'
-import { t } from '../../../shared/i18n'
+import { getLanguage, t } from '../../../shared/i18n'
 
 interface Props {
   /** When present the dialog edits this game instead of creating a new one. */
@@ -29,6 +31,10 @@ interface Props {
      date is read off. It is the shell's, like every other setting, and reaches
      the dialog as the one thing about the settings this row needs. */
   vndbReleaseLanguage: VndbReleaseLanguage
+  /** Whether the advanced panel stands beside the dialog, and which currency
+      its price field carries. Both are the shell's settings. */
+  addGameMore: boolean
+  language: Language
   onCancel: () => void
   onSubmit: (input: NewGameInput) => void
   /* A right press on one of the rows the group list drops. It is the shell's
@@ -65,6 +71,8 @@ export default function AddGameDialog({
   onGroupsChanged,
   tags,
   vndbReleaseLanguage,
+  addGameMore,
+  language,
   onCancel,
   onSubmit,
   onGroupContext
@@ -126,9 +134,23 @@ export default function AddGameDialog({
   const [referenceUrlText, setReferenceUrlText] = useState(game?.referenceUrl ?? '')
   const [reading, setReading] = useState(false)
   const [referenceError, setReferenceError] = useState<string | null>(null)
+  /* The advanced panel's four fields. Brand Name and Release Date are filled
+     by the Reference row and stay editable; Purchase Date and Purchase Price
+     are the player's own. They are held whether or not the panel is shown, so
+     a game edited with the panel off keeps what it had. */
+  const [brand, setBrand] = useState(game?.brand ?? '')
+  const [releaseDate, setReleaseDate] = useState(game?.releaseDate ?? '')
+  const [purchaseDate, setPurchaseDate] = useState(game?.purchaseDate ?? '')
+  const [purchasePrice, setPurchasePrice] = useState(
+    game?.purchasePrice != null ? String(game.purchasePrice) : ''
+  )
+  const [listPrice, setListPrice] = useState(
+    game?.listPrice != null ? String(game.listPrice) : ''
+  )
+  /* What the Reference row read that the panel does not hold: the brand and
+     the release date go into their own fields above, so what is left here is
+     the release language the date is, and the two scores. */
   const [reference, setReference] = useState<{
-    brand: string | null
-    releaseDate: string | null
     releaseLanguage: VndbReleaseLanguage | null
     medianScore: number | null
     averageScore: number | null
@@ -290,10 +312,13 @@ export default function AddGameDialog({
             ? was
             : [...was, { id: nextChipId.current++, name }]
         )
+        // And into the advanced panel's Brand Name field, where the row is
+        // what fills it — left alone if it already says something.
+        if (!brand.trim()) setBrand(entry.brand)
       }
+      // The Release Date field, filled the same way, left alone if typed into.
+      if (entry.releaseDate && !releaseDate.trim()) setReleaseDate(entry.releaseDate)
       setReference({
-        brand: entry.brand,
-        releaseDate: entry.releaseDate,
         /* Which of the page's per-language releases answered — the row's own
            choice, or the Japanese one it fell back to. ErogameScape lists one
            date and hands back nothing here, which is what leaves its games
@@ -347,11 +372,19 @@ export default function AddGameDialog({
       /* Null where the row was never pressed, which is what leaves a game
          registered by hand with whatever it already had. The URL is the one
          exception: it is the row's own field and is written as it stands. */
-      releaseDate: reference?.releaseDate ?? null,
+      /* Brand and Release Date are the panel's own fields now — filled by the
+         Reference row, then whatever they were edited to. Written as they
+         stand rather than only where the row was pressed, so a value typed in
+         by hand is kept; null where empty, which on update clears the column
+         (the panel's fields are not coalesced). */
+      releaseDate: releaseDate.trim() || null,
       releaseLanguage: reference?.releaseLanguage ?? null,
       medianScore: reference?.medianScore ?? null,
       averageScore: reference?.averageScore ?? null,
-      brand: reference?.brand ?? null,
+      brand: brand.trim() || null,
+      purchaseDate: purchaseDate.trim() || null,
+      purchasePrice: purchasePrice.trim() === '' ? null : Number(purchasePrice),
+      listPrice: listPrice.trim() === '' ? null : Number(listPrice),
       referenceUrl: referenceUrlText.trim() || null
     })
   }
@@ -359,6 +392,24 @@ export default function AddGameDialog({
   return (
     <>
       <div className="dialog-backdrop" onClick={onCancel}>
+        {/* Penpot: Add Game More — the advanced panel, to the left of the
+            dialog and flush against it, shown only while the Setting board's
+            own row is on. */}
+        {addGameMore && (
+          <AddGameMore
+            language={language}
+            brand={brand}
+            releaseDate={releaseDate}
+            purchaseDate={purchaseDate}
+            purchasePrice={purchasePrice}
+            listPrice={listPrice}
+            onBrand={setBrand}
+            onReleaseDate={setReleaseDate}
+            onPurchaseDate={setPurchaseDate}
+            onPurchasePrice={setPurchasePrice}
+            onListPrice={setListPrice}
+          />
+        )}
         <div className="add-game-dialog" onClick={(e) => e.stopPropagation()}>
           {/* Penpot: Top Latter — 870x61, fill #2a2d31, stroke #657786 5px inner.
               "change information" is the design's variant of this text shape. */}
@@ -600,7 +651,10 @@ export default function AddGameDialog({
 
             <div className="url-box">
               <input className="url-input" value={exePath} readOnly placeholder="Path..." />
-              <button className="url-button ref" onClick={pickExe}>
+              <button
+                className={`url-button ref${getLanguage() === 'en' ? ' wide' : ''}`}
+                onClick={pickExe}
+              >
                 {t('参照')}
               </button>
             </div>

@@ -10,6 +10,7 @@ import type {
 import { mediaUrl } from '../../../shared/media-url'
 import { useContextMenuDismiss } from '../context-menu'
 import { filterGames, suggestsGroup } from '../filter'
+import { centreInk } from '../ink'
 import { nameBreaks } from '../wrap'
 import {
   DEFAULT_DIRECTION,
@@ -17,12 +18,9 @@ import {
   directionLabel,
   displayName,
   hasDirection,
-  parseSortOption,
   sortGames,
   sortLabel,
-  SORT_OPTIONS,
-  sortOptionLabel,
-  sortOptionId,
+  SORTS,
   type SortDirection,
   type SortKey
 } from '../sort'
@@ -47,14 +45,12 @@ import { t } from '../../../shared/i18n'
 
 /** Penpot: Home — the board's own width, which a menu's scale comes off. */
 const BOARD_WIDTH = 1585
-/* Penpot: Way to Sort — 239 wide. **Its menu is 278 rather than the row's
-   239**, which is the one place a menu here is not as wide as what it drops
-   from: a row of this list is an order with its direction marked after it, and
-   the widest of them — 「つけた点数順 (降)」 — comes to 216.8 at the 28 the rows
-   are set at, where the design's 239 leaves a label column of 175. It is the
-   widest row plus the menu's own 34 of rule and air and 30 of right-hand air,
-   taken up from 280.8, so nothing in the list steps down. */
-const SORT_MENU_WIDTH = 284
+/* Penpot: Way to Sort — 239 wide, and its menu the same. The rows are the
+   eight orders alone now — the direction is the button beside the field — and
+   the widest of them, 「つけた点数順」, stands inside the 175 the design's 239
+   leaves for a label at the 28 the rows are set at. (With the direction marked
+   after each name the list needed 284; that mark is gone.) */
+const SORT_MENU_WIDTH = 239
 /** Penpot: Group Select — 331. */
 const GROUP_WIDTH = 331
 /** Penpot: "SORT" / "GROUP" — Girassol 35px in a field with 30px either side. */
@@ -63,9 +59,7 @@ const FIELD_FONT_SIZE = 35
     draws five; eight is what was asked for, and the 「すべて」 row that lets a
     group go stands over them. */
 const GROUP_MENU_ROWS = 8
-/* Every order but 50音順 is offered twice, which makes fifteen rows — more than
-   the board has room for under the Show Condition row — so ten stand and the
-   list is opened brought to the row it is on, exactly as the side panel's is. */
+/** The eight orders, which all stand: the direction is no longer a row. */
 const SORT_MENU_ROWS = 10
 /** The key the "everything" row answers to, which is no group's id. */
 const ALL_GROUPS_KEY = 'all-groups'
@@ -99,8 +93,16 @@ const HEAD_SCROLL_STEP = 8
 
 /* What each face's button asks for next, pressed on the face it is already on:
    the design's own figure with a step either side of it, wrapping round. */
-const NEXT_COLUMNS: Record<HomeColumns, HomeColumns> = { '4': '5', '5': '6', '6': '4' }
-const NEXT_SPINES: Record<HomeSpines, HomeSpines> = { '20': '25', '25': '30', '30': '20' }
+const NEXT_COLUMNS: Record<HomeColumns, HomeColumns> = {
+  '4': '5',
+  '5': '6',
+  '6': '4'
+}
+const NEXT_SPINES: Record<HomeSpines, HomeSpines> = {
+  '20': '25',
+  '25': '30',
+  '30': '20'
+}
 
 /* Penpot draws two rows of five. The cards arrive on a diagonal from the top
    left rather than all at once — a card waits by the column it is in plus the
@@ -215,11 +217,7 @@ function useTitleLines(names: string[], across: number): Map<string, string[]> {
  * With nothing that fits in two, the most that can be shown is what matters, so
  * the fullest first line takes it and the second is left to its ellipsis.
  */
-function breakInTwo(
-  text: string,
-  room: number,
-  widthOf: (run: string) => number
-): string[] | null {
+function breakInTwo(text: string, room: number, widthOf: (run: string) => number): string[] | null {
   let best: { lines: string[]; rank: number; score: number } | null = null
   for (const { at, tier } of nameBreaks(text)) {
     const head = text.slice(0, at).trimEnd()
@@ -296,8 +294,14 @@ const SHELVE_MAX_MS = 1000
    shell has read the 言語/language row, so it goes through `t` where it is
    drawn. */
 /* i18n-keys: the runs below are keys, read through `t` where drawn. */
-const FACE_NAME: Record<HomeLayout, string> = { grid: 'サムネイル画像', shelf: '背表紙画像' }
-const FACE_RATIO: Record<HomeLayout, string> = { grid: '5 : 6', shelf: '1 : 6' }
+const FACE_NAME: Record<HomeLayout, string> = {
+  grid: 'サムネイル画像',
+  shelf: '背表紙画像'
+}
+const FACE_RATIO: Record<HomeLayout, string> = {
+  grid: '5 : 6',
+  shelf: '1 : 6'
+}
 
 interface Props {
   games: GameWithStats[]
@@ -365,7 +369,6 @@ export default function Home({
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION[DEFAULT_SORT])
   /* Which of the menu's rows the board stands on — the pair, rather than the
      order alone. */
-  const currentSortId = sortOptionId(sortKey, sortDir)
   /* The chips ADD TAG + puts out. They are a filter over the grid and nothing
      more — a chip is a piece of text, and taking one off never touches a tag
      on a game. `newTagId` is the chip that has just appeared, which takes the
@@ -409,7 +412,11 @@ export default function Home({
      where that panel goes — the pointer's lower right, worked out as the
      pointer moves rather than written on the card, so the panel follows it.
      Design pixels off the board, which is what the panel hangs in. */
-  const [hover, setHover] = useState<{ id: number; left: number; top: number } | null>(null)
+  const [hover, setHover] = useState<{
+    id: number
+    left: number
+    top: number
+  } | null>(null)
 
   function grow(id: number): void {
     const pending = releases.current.get(id)
@@ -713,7 +720,9 @@ export default function Home({
 
   /** A cell is the same on both faces: it grows, and it names its game to the
       hover, which the face above it works out from the pointer. */
-  function cellProps(id: number): React.HTMLAttributes<HTMLDivElement> & { 'data-game-id': number } {
+  function cellProps(
+    id: number
+  ): React.HTMLAttributes<HTMLDivElement> & { 'data-game-id': number } {
     return {
       className: `home-card-cell ${grown.includes(id) ? 'is-hovered' : ''}`,
       'data-game-id': id
@@ -890,6 +899,28 @@ export default function Home({
                   </span>
                 </button>
 
+                {/* Not in the design: the side panel's Reverse Order Button, at
+                    this row's own 52. It is the direction — the one thing about
+                    an order the field cannot say — so the menu beside it is the
+                    eight orders, once each, the way the panel's is. 50音順 has no
+                    direction, so on that order the button is off rather than
+                    gone. */}
+                <button
+                  className="home-reverse"
+                  disabled={!hasDirection(sortKey)}
+                  onClick={() => setSortDir((dir) => (dir === 'asc' ? 'desc' : 'asc'))}
+                  title={t('並び順を逆にする（{0}）', directionLabel(sortDir))}
+                  aria-label={t('並び順を逆にする（{0}）', directionLabel(sortDir))}
+                >
+                  <i
+                    className={
+                      sortDir === 'asc'
+                        ? 'fa-solid fa-arrow-up-short-wide'
+                        : 'fa-solid fa-arrow-down-wide-short'
+                    }
+                  />
+                </button>
+
                 {/* Penpot: Group Select — 331x52. Unlike the order beside it a
                     group's name is free text, so this half of the pill is typed
                     into the way the side panel's Select Group is: the ▼ drops the
@@ -1002,7 +1033,11 @@ export default function Home({
                 }
                 title={
                   layout === 'grid'
-                    ? t('サムネイル表示（1行 {0} 個・押すと {1} 個）', columns, NEXT_COLUMNS[columns])
+                    ? t(
+                        'サムネイル表示（1行 {0} 個・押すと {1} 個）',
+                        columns,
+                        NEXT_COLUMNS[columns]
+                      )
                     : t('サムネイル表示')
                 }
                 aria-pressed={layout === 'grid'}
@@ -1014,9 +1049,7 @@ export default function Home({
                 /* The thumbnail button's own rule: the face if it is not the
                    one on, and the next size across if it is. */
                 onClick={() =>
-                  layout === 'shelf'
-                    ? onSpinesChange(NEXT_SPINES[spines])
-                    : onLayoutChange('shelf')
+                  layout === 'shelf' ? onSpinesChange(NEXT_SPINES[spines]) : onLayoutChange('shelf')
                 }
                 title={
                   layout === 'shelf'
@@ -1157,10 +1190,10 @@ title", two lines. The short
           onRowContext={menu.key === 'sort' ? undefined : onGroupContext}
           options={
             menu.key === 'sort'
-              ? SORT_OPTIONS.map((sort) => ({
-                  key: sort.id,
-                  label: sortOptionLabel(sort),
-                  current: sort.id === currentSortId
+              ? SORTS.map((sort) => ({
+                  key: sort.key,
+                  label: sortLabel(sort.key),
+                  current: sort.key === sortKey
                 }))
               : groupOptions
           }
@@ -1176,13 +1209,14 @@ title", two lines. The short
           }
           /* A list long enough to scroll opens at the row it stands on rather
              than at its own beginning. */
-          scrollToKey={menu.key === 'sort' ? currentSortId : undefined}
+          scrollToKey={menu.key === 'sort' ? sortKey : undefined}
           onPick={(key) => {
             if (menu.key === 'sort') {
-              /* A row is an order and the way it runs, picked in the one act. */
-              const picked = parseSortOption(key)
-              setSortKey(picked.key)
-              setSortDir(picked.direction)
+              /* An order is picked in the direction it has always been read in;
+                 the button beside the field is what turns it round. */
+              const picked = key as SortKey
+              setSortKey(picked)
+              setSortDir(DEFAULT_DIRECTION[picked])
             } else if (key === ALL_GROUPS_KEY) {
               commitGroup('')
             } else {
@@ -1220,22 +1254,42 @@ function FaceImage({
    the box leaves for them. An order is a sentence and a group's name is
    whatever was typed, so the label steps down just far enough to fit the way
    the clock's date and the menu's own rows do. */
+/* **And its ink is then put on the pill's middle**, which the pill does not do
+   for it (`centreInk` in `ink.ts`): the label is Japanese off the fallback
+   face on Girassol's baseline, and a kanji's ink stands a couple of pixels
+   over the middle of any box that centres its line. Measured again once the
+   faces are all in, for the reason every fit in the app is. */
 function FitLabel({ label, width }: { label: string; width: number }): React.JSX.Element {
   const ref = useRef<HTMLSpanElement | null>(null)
+  const probeRef = useRef<HTMLSpanElement | null>(null)
 
   useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    el.style.fontSize = `${FIELD_FONT_SIZE}px`
-    const measured = el.scrollWidth
-    if (measured > width) {
-      el.style.fontSize = `${Math.floor(FIELD_FONT_SIZE * (width / measured))}px`
+    let dropped = false
+    const fit = (): void => {
+      const el = ref.current
+      const probe = probeRef.current
+      if (!el || !probe) return
+      el.style.fontSize = `${FIELD_FONT_SIZE}px`
+      el.style.transform = ''
+      const measured = el.scrollWidth
+      const size =
+        measured > width ? Math.floor(FIELD_FONT_SIZE * (width / measured)) : FIELD_FONT_SIZE
+      el.style.fontSize = `${size}px`
+      centreInk(el, probe, label, size)
+    }
+    fit()
+    void document.fonts.ready.then(() => {
+      if (!dropped) fit()
+    })
+    return () => {
+      dropped = true
     }
   }, [label, width])
 
   return (
     <span className="home-field-label" ref={ref}>
       {label}
+      <span className="home-field-baseline" ref={probeRef} />
     </span>
   )
 }

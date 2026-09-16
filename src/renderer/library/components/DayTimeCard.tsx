@@ -8,11 +8,20 @@ export interface DayPlaytimeRow {
   name: string
   seconds: number
   color: string
+  /** The game's own icon; the row draws it in place of a colour square. */
+  iconUrl: string | null
 }
 
 /** How far off the pointer the card stands, the way the Game Hover board does
     on the Home board. */
 const POINTER_GAP = 16
+
+/** A day's net for a game, written the way a game's play time is — a hand
+    subtraction that leaves it negative carries a minus before the figure rather
+    than being formatted as a play time, which `formatPlaytime` cannot do. */
+function formatDayTime(seconds: number): string {
+  return seconds < 0 ? `-${formatPlaytime(-seconds)}` : formatPlaytime(seconds)
+}
 
 interface Props {
   /** Penpot writes the date as "12/31". */
@@ -91,9 +100,19 @@ export default function DayTimeCard({
         ) : (
           rows.map((row) => (
             <div className="plan-panel-legend-row" key={row.key}>
-              <span className="plan-panel-legend-dot" style={{ background: row.color }} />
+              {/* The game's own icon in place of the design's colour square. */}
+              {row.iconUrl ? (
+                <img
+                  className="plan-panel-legend-icon"
+                  src={row.iconUrl}
+                  alt=""
+                  draggable={false}
+                />
+              ) : (
+                <span className="plan-panel-legend-icon" />
+              )}
               <span className="plan-panel-legend-name">{row.name}</span>
-              <span className="plan-panel-legend-time">{formatPlaytime(row.seconds)}</span>
+              <span className="plan-panel-legend-time">{formatDayTime(row.seconds)}</span>
             </div>
           ))
         )}

@@ -24,8 +24,8 @@ export type SortDirection = 'asc' | 'desc'
 /* Every order but the syllabary can be turned round. 50音順 is 数字 → 日本語 →
    英語(その他) by design — three groups in a sequence of their own rather than
    one run of values — so a direction on it would say nothing about the groups
-   and only half of what it says inside them. It is offered once where every
-   other order is offered twice. */
+   and only half of what it says inside them. The Reverse Order Button beside
+   each Sort field is off on it. */
 export function hasDirection(key: SortKey): boolean {
   return key !== 'kana'
 }
@@ -34,8 +34,8 @@ export function hasDirection(key: SortKey): boolean {
    run: dates newest first and figures largest first, while the ones that read
    as a sequence — the registration order and the list's own stored one — run
    forwards. Picking an order is asking for it by the name it is offered under,
-   so this is the way round the menu offers each one first, and the row under it
-   is the same order the other way. */
+   so this is the direction a pick lands on; the Reverse Order Button beside the
+   field is what turns it round. */
 export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   'last-played': 'desc',
   added: 'asc',
@@ -52,17 +52,6 @@ export function directionLabel(direction: SortDirection): string {
   return t(direction === 'asc' ? '昇順' : '降順')
 }
 
-/* And what it is called on a menu row, where there is not. The mark goes after
-   the order's own name rather than standing off at the row's right end: the
-   name is what a row is read by and the direction is a note on it, and written
-   this way — a space and the mark — it costs the row 48.8px at the 28 the rows
-   are set at, where a 「降順」 held off at the row's right end took 60 of the
-   label's own column and 「そのまま」 took 100, which is what pushed the longest
-   names down out of the list's own size. */
-export function directionMark(direction: SortDirection): string {
-  return t(direction === 'asc' ? '(昇)' : '(降)')
-}
-
 /* The Sort menu's rows, in the order they are offered. Dates run newest first
    and figures largest first — "プレイ順" is the newest play, not the oldest —
    while the ones that read as a sequence, the registration order and the
@@ -70,8 +59,8 @@ export function directionMark(direction: SortDirection): string {
 /* **These are keys, not runs.** The list is built as the module is imported,
    which is before the shell has read the 言語/language row, so a name
    translated here would be frozen in whatever the language was at load. Every
-   one of them goes through `t` where it is *read* instead — `sortLabel` and
-   `sortOptionLabel` below. */
+   one of them goes through `t` where it is *read* instead — `sortLabel`
+   below. */
 /* i18n-keys: the runs below are keys, read through `t` where drawn. */
 export const SORTS: { key: SortKey; label: string }[] = [
   { key: 'last-played', label: 'プレイ順' },
@@ -87,57 +76,6 @@ export const SORTS: { key: SortKey; label: string }[] = [
 export function sortLabel(key: SortKey): string {
   const label = SORTS.find((sort) => sort.key === key)?.label
   return label ? t(label) : ''
-}
-
-/** One row of the Sort menu: an order, and the way that row runs it. */
-export interface SortOption {
-  id: string
-  key: SortKey
-  direction: SortDirection
-  /** The order's own name in Japanese — the *key*, which is why a row is drawn
-      through `sortOptionLabel` rather than from this. */
-  label: string
-}
-
-/* What a row of the Sort menu is written as: the order's name with the
-   direction marked after it, both put through `t` at the moment the row is
-   drawn. The pair is composed here rather than stored on the option so that the
-   dictionary holds eight order names and two marks rather than the fifteen
-   sentences they multiply out to. */
-export function sortOptionLabel(option: SortOption): string {
-  const name = t(option.label)
-  return hasDirection(option.key) ? `${name} ${directionMark(option.direction)}` : name
-}
-
-/** What a row answers to, which is the pair rather than the order alone. */
-export function sortOptionId(key: SortKey, direction: SortDirection): string {
-  return hasDirection(key) ? `${key}:${direction}` : key
-}
-
-/* The menu's own rows. **Every order that can be turned round is offered
-   twice** — the way its own name reads first, and the same order the other way
-   directly under it — so the order and its direction are chosen in the one act
-   and nothing outside the menu has to carry a mark for the second half of it.
-   The side panel's Sort row has no room for such a mark anyway (the three
-   controls come to 333 of the panel's 335), and a button that only ever says
-   "the other way" reads worse than the two orders written out. */
-export const SORT_OPTIONS: SortOption[] = SORTS.flatMap(({ key, label }): SortOption[] => {
-  if (!hasDirection(key)) return [{ id: sortOptionId(key, 'asc'), key, direction: 'asc', label }]
-  const first = DEFAULT_DIRECTION[key]
-  const second: SortDirection = first === 'asc' ? 'desc' : 'asc'
-  return [first, second].map((direction) => ({
-    id: sortOptionId(key, direction),
-    key,
-    direction,
-    label
-  }))
-})
-
-/** The order and direction a row stands for; anything unknown is the default. */
-export function parseSortOption(id: string): { key: SortKey; direction: SortDirection } {
-  const option = SORT_OPTIONS.find((sort) => sort.id === id)
-  if (!option) return { key: DEFAULT_SORT, direction: DEFAULT_DIRECTION[DEFAULT_SORT] }
-  return { key: option.key, direction: option.direction }
 }
 
 /** The name the list writes for a game, which is also the name it sorts by. */

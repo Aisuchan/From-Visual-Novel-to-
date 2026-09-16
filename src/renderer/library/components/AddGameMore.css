@@ -1,0 +1,131 @@
+/* All values below are literal Penpot values from board "Add Game More"
+   (1c7a6731-6a56-809d-8008-a17cfa799604), 435x490. It stands to the left of
+   the Add Game dialog, flush against it, so the two read as one board split
+   down the middle. */
+
+.add-game-more {
+  width: 435px;
+  box-sizing: border-box;
+  /* The backdrop is a centred row, so the panel keeps that centring — its
+     middle on the dialog's — rather than being held to the dialog's top, and
+     stands a little clear of it rather than flush. */
+  margin-right: 24px;
+  /* Penpot: 25 top, 36 sides, 35 bottom. */
+  padding: 25px 36px 35px;
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 10px var(--color-text-dim);
+  font-family: var(--font-display);
+  display: flex;
+  flex-direction: column;
+  /* The same pop the dialog arrives on, so the two come up together — the
+     keyframes are AddGameDialog.css's, which is loaded alongside this. */
+  animation: dialog-pop 0.34s;
+}
+
+/* Penpot: Brand / Release Date / Purchase Date — 363x83: the name at Girassol
+   24 over a 39-tall input, 15 between them. Purchase Price is 88 tall, its
+   input being 44. */
+.agm-row {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Penpot: border — 363x1 in #B1B2B5, 16 under a row and 16 over the next
+   (the board's 490 less its 60 of padding is 430; four 83/88 rows and three
+   rules come to it with 16 either side of each rule). */
+.agm-rule {
+  height: 1px;
+  margin: 16px 0;
+  background: var(--color-border);
+}
+
+/* Penpot: "Brand Name" — Girassol 24 in #e1e8ed, 29 tall at 1.2. */
+.agm-label {
+  height: 29px;
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Penpot: Input — 363x39 on #2a2d31 rounded 5, 5/10 of padding, the run at
+   Girassol 24; "Name..." in #657786 is what it says while empty. */
+.agm-input {
+  width: 100%;
+  height: 39px;
+  box-sizing: border-box;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 5px;
+  background: var(--color-bg-alt);
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.agm-input::placeholder {
+  color: var(--color-text-dim);
+  opacity: 1;
+}
+
+/* The native date control's own parts on the app's palette: the calendar
+   marker lightened to the app's text, and the cleared placeholder in the dim
+   ink. */
+.agm-date {
+  color-scheme: dark;
+}
+
+.agm-date::-webkit-calendar-picker-indicator {
+  filter: invert(0.9);
+  cursor: pointer;
+}
+
+/* Penpot: Purchase Price Input — 363x44 on #2a2d31 rounded 5, 5/10 of
+   padding, the currency mark and the field 10 apart. */
+.agm-price-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 5px 10px;
+  box-sizing: border-box;
+  border-radius: 5px;
+  background: var(--color-bg-alt);
+}
+
+/* Penpot: "¥" — Girassol 28 in #e1e8ed. */
+.agm-currency {
+  flex: 0 0 auto;
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Penpot: "Price..." — Girassol 24, #657786 while empty. */
+.agm-price-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.agm-price-input::placeholder {
+  color: var(--color-text-dim);
+  opacity: 1;
+}
+
+/* The spinner the number field draws is a second control the design has no
+   room for; the value is typed. */
+.agm-price-input::-webkit-outer-spin-button,
+.agm-price-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

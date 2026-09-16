@@ -28,14 +28,22 @@ export interface MenuOption {
   /** Ink for this row's label. The design sets every one of them in #e1e8ed. */
   color?: string
   /** Marks this as the row the list stands at — the Calender board's year and
-      month for today. It takes the app's accent as its *plate* and keeps its
-      own ink, so it is picked out without being set differently from the rows
-      either side of it. */
+      month as shown, a sort order, a setting's value. It takes the app's
+      accent as its *plate* and keeps its own ink, so it is picked out without
+      being set differently from the rows either side of it. */
   current?: boolean
+  /** Picks this row out more quietly — the Calender board's year and month for
+      *today*, which the list stands at only until another is picked. It holds
+      the plate a row takes under the pointer; a row that is both keeps the
+      accent and takes the hover's lift over it. */
+  marked?: boolean
   /** Puts a 試聴 button at this row's right end, which `onAudition` answers.
       For the Setting board's effect sounds, where a row is a number and
       hearing it is the only thing that says what it is. */
   audition?: boolean
+  /** A picture set at the row's left, before the label — the Ledger board's
+      game list draws each game's own icon there. */
+  iconUrl?: string
 }
 
 interface Props {
@@ -74,6 +82,22 @@ interface Props {
       adds one and the 「すべて」 row cannot — so the whole press is handed over
       and the caller answers for the keys it owns. */
   onRowContext?: (key: string, event: React.MouseEvent) => void
+  /** A row being written into rather than read: its label is replaced by a
+      field holding `value`, which takes the caret as it appears and is
+      settled on Enter or on the caret leaving, Escape leaving the row as it
+      was. The Add Voice dialog's Character list is written this way — its
+      「新しいキャラを追加 ＋」 row turns into the field a name is typed into,
+      and a name being changed is edited in its own row. */
+  editing?: {
+    key: string
+    value: string
+    onCommit: (text: string) => void
+    onCancel: () => void
+  }
+  /** Keep every row at `fontSize` and cut a label too long for its column with
+      an ellipsis, rather than stepping the type down to fit. The Ledger's game
+      list wants one size down the whole menu. */
+  ellipsize?: boolean
 }
 
 export default function OptionMenu({
@@ -88,7 +112,9 @@ export default function OptionMenu({
   fontSize = OPTION_FONT_SIZE,
   scrollToKey,
   onAudition,
-  onRowContext
+  onRowContext,
+  editing,
+  ellipsize = false
 }: Props): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const optionsRef = useRef<HTMLDivElement | null>(null)
@@ -159,8 +185,7 @@ export default function OptionMenu({
      rows on show has to be measured against the row a menu actually has, or a
      list told to stand whole would scroll. */
   const rowHeight = Math.max(OPTION_HEIGHT, fontSize * 1.2)
-  const maxHeight =
-    maxRows * rowHeight + (maxRows - 1) * OPTION_GAP + OPTIONS_PADDING * 2
+  const maxHeight = maxRows * rowHeight + (maxRows - 1) * OPTION_GAP + OPTIONS_PADDING * 2
 
   /* Brought to the row the list opens on, before any of it is read.
      `scrollTop` and `offsetTop` are both in the element's own unzoomed CSS px,
@@ -285,8 +310,11 @@ export default function OptionMenu({
       style={{ top: placed.top ?? top, left, width }}
       /* A press in the menu must not move the caret out of the field: the
          suggestions are up only while the field holds it, and blurring here
-         would put them away before the click that picked a row landed. */
-      onMouseDown={(event) => event.preventDefault()}
+         would put them away before the click that picked a row landed. A row
+         being written into is the one place the caret is meant to land. */
+      onMouseDown={(event) => {
+        if (!(event.target instanceof HTMLInputElement)) event.preventDefault()
+      }}
     >
       {/* Penpot: border1 and border2 — two 2px rules down the left, 10px in,
           then 5px apart, with 15px of air before the options. */}
@@ -308,16 +336,16 @@ export default function OptionMenu({
                colour of its own is. A group carries one, so — as a route's name
                does on the Route board — it arrives inline. */
             color={option.color}
+            iconUrl={option.iconUrl}
+            ellipsize={ellipsize}
             current={option.current}
+            marked={option.marked}
             fontSize={fontSize}
             maxWidth={width - OPTION_LABEL_INSET}
             onClick={() => onPick(option.key)}
-            onAudition={
-              option.audition && onAudition ? () => onAudition(option.key) : undefined
-            }
-            onContext={
-              onRowContext ? (event) => onRowContext(option.key, event) : undefined
-            }
+            onAudition={option.audition && onAudition ? () => onAudition(option.key) : undefined}
+            onContext={onRowContext ? (event) => onRowContext(option.key, event) : undefined}
+            editing={editing && editing.key === option.key ? editing : undefined}
           />
         ))}
       </div>
@@ -332,49 +360,114 @@ export default function OptionMenu({
 function MenuRow({
   label,
   color,
+  iconUrl,
+  ellipsize,
   current,
+  marked,
   fontSize,
   maxWidth,
   onClick,
   onAudition,
-  onContext
+  onContext,
+  editing
 }: {
   label: string
   color?: string
+  iconUrl?: string
+  ellipsize?: boolean
   current?: boolean
+  marked?: boolean
   fontSize: number
   maxWidth: number
   onClick: () => void
   onAudition?: () => void
   onContext?: (event: React.MouseEvent) => void
+  editing?: { value: string; onCommit: (text: string) => void; onCancel: () => void }
 }): React.JSX.Element {
   const textRef = useRef<HTMLSpanElement | null>(null)
+  const [text, setText] = useState(editing?.value ?? '')
+  /* Escape flags the cancel rather than writing the old text back into the
+     field — the blur that follows commits what the field was rendered with,
+     which is the trap the tag chips already fell into. */
+  const cancelled = useRef(false)
+  useEffect(() => {
+    if (editing) {
+      setText(editing.value)
+      cancelled.current = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing !== undefined])
 
   useEffect(() => {
     const el = textRef.current
     if (!el) return
     el.style.fontSize = `${fontSize}px`
+    // Ellipsized rows keep the one size and are cut by CSS; only the
+    // stepping-down rows are measured and shrunk here.
+    if (ellipsize) return
     const width = el.scrollWidth
     if (width > maxWidth) {
       el.style.fontSize = `${Math.floor(fontSize * (maxWidth / width))}px`
     }
-  }, [label, fontSize, maxWidth])
+  }, [label, fontSize, maxWidth, ellipsize])
 
   /* The row and its 試聴 button are siblings in a box of their own rather than
      one inside the other: a button cannot hold a button, and a press on the
      mark must not also pick the row. The plate is still the row's and still
      runs the whole width of the menu — the mark is laid over its right end
      rather than taking a column out of it. */
+  if (editing) {
+    return (
+      <div className="option-menu-row">
+        <div className="option-menu-option is-editing">
+          <input
+            className="option-menu-input"
+            style={{ fontSize: `${fontSize}px` }}
+            value={text}
+            autoFocus
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing) return
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                cancelled.current = true
+                editing.onCommit(text)
+              } else if (event.key === 'Escape') {
+                event.preventDefault()
+                event.stopPropagation()
+                cancelled.current = true
+                editing.onCancel()
+              }
+            }}
+            onBlur={() => {
+              if (cancelled.current) return
+              editing.onCommit(text)
+            }}
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={`option-menu-row${onAudition ? ' has-audition' : ''}`}>
       <button
         type="button"
-        className={`option-menu-option${current ? ' is-current' : ''}`}
+        className={`option-menu-option${current ? ' is-current' : ''}${marked ? ' is-marked' : ''}`}
         role="menuitem"
         onClick={onClick}
         onContextMenu={onContext}
       >
-        <span className="option-menu-label" ref={textRef} style={color ? { color } : undefined}>
+        {iconUrl !== undefined && (
+          <span className="option-menu-icon">
+            {iconUrl ? <img src={iconUrl} alt="" draggable={false} /> : null}
+          </span>
+        )}
+        <span
+          className={`option-menu-label${ellipsize ? ' is-ellipsized' : ''}`}
+          ref={textRef}
+          style={color ? { color } : undefined}
+        >
           {label}
         </span>
       </button>
@@ -410,10 +503,7 @@ function clipBottom(el: HTMLElement): number {
 function scrollableAncestor(el: HTMLElement | null): HTMLElement | null {
   for (let node = el?.parentElement ?? null; node; node = node.parentElement) {
     const overflowY = getComputedStyle(node).overflowY
-    if (
-      (overflowY === 'auto' || overflowY === 'scroll') &&
-      node.scrollHeight > node.clientHeight
-    ) {
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
       return node
     }
   }

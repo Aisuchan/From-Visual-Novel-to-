@@ -1,4 +1,42 @@
-@import url('https://fonts.googleapis.com/css2?family=Girassol&family=Alumni+Sans+Collegiate+One&family=GFS+Didot&display=swap');
+/* **Every face travels with the app.** They used to be fetched from Google
+   Fonts at each launch, and that cost two things. Offline, every board fell
+   through to a serif with other metrics and the app read wrong everywhere at
+   once. And online, a face arriving *late* was a race with everything that
+   measures type: the clock was stepped down to fit the face standing in for
+   Alumni Sans, and then drawn in Alumni Sans at that size — a clock at 70
+   rather than 110 on the launches the font lost.
+
+   Each file is the same version the service serves — measured against it,
+   face by face: the same ascent and descent (Girassol 944/−250 and 1070/326
+   for Windows, Alumni Sans 900/−300 and 940/305, GFS Didot 947/−277 and
+   947/277), the same glyph bounds and advances — so nothing that was measured
+   against the served faces moves; each is only the whole of its glyph set
+   rather than the Latin subset. `font-display: block` on all of them: a run
+   drawn in another face first and swapped after moves every line it is in,
+   and a file on disk is not worth swapping for. */
+@font-face {
+  font-family: 'Girassol';
+  src: url('./fonts/Girassol-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Alumni Sans Collegiate One';
+  src: url('./fonts/AlumniSansCollegiateOne-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'GFS Didot';
+  src: url('./fonts/GFSDidot-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
 
 /* **日本語 is 叛逆明朝, and it travels with the app.** The three faces
    above are Latin only — Girassol, GFS Didot and Alumni Sans Collegiate One
@@ -60,6 +98,29 @@
   descent-override: 22.7%;
 }
 
+/* Two more Japanese faces the Setting board's 「日本語フォントを変更」 row can
+   swap in for 叛逆明朝. Their line metrics are pinned to the same box the app
+   sets everything on (a 1.2 line and an ellipsis that clips to it), so a run
+   drawn in them fills the same height rather than overflowing. */
+@font-face {
+  font-family: 'Kinkakuji';
+  src: url('./fonts/Kinkakuji-Normal.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+  ascent-override: 94.5%;
+  descent-override: 22.7%;
+}
+@font-face {
+  font-family: 'KuroHana Mincho';
+  src: url('./fonts/KuroHanaMincho-ExtraBold.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+  ascent-override: 94.5%;
+  descent-override: 22.7%;
+}
+
 :root {
   --color-bg: #14171a;
   --color-bg-alt: #2a2d31;
@@ -77,9 +138,20 @@
   --color-strip: #222326;
   --color-chip: #2f3236;
 
-  --font-display: 'Girassol', 'GFS Didot', 'Hangyaku Wide', serif;
-  --font-numeric: 'Alumni Sans Collegiate One', 'Girassol', 'Hangyaku Wide', sans-serif;
-  --font-body: 'GFS Didot', 'Girassol', 'Hangyaku Wide', serif;
+  /* The Japanese fallback in every stack, swapped by the Setting board's own
+     「日本語フォントを変更」 row through `data-jp-font` on the root. The Latin
+     faces stay ahead of it, so only the Japanese runs change. */
+  --font-jp: 'Hangyaku Wide';
+  --font-display: 'Girassol', 'GFS Didot', var(--font-jp), serif;
+  --font-numeric: 'Alumni Sans Collegiate One', 'Girassol', var(--font-jp), sans-serif;
+  --font-body: 'GFS Didot', 'Girassol', var(--font-jp), serif;
+}
+
+:root[data-jp-font='kinkakuji'] {
+  --font-jp: 'Kinkakuji';
+}
+:root[data-jp-font='kurohana'] {
+  --font-jp: 'KuroHana Mincho';
 }
 
 * {

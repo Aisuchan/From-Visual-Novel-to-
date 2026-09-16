@@ -109,8 +109,14 @@
    board's one control, so it takes a button's own plate-less shape and answers
    the pointer by coming up — a mark that does something ought to say so. */
 .gi-rating {
+  /* The same 50x60 box the ⓘ at the other end of the row stands in, so the
+     two marks on the row are drawn to the one frame. */
+  width: 50px;
   height: 60px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   background: none;
   border: none;
@@ -125,18 +131,21 @@
   filter: brightness(1.25);
 }
 
-/* The site's own mark, at the size the emoji it stands in for is drawn at:
-   Penpot sets 🔞 at 50 in a 60px box, and an emoji is ink to the edges of its
-   own em, so 50 square is what the mark has to be to sit where the emoji sat.
-   Both files are square, so nothing is fitted or cropped.
+/* The site's own mark, **at the ⓘ's size rather than the emoji's**. The ⓘ at
+   the row's other end is Font Awesome's circle-info at 44 in its 50x60 box —
+   a disc exactly 44 across, 3 in from either side and 8 from the top and the
+   bottom — and both files fill their canvas edge to edge (measured: the
+   opaque bounds are the whole 240 and the whole 300), so a 44 square puts a
+   disc of the same size in the same place at this end. At the emoji's 50 it
+   stood a little larger than the mark it faces across the rule.
 
    **It is painted rather than drawn** — the file is a mask (`mask.ts`) and what
    comes through it is `currentColor`, so the mark is the board's own ink, the
    same the gear that stands in its place takes, and the button's existing
    brightness hover lifts it the way it lifted the emoji. */
 .gi-site-mark {
-  width: 50px;
-  height: 50px;
+  width: 44px;
+  height: 44px;
   display: block;
   background-color: currentColor;
 }

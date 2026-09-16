@@ -5,6 +5,11 @@ import { getSettings } from './db'
 import { soundEffectFile } from './sound-effects'
 import { IpcChannels } from '../shared/ipc-types'
 import { OVERLAY_SCALES } from '../shared/db-types'
+/* The app's own mark, for the taskbar and the Alt-Tab list. `?asset` has the
+   bundler copy the file beside the main bundle and hand back its path, so the
+   same line answers in dev and in the packaged app; the installer's and the
+   exe's icon are `build/icon.ico`, cut from the same picture. */
+import appIcon from '../renderer/assets/icon_gen_ring.png?asset'
 
 let libraryWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
@@ -41,6 +46,7 @@ export function createLibraryWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 540,
     backgroundColor: '#14171a',
+    icon: appIcon,
     show: false,
     // No `titleBarOverlay`: Windows enforces a ~31px minimum on the native
     // caption buttons, which is taller than the scaled 36px design header, so

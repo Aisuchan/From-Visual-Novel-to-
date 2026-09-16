@@ -146,7 +146,10 @@
 }
 
 /* Penpot colours one run of some rows: the heroine's name #e35c5c, GAME CLEARD
-   #ffe100. Route events are deferred, so only the latter is produced. */
+   #ffe100. **A route's name takes the route's own colour instead**, written
+   inline from the row — the design's #e35c5c is a sample heroine's, and a route
+   carries a colour of its own that it is named in everywhere else. This rule is
+   what a route that no longer exists falls back to. */
 .play-log-text .accent-route {
   color: #e35c5c;
 }
@@ -195,6 +198,6 @@
    the way every other thing in the app that answers a right-click does. The
    rows the library works out rather than stores — the first launch, the
    registration — carry no mark, there being nothing to take off them. */
-.play-log-row.removable {
+.play-log-entry.removable {
   cursor: context-menu;
 }

@@ -27,12 +27,28 @@ interface Props {
       the mark goes and the run is the footer's dim ink again. */
   dueSeen: boolean
   onDueSeen: () => void
+  /** The otter: it puts Penpot's "Extra Function" board up in the Main
+      Display's bottom-right corner and takes it away again, staying lit while
+      the board is up. The ref is the shell's, so a press on the otter is not
+      counted as a press outside the board — it is the board's own toggle. */
+  extraOpen: boolean
+  onToggleExtra: () => void
+  extraButtonRef: React.RefObject<HTMLButtonElement>
+  /** The note button, so the first-launch guide can be placed over it. */
+  noteButtonRef: React.RefObject<HTMLButtonElement>
 }
 
 /* Where the footer's database mark leads, per language. The Japanese one is
    the 統計・解析 index rather than the site's root — it is the part of
    erogamescape the app reads, and the root is a portal page that has to be
    clicked through to reach it. */
+/** The app's own page on note: the manual and the way to reach the author.
+    The first-launch guide points at the button that opens it, so it reads it.
+    Under ENG the button is a Ko-fi mark leading to the author's Ko-fi page
+    instead, note being a Japanese service. */
+export const NOTE_URL = 'https://note.com/from_vn_to'
+export const KO_FI_URL = 'https://ko-fi.com/fromvisualnovelto'
+
 const SITE_HOME: Record<Language, string> = {
   ja: 'https://erogamescape.dyndns.org/~ap2/ero/toukei_kaiseki/',
   en: 'https://vndb.org'
@@ -45,7 +61,11 @@ export default function FooterBar({
   settingOpen,
   duePlans,
   dueSeen,
-  onDueSeen
+  onDueSeen,
+  extraOpen,
+  onToggleExtra,
+  extraButtonRef,
+  noteButtonRef
 }: Props): React.JSX.Element {
   const [now, setNow] = useState(new Date())
   /* Whether the "Notification" board is up. It is the row's own — nothing else
@@ -169,12 +189,33 @@ export default function FooterBar({
         >
           <i className="fa-solid fa-gear" />
         </button>
-        <span className="footer-icon" title={t('Twitter（未実装）')}>
-          <i className="fa-brands fa-twitter" />
-        </span>
-        <span className="footer-icon" title={t('note（未実装）')}>
-          <i className="fa-solid fa-book" />
-        </span>
+        {/* Penpot draws a bird here; the app's mark is Font Awesome's otter,
+            and it is the second of the four that leads anywhere. */}
+        <button
+          className={`footer-icon-gear footer-otter ${extraOpen ? 'is-open' : ''}`}
+          onClick={onToggleExtra}
+          ref={extraButtonRef}
+          title={t('エクストラ')}
+          aria-label={t('エクストラ')}
+          aria-pressed={extraOpen}
+        >
+          <i className="fa-solid fa-otter" />
+        </button>
+        {/* The app's own note page — how it is used, and where to write. Under
+            ENG note is replaced by the author's Ko-fi page, note being a
+            Japanese service, so the mark and the destination follow the
+            language the way the database mark below does. */}
+        <button
+          className="footer-icon footer-site"
+          ref={noteButtonRef}
+          onClick={() =>
+            void window.library.openExternal(getLanguage() === 'en' ? KO_FI_URL : NOTE_URL)
+          }
+          title={t('使い方・コンタクト')}
+          aria-label={t('使い方・コンタクト')}
+        >
+          <i className={getLanguage() === 'en' ? 'fa-brands fa-ko-fi' : 'fa-solid fa-book'} />
+        </button>
         {/* **The database, named by the language the app is kept in — and the
             button opens it.** Unlike the Game Info board's own mark, which says
             where *that game's* registered page is and so is read off its

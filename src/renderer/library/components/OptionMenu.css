@@ -150,8 +150,11 @@
 }
 
 /* Driven from the row rather than from the option itself, so the plate does
-   not blink out while the pointer is over the 試聴 mark laid on top of it. */
-.option-menu-row:hover > .option-menu-option {
+   not blink out while the pointer is over the 試聴 mark laid on top of it.
+   A row the caller marks out — the Calender board's today — holds that same
+   plate whether or not the pointer is there. */
+.option-menu-row:hover > .option-menu-option,
+.option-menu-option.is-marked {
   background: rgba(225, 232, 237, 0.14);
 }
 
@@ -164,8 +167,9 @@
 }
 
 /* The same 0.14 lift the plain hover is, laid over the accent rather than put
-   in its place. */
-.option-menu-row:hover > .option-menu-option.is-current {
+   in its place — and the row that is on show *and* marked out holds it. */
+.option-menu-row:hover > .option-menu-option.is-current,
+.option-menu-option.is-current.is-marked {
   background-image: linear-gradient(rgba(225, 232, 237, 0.14), rgba(225, 232, 237, 0.14));
 }
 
@@ -206,4 +210,59 @@
 
 .option-menu-audition:hover {
   color: var(--color-text-bright);
+}
+
+/* A row being written into: the label's own run with the caret in it, and no
+   plate under the pointer — the caret is what says where the typing goes, as
+   it is for a tag chip being named. The field carries no ring of its own for
+   the same reason. */
+.option-menu-option.is-editing {
+  cursor: text;
+}
+
+.option-menu-row:hover > .option-menu-option.is-editing {
+  background: transparent;
+}
+
+.option-menu-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* A picture at the row's left, before the label — the Ledger board's game
+   list draws each game's own icon here. It is a square the row's own height
+   leaves room for, keeping a 10px gap to the label; an entry with no picture
+   holds the same square empty so the labels still line up. */
+.option-menu-icon {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  margin-right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.option-menu-icon img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+/* A label kept at one size and cut with an ellipsis rather than stepped down
+   to fit — the Ledger's game list. It has to be allowed to shrink in the row
+   for the ellipsis to bite. */
+.option-menu-label.is-ellipsized {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

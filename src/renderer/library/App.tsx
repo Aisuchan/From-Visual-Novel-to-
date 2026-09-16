@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { toDateKey } from './format'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { formatPlaytime, toDateKey } from './format'
 import { setLanguage, t } from '../../shared/i18n'
 import type {
   AppSettings,
@@ -23,6 +23,8 @@ import Home from './components/Home'
 import Calendar from './components/Calendar'
 import CalendarFlip, { FLIP_TOTAL_MS } from './components/CalendarFlip'
 import PlaytimeGraph from './components/PlaytimeGraph'
+import VoiceManager from './components/VoiceManager'
+import Ledger from './components/Ledger'
 import FooterBar from './components/FooterBar'
 import AddGameDialog from './components/AddGameDialog'
 import NewGroupSetting from './components/NewGroupSetting'
@@ -31,6 +33,9 @@ import ContextMenu from './components/ContextMenu'
 import { useContextMenuDismiss } from './context-menu'
 import Confetti, { type ConfettiClip } from './components/Confetti'
 import Balloons from './components/Balloons'
+import ExtraFunction, { extraActionName, type ExtraAction } from './components/ExtraFunction'
+import CsvExport from './components/CsvExport'
+import FirstLaunchGuide from './components/FirstLaunchGuide'
 import './App.css'
 
 type MainView =
@@ -40,6 +45,8 @@ type MainView =
   | 'home'
   | 'calendar'
   | 'graph'
+  | 'voice'
+  | 'ledger'
 
 /** How long a board takes to fade in. Kept in step with `board-fade-in` in
     App.css, which is what the Calender board's own cells wait out. */
@@ -109,7 +116,12 @@ export default function App(): React.JSX.Element {
     videoSound: 'off',
     audioSound: 'off',
     launchAtLogin: 'off',
+    addGameMore: 'off',
+    // Assumed seen until the store says otherwise, so a returning library does
+    // not flash the coach-mark before its real settings arrive.
+    guideSeen: 'on',
     launchWindowMode: 'window',
+    jpFont: 'hangyaku',
     gpuMode: 'auto',
     backupOnLaunch: 'off',
     backupDirectory: '',
@@ -135,6 +147,9 @@ export default function App(): React.JSX.Element {
 
   document.documentElement.dataset.animations = settings.animations
   const animate = settings.animations === 'on'
+  /* The 日本語フォント row: written onto the document the way the animations
+     row is, since the font stacks in `theme.css` are keyed on it. */
+  document.documentElement.dataset.jpFont = settings.jpFont
   /* The 音声 tab's two rows, written the same way and read by `sound.ts`: both
      of these sounds are fired from inside an effect's own closure, where a
      prop would be the one that effect was set up with. */
@@ -155,6 +170,13 @@ export default function App(): React.JSX.Element {
      sessions, routes and images with it, so it is asked after first — the same
      board the Route panel asks with. */
   const [deletingGameId, setDeletingGameId] = useState<number | null>(null)
+  /* A hand edit that moved a game's total, waiting to be told where the
+     change counts. `delta` is what the question names, signed. */
+  const [playTimeEdit, setPlayTimeEdit] = useState<{
+    gameId: number
+    seconds: number
+    delta: number
+  } | null>(null)
   /* Why a launch could not be made, which is a notice rather than a question:
      the Play button was pressed and nothing ran. */
   const [launchError, setLaunchError] = useState<string | null>(null)
@@ -167,11 +189,108 @@ export default function App(): React.JSX.Element {
   // Which board fills the content column: Penpot's "Game", "Add Thumbnail",
   // "Setting", "Home" or "Calender".
   const [mainView, setMainView] = useState<MainView>('game')
+  /* The game the Voice board opens narrowed to: the one whose board was up
+     when ボイスマネージャー was pressed, or none. Held rather than read off the
+     selection at render, so a game picked while the board is up does not
+     re-narrow it. */
+  const [voiceGameId, setVoiceGameId] = useState<number | null>(null)
   /* The run of pages the Calender board is arrived at through, or null while
      none is turning. It is the run's own number rather than a flag so that
      coming back to the board while the last one is still going restarts it:
      the overlay is keyed on this, and a new number is a new run. */
   const [calendarFlip, setCalendarFlip] = useState<number | null>(null)
+  /* Penpot's "Extra Function" board, which the footer's otter puts in the Main
+     Display's bottom-right corner. `closing` is the board on its way back
+     down: it is unmounted once it has sunk, so the movement is seen both ways. */
+  const [extra, setExtra] = useState<'closed' | 'open' | 'closing'>('closed')
+  const extraButtonRef = useRef<HTMLButtonElement>(null)
+  /* The footer's note button, which the first-launch guide is placed over. */
+  const noteButtonRef = useRef<HTMLButtonElement>(null)
+  const toggleExtra = useCallback(() => {
+    setExtra((state) => (state === 'open' ? 'closing' : 'open'))
+  }, [])
+  const closeExtra = useCallback(() => {
+    setExtra((state) => (state === 'open' ? 'closing' : state))
+  }, [])
+  /* The picture the Add Thumbnail board is to open on, and the game it is
+     in — the blue circle's answer. The ref is what the "picking a game opens
+     its board" effect reads: the game changes and the board asked for is the
+     gallery, not the Game board that effect would put up. */
+  const [galleryOpenImage, setGalleryOpenImage] = useState<number | null>(null)
+  const galleryOpenOn = useRef<number | null>(null)
+  /* What a circle has to say when it has nothing to answer with — the green
+     one pressed with no picture marked R18, or the blue with no picture at
+     all. A notice on the app's own board, OK being the only way out of it. */
+  const [extraNotice, setExtraNotice] = useState<{ title: string; message: string } | null>(null)
+  /* The CSV export dialog — Penpot's "CSV Game" and "CSV Setting" side by side,
+     which the Extra Function board's yellow-green circle puts up. */
+  const [showCsv, setShowCsv] = useState(false)
+  /* It is about one opening of the gallery and no other. The board's own
+     CANCEL and APPLY let it go, but the gallery is left by other doors too —
+     a game picked in the side panel, HOME, the clock, the mouse's side
+     buttons — and left through any of those it stayed set, so the gear on the
+     same game opened the gallery full screen on the random picture again.
+     Whatever the board is left by, the next gallery opens on its own. */
+  useEffect(() => {
+    if (mainView !== 'add-thumbnail') setGalleryOpenImage(null)
+  }, [mainView])
+  /* A random game is the side panel's own press on it: the game is selected
+     and its board comes up. A random picture is one drawn out of every
+     gallery at once — or, for the green circle, out of the pictures marked
+     R18 — opened full screen on its game's Add Thumbnail board.
+     Either way the Extra Function board is put away — what it answered with
+     is a change to the display it was standing on. */
+  const handleExtraAction = useCallback(
+    async (action: ExtraAction) => {
+      closeExtra()
+      if (action === 'random-game') {
+        if (games.length === 0) return
+        const game = games[Math.floor(Math.random() * games.length)]
+        setSelectedGameId(game.id)
+        setMainView('game')
+        return
+      }
+      /* Penpot's "Add Voice" board, in the Main Display's slot. It is the
+         app's rather than a game's, the way Home is. */
+      if (action === 'voice-manager') {
+        setVoiceGameId(mainView === 'game' ? selectedGameId : null)
+        setMainView('voice')
+        return
+      }
+      /* Penpot's "Ledger" board, likewise the app's rather than a game's. */
+      if (action === 'ledger') {
+        setMainView('ledger')
+        return
+      }
+      /* The CSV export dialog stands over the whole window, the way Add Game
+         does, rather than in the content column. */
+      if (action === 'csv-export') {
+        setShowCsv(true)
+        return
+      }
+      /* The green circle is the blue one drawn from the pictures marked R18
+         alone; what happens with the picture is the same from here on. */
+      const pick = await window.library.randomGameImage(action === 'random-r18-image')
+      if (!pick) {
+        setExtraNotice({
+          title: t(extraActionName(action)),
+          message:
+            action === 'random-r18-image'
+              ? t('R18画像が1枚も登録されていません')
+              : t('画像が1枚も登録されていません')
+        })
+        return
+      }
+      /* The ref is only for a game that is *changing*: the effect it is read
+         by fires on the id alone, and a ref left set for the game already on
+         would open the gallery the next time that game was picked. */
+      if (pick.gameId !== selectedGameId) galleryOpenOn.current = pick.gameId
+      setGalleryOpenImage(pick.imageId)
+      setSelectedGameId(pick.gameId)
+      setMainView('add-thumbnail')
+    },
+    [games, selectedGameId, mainView, closeExtra]
+  )
   const calendarFlips = useRef(0)
   const shellRef = useRef<HTMLDivElement | null>(null)
 
@@ -276,6 +395,13 @@ export default function App(): React.JSX.Element {
   // panel being how a game is switched to.
   useEffect(() => {
     if (stepping.current) return
+    /* Unless the game was picked *for* its gallery — the Extra Function
+       board's blue circle — in which case the gallery is the board asked for. */
+    if (galleryOpenOn.current === selectedGameId) {
+      galleryOpenOn.current = null
+      setMainView('add-thumbnail')
+      return
+    }
     setMainView('game')
   }, [selectedGameId])
 
@@ -409,8 +535,23 @@ export default function App(): React.JSX.Element {
     await refreshGames()
   }
 
-  async function handleEditPlayTime(gameId: number, seconds: number): Promise<void> {
-    await window.library.setTotalPlaySeconds(gameId, seconds)
+  /* A total moved by hand is asked where the change should count: on the
+     game alone, or on today as well — the footer's totals, the Calender board
+     and the graph are sums over the sessions, and an offset on the game
+     reaches none of them. Either way round: an addition is put on today and a
+     subtraction taken off it, today being the one day a hand edit can be said
+     to be about. */
+  function handleEditPlayTime(gameId: number, seconds: number): void {
+    const game = games.find((one) => one.id === gameId)
+    if (game && seconds !== game.stats.totalPlaySeconds) {
+      setPlayTimeEdit({ gameId, seconds, delta: seconds - game.stats.totalPlaySeconds })
+      return
+    }
+    void writePlayTime(gameId, seconds, false)
+  }
+
+  async function writePlayTime(gameId: number, seconds: number, asPlayed: boolean): Promise<void> {
+    await window.library.setTotalPlaySeconds(gameId, seconds, asPlayed)
     await refreshGames()
     await refreshFooterStats()
   }
@@ -467,6 +608,19 @@ export default function App(): React.JSX.Element {
     // Settings belong to the app rather than to a game, so this board stands
     // whether or not the library has one selected.
     // The library's own board, which likewise stands with no game selected.
+    if (view === 'ledger') {
+      return <Ledger games={games} language={settings.language} />
+    }
+    if (view === 'voice') {
+      return (
+        <VoiceManager
+          games={games}
+          initialGame={games.find((game) => game.id === voiceGameId) ?? null}
+          onApplied={() => setMainView('game')}
+          onCancel={() => setMainView('game')}
+        />
+      )
+    }
     if (view === 'home') {
       return (
         <Home
@@ -545,8 +699,13 @@ export default function App(): React.JSX.Element {
       return (
         <AddThumbnail
           game={selectedGame}
-          onCancel={() => setMainView('game')}
+          openImageId={galleryOpenImage}
+          onCancel={() => {
+            setGalleryOpenImage(null)
+            setMainView('game')
+          }}
           onApplied={async () => {
+            setGalleryOpenImage(null)
             await refreshGames()
             setMainView('game')
           }}
@@ -571,7 +730,13 @@ export default function App(): React.JSX.Element {
           setCelebration('clear')
           setFinishing(false)
         }}
-        onGamesChanged={refreshGames}
+        /* What the Game board changes is play time as often as not — a session
+           or an edit taken off the Play log — and the footer's totals are sums
+           over the same rows, so they are read again with the library. */
+        onGamesChanged={() => {
+          void refreshGames()
+          void refreshFooterStats()
+        }}
         onSaveReference={handleSaveReference}
       />
     )
@@ -596,7 +761,9 @@ export default function App(): React.JSX.Element {
             mainView === 'home' ||
             mainView === 'setting' ||
             mainView === 'calendar' ||
-            mainView === 'graph'
+            mainView === 'graph' ||
+            mainView === 'voice' ||
+            mainView === 'ledger'
               ? null
               : selectedGameId
           }
@@ -641,7 +808,10 @@ export default function App(): React.JSX.Element {
                 ? { animationDelay: `${FLIP_TOTAL_MS}ms` }
                 : undefined
             }
-            key={mainView}
+            /* The gallery is keyed on the picture it was opened on as well:
+               the blue circle pressed while the gallery is already up is a
+               new picture to open, and the board has to arrive again for it. */
+            key={mainView === 'add-thumbnail' ? `${mainView}:${galleryOpenImage ?? ''}` : mainView}
           >
             {renderBoard(mainView)}
           </div>
@@ -651,6 +821,18 @@ export default function App(): React.JSX.Element {
               does. */}
           {calendarFlip !== null && (
             <CalendarFlip key={calendarFlip} onDone={() => setCalendarFlip(null)} />
+          )}
+
+          {/* The Extra Function board stands in this column's own bottom-right
+              corner, so it hangs off the column the way the pages do. */}
+          {extra !== 'closed' && (
+            <ExtraFunction
+              closing={extra === 'closing'}
+              onGone={() => setExtra('closed')}
+              onDismiss={closeExtra}
+              ignore={extraButtonRef}
+              onAction={handleExtraAction}
+            />
           )}
         </div>
       </div>
@@ -673,7 +855,21 @@ export default function App(): React.JSX.Element {
         onDueSeen={async () =>
           setSettings(await window.library.setSettings({ noticeSeen: dueDay }))
         }
+        extraOpen={extra === 'open'}
+        onToggleExtra={toggleExtra}
+        extraButtonRef={extraButtonRef}
+        noteButtonRef={noteButtonRef}
       />
+
+      {/* Shown once, on a fresh library: everything dims a little but the note
+          icon, which a bobbing window and arrow point at. Dismissing it writes
+          the flag, so it is not shown again. */}
+      {settings.guideSeen === 'off' && (
+        <FirstLaunchGuide
+          noteRef={noteButtonRef}
+          onDismiss={async () => setSettings(await window.library.setSettings({ guideSeen: 'on' }))}
+        />
+      )}
 
       {celebration && (
         <>
@@ -697,6 +893,8 @@ export default function App(): React.JSX.Element {
           onGroupsChanged={setGroups}
           tags={tags}
           vndbReleaseLanguage={settings.vndbReleaseLanguage}
+          addGameMore={settings.addGameMore === 'on'}
+          language={settings.language}
           onCancel={() => setShowAddGame(false)}
           onSubmit={handleAddGame}
         />
@@ -711,6 +909,8 @@ export default function App(): React.JSX.Element {
           onGroupsChanged={setGroups}
           tags={tags}
           vndbReleaseLanguage={settings.vndbReleaseLanguage}
+          addGameMore={settings.addGameMore === 'on'}
+          language={settings.language}
           onCancel={() => setEditingGame(null)}
           onSubmit={handleUpdateGame}
         />
@@ -772,6 +972,51 @@ export default function App(): React.JSX.Element {
           title="launch failed"
           message={launchError}
           onConfirm={() => setLaunchError(null)}
+        />
+      )}
+
+      {playTimeEdit !== null && (
+        <ConfirmDialog
+          title="play time"
+          wide
+          message={
+            playTimeEdit.delta > 0
+              ? t('追加した {0} を\n今日のプレイ時間としても記録しますか？', formatPlaytime(playTimeEdit.delta))
+              : t('減らした {0} を\n今日のプレイ時間からも引きますか？', formatPlaytime(-playTimeEdit.delta))
+          }
+          note={t('反映すると、フッターの時間・カレンダー・プレイタイムグラフも変わります')}
+          confirmLabel={t('反映する')}
+          cancelLabel={t('反映しない')}
+          /* Walked away from — the backdrop, or Escape — the edit is dropped:
+             nothing has been written yet, so the total stands where it was. */
+          onDismiss={() => setPlayTimeEdit(null)}
+          onCancel={() => {
+            const edit = playTimeEdit
+            setPlayTimeEdit(null)
+            void writePlayTime(edit.gameId, edit.seconds, false)
+          }}
+          onConfirm={() => {
+            const edit = playTimeEdit
+            setPlayTimeEdit(null)
+            void writePlayTime(edit.gameId, edit.seconds, true)
+          }}
+        />
+      )}
+
+      {extraNotice !== null && (
+        <ConfirmDialog
+          title={extraNotice.title}
+          message={extraNotice.message}
+          onConfirm={() => setExtraNotice(null)}
+        />
+      )}
+
+      {showCsv && (
+        <CsvExport
+          games={games}
+          groups={groups}
+          tags={tags}
+          onClose={() => setShowCsv(false)}
         />
       )}
 

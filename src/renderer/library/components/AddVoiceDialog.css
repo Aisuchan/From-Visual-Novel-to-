@@ -1,0 +1,315 @@
+/* All values below are literal Penpot values from board "ADD VOICE"
+   (1c7a6731-6a56-809d-8008-a18c2bcca482), 767x957. It stands over the Voice
+   board the way the Add Thumbnail board's questions stand over that one: the
+   backdrop is the board's, not the shell's. */
+
+/* **The dialog is drawn at 1.3 times two thirds** — scaled on a slot of its
+   own about its middle rather than rewritten, so every figure below stays the
+   design's and the box comes out at 664.73 x 829.4. `zoom` rather than
+   `scale`: the lists that drop out of its rows measure themselves against a
+   zoom, and the pop the dialog arrives on is written on `scale`. */
+.add-voice-dialog-slot {
+  zoom: 0.866667;
+}
+
+/* Penpot: ADD VOICE — 767x957 on #14171a under a 10px inner #657786 stroke.
+   The stroke is an inset shadow rather than a border, Penpot's being an inner
+   one: a border would take every literal figure inside 10px in. */
+.add-voice-dialog {
+  position: relative;
+  width: 767px;
+  height: 957px;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 10px var(--color-text-dim);
+  font-family: var(--font-display);
+  animation: dialog-pop 0.34s;
+}
+
+/* Penpot: Board — 767x78 on #2a2d31 under the same 10px inner stroke, the
+   word at Girassol 48 in #e1e8ed centred with 10 above and below. */
+.add-voice-dialog-head {
+  height: 78px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0;
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 10px var(--color-text-dim);
+  font-size: 48px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* Penpot: Board — 767x752, 50 either side. The rows stand at the design's
+   own y — 30, 213, 396, 579 — which is 30 of air above the first, then each
+   122-tall row with 35 under it to the rule and 25 from the rule to the next. */
+.add-voice-dialog-body {
+  position: relative;
+  height: 752px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 30px 50px 0;
+}
+
+/* Penpot: Voice Path / Title / Game / Character — 667x122, the name over the
+   field with 10 between them. */
+.add-voice-row {
+  height: 122px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 35px;
+}
+
+/* Penpot: Rectangle — 667x1 in #B1B2B5, 25 above the next row. */
+.add-voice-rule {
+  height: 1px;
+  flex-shrink: 0;
+  margin-bottom: 25px;
+  background: #b1b2b5;
+}
+
+/* Penpot: "Voice Path" — Girassol 48 in #e1e8ed, 58 tall at 1.2. */
+.add-voice-label {
+  height: 58px;
+  font-size: 48px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Penpot: Url Box — 667x54, Path Input and Ref Button 10 apart. */
+.add-voice-url-box {
+  height: 54px;
+  display: flex;
+  gap: 10px;
+}
+
+/* Penpot: Path Input — 554x54 on #2a2d31, rounded 5, 5/10 of padding, the
+   run at Girassol 36: the design's "Path..." in #657786, a path in the app's
+   text. It is a button rather than a field — a voice is only ever a file the
+   runtime plays, so the path is picked rather than typed. */
+.add-voice-path {
+  width: 554px;
+  height: 54px;
+  flex-shrink: 0;
+  display: block;
+  padding: 5px 10px;
+  background: var(--color-bg-alt);
+  border: none;
+  border-radius: 5px;
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.add-voice-path.empty {
+  color: var(--color-text-dim);
+}
+
+.add-voice-path:hover {
+  filter: brightness(1.18);
+}
+
+/* Penpot: Ref Button — 103x54 on #1da1f2 under a 2px inner #e1e8ed stroke,
+   rounded 5, "Ref" at Girassol 36 in #e1e8ed with 25 either side. */
+.add-voice-ref {
+  width: 103px;
+  height: 54px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 25px;
+  background: var(--color-accent);
+  border: none;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 2px var(--color-text);
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.add-voice-ref:hover {
+  filter: brightness(1.18);
+}
+
+/* Penpot: Title Input — 667x54 on #2a2d31, rounded 5, 5/10 of padding, the
+   run at Girassol 36; "Title..." in #657786 is what it says while empty. */
+.add-voice-input {
+  width: 667px;
+  height: 54px;
+  flex-shrink: 0;
+  padding: 5px 10px;
+  background: var(--color-bg-alt);
+  border: none;
+  border-radius: 5px;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.add-voice-input::placeholder {
+  color: var(--color-text-dim);
+  opacity: 1;
+}
+
+/* Penpot writes the design's "---" in #e1e8ed: it is the mark for nothing
+   chosen rather than a hint, so it keeps the text's own ink. */
+.add-voice-select-field::placeholder {
+  color: var(--color-text);
+  opacity: 1;
+}
+
+/* The list hangs off this, so it is what the row is measured from and what a
+   press inside must not dismiss. */
+.add-voice-anchor {
+  position: relative;
+  width: 667px;
+  height: 54px;
+}
+
+/* Penpot: Game / Group — 667x54: Selected Group 624 rounded 5 on its left
+   corners, a 1x54 rule in #B1B2B5, Show Option 42 rounded on its right. */
+.add-voice-select {
+  width: 667px;
+  height: 54px;
+  display: flex;
+  background: var(--color-bg-alt);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+/* Penpot: Selected Group — 624x54, 5/10 of padding, "---" at Girassol 36 in
+   #e1e8ed. */
+.add-voice-select-field {
+  width: 624px;
+  min-width: 0;
+  flex-shrink: 0;
+  padding: 5px 10px;
+  background: transparent;
+  border: none;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.add-voice-select-divider {
+  width: 1px;
+  height: 54px;
+  flex-shrink: 0;
+  background: #b1b2b5;
+}
+
+/* Penpot: Show Option — 42x54, the ▼ at Girassol 22 in #e1e8ed centred on
+   the 3/10 the design pads it by. The mark turns over while its list is out,
+   on the app's 0.14s clock, the way the Setting board's does. */
+.add-voice-select-caret {
+  width: 42px;
+  height: 54px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 10px 0;
+  background: transparent;
+  border: none;
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: transform 0.14s ease;
+}
+
+.add-voice-select-caret[aria-expanded='true'] {
+  transform: rotate(180deg);
+}
+
+.add-voice-select-caret:hover {
+  color: var(--color-text-bright);
+}
+
+/* Not in the design: what OK could not do, in the app's red at the label's
+   own size less a step, under the last rule. */
+.add-voice-error {
+  margin-top: -10px;
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-danger);
+}
+
+/* Penpot: Cancel OK Button — 757x117 at 10/830, the pair 30 apart held to
+   the right, 20 above and 35 below. The 10 the design leaves under it is
+   the stroke's own. */
+.add-voice-dialog-actions {
+  height: 117px;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 30px;
+  padding: 20px 50px 35px;
+}
+
+/* Penpot: Cancel — 163x62 on #2a2d31 under a 2px inner #657786 stroke,
+   rounded 3, "cancel" at Girassol 48 in #e1e8ed with 16 either side and 4
+   under it. OK — 140x62 on #1da1f2 under a 2px inner #e1e8ed stroke, "ok"
+   with 47 either side. */
+.add-voice-cancel,
+.add-voice-ok {
+  height: 62px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 3px;
+  font-family: var(--font-display);
+  font-size: 48px;
+  line-height: 1.2;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.add-voice-cancel {
+  width: 163px;
+  padding: 0 16px 4px;
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 2px var(--color-text-dim);
+}
+
+.add-voice-ok {
+  width: 140px;
+  padding: 0 47px 4px;
+  background: var(--color-accent);
+  box-shadow: inset 0 0 0 2px var(--color-text);
+}
+
+.add-voice-cancel:hover,
+.add-voice-ok:hover:not(:disabled) {
+  filter: brightness(1.18);
+}
+
+.add-voice-ok:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

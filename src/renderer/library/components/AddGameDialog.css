@@ -165,12 +165,19 @@
   line-height: 1.2;
 }
 
-/* Penpot's own 28 either side is what puts "REF" where the design draws it,
-   and it leaves 32 of a 92px button: 参照 is two full-width glyphs at this
-   size and comes to 48. The run is centred in the button either way, so the
-   padding gives way to the word and nothing moves for the English. */
+/* Penpot's own 28 either side is what puts the run where the design draws it,
+   and 参照 is two full-width glyphs that sit inside the 92px box with room to
+   spare, so the Japanese keeps the design's own box. Its English, "Browse", is
+   a six-glyph Girassol run — 73 design px at this size — which the 92px box
+   holds only 68 of once its padding and border are out, so the button takes the
+   `.wide` class in English only and grows to 100 (73 of ink inside the 20 of
+   padding and the 4 of border, with a little slack); the flex input beside it
+   gives up the few pixels. */
 .url-button.ref {
   padding: 5px 10px;
+}
+.url-button.ref.wide {
+  width: 100px;
 }
 
 .url-button:disabled,
@@ -187,9 +194,14 @@
   gap: 10px;
 }
 
+/* The short-name note under the two name fields. Penpot centres the pair in
+   the column; it is held to the column's left instead, so the box stands on
+   the same line the Short Name input above it starts on rather than floating
+   off it by however much the sentence happens to leave either side. The
+   vertical centring — the box on the middle of a two-line note — stays. */
 .setting-row.centered {
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
   height: 48px;
 }
@@ -538,30 +550,51 @@
   filter: brightness(1.18);
 }
 
-/* Penpot: Cancel — 130x48, fill #2a2d31, stroke #657786 2px, r3, "cancel" 36px */
-.cancel-button {
-  width: 130px;
+/* Penpot: Cancel — 130x48, fill #2a2d31, stroke #657786 2px, r3, "cancel" 36px.
+   OK — 129x48, fill #1da1f2, stroke #e1e8ed 2px, r3, "ok" 36px.
+
+   **The word is put on the plate's middle both ways, and Penpot's paddings are
+   not what does it.** Across: the design's 16 and 47 of side padding are its
+   own layout's, and in this build's Girassol "cancel" is 97.9px and "ok" 34.1
+   at 36 — wider than the 94 and 31 those paddings leave, so each word overran
+   its box and was set from the left of it rather than the middle. No side
+   padding, and the button centres the run itself. Down: a lowercase run in
+   this face is small caps standing on the baseline with the descender's room
+   empty under it, so its ink sits under the middle of the plate — measured
+   off the page's own pixels: "ok" 2.0px low and "cancel" 1.5. Bottom padding
+   is what lifts it, **and on a `<button>` it lifts nothing**: Chromium centres
+   a button's content in the plate on its own and the padding goes nowhere
+   (measured: the ink at exactly the same rows with 0, 4, 7, 9 and 11 of it).
+   Made a flex box the button is an ordinary box again and the padding moves
+   the run; 7 puts "cancel" dead on the middle and "ok" within half a pixel,
+   which is as close as a baseline snapped to whole pixels comes.
+
+   Across, "ok" is set 1.5 right of the plate's middle — the k's right side
+   bearing is wider than the o's left — where "cancel" lands within half a
+   pixel; the 3 of right padding on OK alone takes it back. */
+.cancel-button,
+.ok-button {
   height: 48px;
-  background: var(--color-bg-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--color-text);
-  border: 2px solid var(--color-text-dim);
   border-radius: 3px;
-  padding: 0 16px 4px;
+  padding: 0 0 7px;
   font-family: var(--font-display);
   font-size: 36px;
   line-height: 1.2;
 }
 
-/* Penpot: OK — 129x48, fill #1da1f2, stroke #e1e8ed 2px, r3, "ok" 36px */
+.cancel-button {
+  width: 130px;
+  background: var(--color-bg-alt);
+  border: 2px solid var(--color-text-dim);
+}
+
 .ok-button {
   width: 129px;
-  height: 48px;
+  padding-right: 3px;
   background: var(--color-accent);
-  color: var(--color-text);
   border: 2px solid var(--color-text);
-  border-radius: 3px;
-  padding: 0 47px 4px;
-  font-family: var(--font-display);
-  font-size: 36px;
-  line-height: 1.2;
 }

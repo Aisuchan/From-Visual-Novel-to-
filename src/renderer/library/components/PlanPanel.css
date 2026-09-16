@@ -512,11 +512,12 @@
   min-width: 0;
 }
 
-.plan-panel-legend-dot {
+/* The game's own icon, in place of the design's colour square. */
+.plan-panel-legend-icon {
   flex: 0 0 16px;
   width: 16px;
   height: 16px;
-  border-radius: 5px;
+  object-fit: cover;
 }
 
 .plan-panel-legend-name {

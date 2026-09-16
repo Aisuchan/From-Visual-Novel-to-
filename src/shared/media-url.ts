@@ -29,6 +29,9 @@ export function mediaUrl(filePath: string): string {
  */
 export const GALLERY_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp']
 export const GALLERY_VIDEO_EXTENSIONS = ['mp4', 'm4v', 'mov', 'webm', 'ogv']
+/** What the Add Voice dialog's Ref takes beside the clips above: the audio
+    this runtime plays back. A voice is as often a clip as a track. */
+export const VOICE_AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'opus']
 
 /**
  * Whether a gallery entry is a clip rather than a picture.

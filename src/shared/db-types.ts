@@ -48,6 +48,15 @@ export interface Game {
   /** The studio the game is from, as ErogameScape names it. The Game Info
       board's BRAND row is what reads it. */
   brand: string | null
+  /** The Add Game dialog's advanced panel: when the game was bought and for
+      how much. `purchaseDate` is the same YYYY-MM-DD the release date is;
+      `purchasePrice` is a bare number, the unit being the app's own currency
+      (¥, or ＄ under ENG). Both null until the panel writes them. */
+  purchaseDate: string | null
+  purchasePrice: number | null
+  /** The advanced panel's 定価 (list price), a bare number in the app's own
+      currency, the same as `purchasePrice`. Null until the panel writes it. */
+  listPrice: number | null
   /** The ErogameScape page this game's information was read from. The Game Info
       board's 🔞 opens it; with none, that mark is a gear instead and opens the
       dialog the information is set in. */
@@ -101,6 +110,10 @@ export interface NewGameInput {
   medianScore?: number | null
   averageScore?: number | null
   brand?: string | null
+  /** The advanced panel's own fields, written as they stand. */
+  purchaseDate?: string | null
+  purchasePrice?: number | null
+  listPrice?: number | null
   /* The Reference row's own field rather than something it read, so this one is
      written as it stands — cleared where the field was emptied. */
   referenceUrl?: string | null
@@ -127,6 +140,9 @@ export interface GameImage {
    */
   sourcePath: string | null
   source: 'manual' | 'screenshot' | 'recording'
+  /** Marked R18 from the cell's own menu: the frame is red, and the Extra
+      Function board's green circle draws from these alone. */
+  r18: boolean
   createdAt: string
 }
 
@@ -211,6 +227,25 @@ export interface Session {
   recorded: boolean
 }
 
+/**
+ * One edit made to a game's TOTAL PLAY by hand — the Play log's own
+ * `add 99 : 99 (heroine 1)` row.
+ *
+ * The figure is signed: what the total was moved by, which is also what the
+ * route that was active at the time was moved by. The route is kept both ways
+ * — by id, so the row follows a rename, and by name, so a row outlives the
+ * route it was banked on. Nothing else in the app reads these; they are the
+ * log's, and they are what a row taken off the log can be undone from.
+ */
+export interface PlayAdjustment {
+  id: number
+  gameId: number
+  seconds: number
+  routeId: number | null
+  routeName: string | null
+  createdAt: string
+}
+
 /** One local day's recorded play time — what the Calender board's cells carry
     while "Show Playtime" is on. `date` is a local "YYYY-MM-DD", and a day with
     no play time at all is simply absent from the list. */
@@ -280,6 +315,11 @@ export type AudioFormat = 'mp3' | 'wav'
    opens at its own 1280x720 or fills the screen. The 16:9 ratio is held either
    way — a work area is 16:9 whenever the display is. */
 export type LaunchWindowMode = 'window' | 'fullscreen'
+
+/** The Setting board's 「日本語フォントを変更」 row: which face draws every
+    Japanese run. `hangyaku` is 叛逆明朝, the app's own; the other two are
+    swapped in through `data-jp-font`. */
+export type JpFont = 'hangyaku' | 'kinkakuji' | 'kurohana'
 
 /*
  * **The Setting board's 描画方式 row: how much of the drawing the GPU does.**
@@ -482,10 +522,20 @@ export interface AppSettings {
      through `app.setLoginItemSettings`, so the row and the machine are kept in
      step rather than the row standing for something nothing acts on. */
   launchAtLogin: Toggle
+  /* Whether the Add Game dialog shows Penpot's "Add Game More" panel beside
+     it — the brand, the release date, and when the game was bought and for
+     how much. Off, the dialog is the design's own board alone. */
+  addGameMore: Toggle
+  /** Whether the first-launch guide has been shown. Off on a fresh library —
+      which is what puts the coach-mark over the note icon — and on once it has
+      been dismissed, so it is shown the once and no more. */
+  guideSeen: Toggle
   /* 一般: how the library window opens, and whether the database is copied
      somewhere as it does. `backupDirectory` is a folder the player names — an
      empty one is what an unanswered row is, and nothing is copied then. */
   launchWindowMode: LaunchWindowMode
+  /** Which face draws every Japanese run; see `JpFont`. */
+  jpFont: JpFont
   /** How much of the drawing the GPU does; see `GPU_MODES`. */
   gpuMode: GpuMode
   backupOnLaunch: Toggle
@@ -500,4 +550,63 @@ export interface AppSettings {
   lastSaveScreenshot: string
   lastSaveVideo: string
   lastSaveAudio: string
+}
+
+/** A character a voice is filed under — one flat list the Add Voice dialog's
+    Character row keeps, the way `groups` is one list for the Group rows. */
+export interface VoiceCharacter {
+  id: number
+  name: string
+  createdAt: string
+}
+
+/** A row of `voices`: one clip filed under a game and a character, either of
+    which may be nothing. `filePath` is the app's own copy under `userData`;
+    `sourcePath` is the file it was taken from. */
+export interface Voice {
+  id: number
+  gameId: number | null
+  characterId: number | null
+  title: string
+  filePath: string
+  sourcePath: string | null
+  createdAt: string
+}
+
+/** What 「情報を変更」 writes back: the three fields, and a file only where
+    a new one was picked. */
+export interface VoicePatch {
+  gameId: number | null
+  characterId: number | null
+  title: string
+  sourcePath?: string
+}
+
+/** A row of the Ledger: a game bought or sold, for a price, on a day. The
+    price is a bare number, the unit being the app's own currency (¥, or ＄
+    under ENG); the date is the same local YYYY-MM-DD a plan carries. */
+export type LedgerKind = 'buy' | 'sell'
+
+export interface LedgerEntry {
+  id: number
+  gameId: number | null
+  kind: LedgerKind
+  price: number
+  date: string
+  createdAt: string
+}
+
+export interface NewLedgerEntryInput {
+  gameId: number | null
+  kind: LedgerKind
+  price: number
+  date: string
+}
+
+export interface NewVoiceInput {
+  gameId: number | null
+  characterId: number | null
+  title: string
+  /** The file as picked; the copy is made as the row is written. */
+  sourcePath: string
 }

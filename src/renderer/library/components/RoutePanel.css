@@ -290,12 +290,11 @@
   font-size: 36px;
   /* The design's 1.2 leaves the 43.2px line box top-aligned in the 44px one;
      matching the two centres the line box in the box that is centred in the
-     strip. The ink inside it still is not: a face's ascent runs taller than its
-     descent, so the glyphs sit above the line box's own middle — measured at
-     1.5px on this one, which is what `top` gives back. */
+     strip. The ink inside it still is not — a face's ascent runs taller than
+     its descent, so the glyphs sit above the line box's own middle — and that
+     is measured and put back per name (`RouteName`), the constant that used to
+     stand here having been tuned to a face the app no longer draws in. */
   line-height: 44px;
-  position: relative;
-  top: 1.5px;
   color: #da6a67;
   white-space: nowrap;
   overflow: hidden;
@@ -307,6 +306,20 @@
    starts, so it is a plain grey rather than one of the palette's blues. */
 .rp-name span.off {
   color: #828282;
+}
+
+/* The name's baseline, found rather than computed: an empty inline-block sits
+   on the baseline of the line it is in. See `RouteName` and `ink.ts`. Written
+   against `.rp-name span` above, which would otherwise give this span the
+   name's own 44 and stand it 44 tall on the baseline, pushing the line box
+   the probe is meant to be reading. */
+.rp-name span.rp-name-baseline {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  position: static;
+  font-size: 0;
+  line-height: 0;
 }
 
 /* Penpot: Add Route Button — 416x102, 25px padding all round. It carries

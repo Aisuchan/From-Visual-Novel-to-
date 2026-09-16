@@ -1,0 +1,455 @@
+/* Penpot boards "CSV Game" (550x986) and "CSV Setting" (818x736), shown side by
+   side on the shared dialog backdrop — Game on the left, Setting on the right.
+   Every figure is the design's own; the 10px board strokes and the 2px button
+   strokes are Penpot inner strokes, so they are inset shadows rather than
+   borders, which keeps each box its exact size. */
+.csv-export {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  animation: csv-pop 0.14s ease-out;
+}
+
+@keyframes csv-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.csv-export *,
+.csv-export *::before {
+  box-sizing: border-box;
+}
+
+/* ── CSV Game ─────────────────────────────────────────────── */
+/* The design's 550, widened by 20% at the player's request. */
+.csv-game {
+  width: 660px;
+  height: 986px;
+  background: #14171a;
+  box-shadow: inset 0 0 0 10px #657786;
+  overflow: hidden;
+  padding: 10px;
+  flex-shrink: 0;
+}
+
+/* Penpot: Left — flex column, 15 between blocks, 10 in from the sides and 20
+   from the top and bottom, stretched to fill the board. */
+.csv-game-left {
+  display: flex;
+  flex-direction: column;
+  row-gap: 15px;
+  padding: 20px 10px;
+  height: 100%;
+}
+
+/* Penpot: Game — the Search field over the Group row. */
+.csv-game-head {
+  display: flex;
+  flex-direction: column;
+  row-gap: 10px;
+}
+
+/* Penpot: Selected Group — the Search field. */
+.csv-search {
+  background: #2a2d31;
+  border-radius: 5px;
+  padding: 5px 15px;
+}
+
+.csv-search-input,
+.csv-group-input {
+  width: 100%;
+  border: none;
+  background: none;
+  outline: none;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 1.2;
+  color: #e1e8ed;
+}
+.csv-search-input::placeholder,
+.csv-group-input::placeholder {
+  color: #657786;
+}
+/* The theme draws an accent ring inside a focused input; these are filter
+   fields, so — like the side panel's and Home board's own — they carry none,
+   the caret being what says where the typing goes. */
+.csv-search-input:focus-visible,
+.csv-group-input:focus-visible {
+  box-shadow: none;
+}
+
+/* Penpot: Game — the Group field, its divider and the ▼. */
+.csv-group-row {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+}
+
+/* Penpot: Selected Group — the group field, left corners rounded. */
+.csv-group-field {
+  flex: 1;
+  min-width: 0;
+  background: #2a2d31;
+  border-radius: 5px 0 0 5px;
+  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+}
+
+/* Penpot: Rectangle — the divider between the field and the ▼. The design's
+   1px falls under the shell's zoom to a sub-pixel that does not render, so it
+   is drawn at 2px, the same as the Setting board's own rules. */
+.csv-group-divider {
+  width: 2px;
+  align-self: stretch;
+  background: #b1b2b5;
+  flex-shrink: 0;
+}
+
+/* Penpot: Show Option — the ▼, right corners rounded. */
+.csv-group-caret {
+  width: 37px;
+  background: #2a2d31;
+  border-radius: 0 5px 5px 0;
+  padding: 3px 10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: #e1e8ed;
+}
+
+/* Penpot: Game List — flex column filling the space between the head and the
+   Check Way; scrolls once there are more games than it holds. */
+.csv-game-list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  width: 100%;
+}
+
+/* Penpot: Game — one row, a checkbox, a colour square and the title. */
+.csv-game-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  column-gap: 10px;
+  padding: 0 5px;
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+.csv-game-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* The checkbox: an outlined square, filled inside when on, in place of the
+   design's ☑ glyph. Shared by both boards' rows. The frame is an inset shadow
+   rather than a border so the box keeps its exact size under the shell's
+   fractional zoom, and the inner square is flex-centred so it never drifts off
+   the middle. */
+.csv-box {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  box-shadow: inset 0 0 0 2px #e1e8ed;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.csv-box.on::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  background: #e1e8ed;
+}
+
+/* The game's own icon, in place of the design's colour square. */
+.csv-game-icon {
+  width: 35px;
+  height: 35px;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.csv-game-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 44px;
+  color: #e1e8ed;
+}
+
+/* Penpot: Rectangle — the 1px rule over the Check Way. */
+.csv-game-rule {
+  width: 100%;
+  height: 1px;
+  background: #b1b2b5;
+  flex-shrink: 0;
+}
+
+/* Penpot: Check Way — the two buttons, 16 apart, 10 in from the sides. */
+.csv-check-way {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  row-gap: 16px;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.csv-all-check,
+.csv-all-uncheck {
+  width: 100%;
+  /* The Japanese run rides high in its line box, so the 5/5 the design gives it
+     reads top-shifted; the padding is nudged to 6/4 — the box the same height —
+     to sit the ink in the middle. */
+  padding: 6px 0 4px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 2px #e1e8ed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 29px;
+  color: #e1e8ed;
+}
+.csv-all-check {
+  background: #1da1f2;
+}
+.csv-all-uncheck {
+  background: #2a2d31;
+}
+.csv-all-check,
+.csv-all-uncheck,
+.csv-group-caret {
+  transition: filter 0.12s ease;
+}
+.csv-all-check:hover,
+.csv-all-uncheck:hover,
+.csv-group-caret:hover {
+  filter: brightness(1.18);
+}
+
+/* ── CSV Setting ──────────────────────────────────────────── */
+.csv-setting {
+  width: 818px;
+  min-height: 736px;
+  background: #14171a;
+  box-shadow:
+    inset 0 0 0 10px #657786,
+    4px 4px 4px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  padding: 10px;
+  flex-shrink: 0;
+  display: grid;
+  grid-template-rows: 2fr 2px 1fr;
+  grid-template-columns: 1fr 2px 397px;
+  align-items: start;
+}
+
+/* Penpot: Setting List Left / Right — the two checklist columns. */
+.csv-setting-left,
+.csv-setting-right {
+  display: flex;
+  flex-direction: column;
+  row-gap: 5px;
+  padding: 20px 15px;
+  align-self: stretch;
+}
+.csv-setting-left {
+  grid-column: 1;
+  grid-row: 1;
+}
+.csv-setting-right {
+  grid-column: 3;
+  grid-row: 1;
+  overflow: hidden;
+}
+
+/* Penpot: Border — the 2px vertical rule between the columns, held 15 off the
+   top and 10 off the bottom. */
+.csv-setting-vrule {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: stretch;
+  justify-self: stretch;
+  width: 2px;
+  margin: 15px 0 10px;
+  background: #b1b2b5;
+}
+
+/* Penpot: Border — the 2px horizontal rule under the two columns, 15 in from
+   either side. */
+.csv-setting-hrule {
+  grid-column: 1 / 4;
+  grid-row: 2;
+  align-self: stretch;
+  height: 2px;
+  margin: 0 15px;
+  background: #b1b2b5;
+}
+
+/* Penpot: a checklist row — a checkbox and the field's name. */
+.csv-col-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 44px;
+  color: #e1e8ed;
+  white-space: nowrap;
+  transition: background 0.12s ease;
+}
+.csv-col-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.csv-col-check {
+  margin-right: 0.35em;
+}
+
+/* Penpot: Bottom — the path row over the CANCEL / OK pair. */
+.csv-setting-bottom {
+  grid-column: 1 / 4;
+  grid-row: 3;
+  min-height: 233px;
+  padding: 0 10px;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+
+/* Penpot: Path — the 保存先のディレクトリ label over the field and its 参照. */
+.csv-path {
+  display: flex;
+  flex-direction: column;
+  row-gap: 15px;
+  padding: 20px 30px 15px;
+  width: 100%;
+}
+.csv-path-label {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 39px;
+  color: #e1e8ed;
+}
+.csv-path-box {
+  display: flex;
+  flex-direction: row;
+  column-gap: 10px;
+  width: 100%;
+}
+.csv-path-input {
+  flex: 1;
+  min-width: 0;
+  background: #2a2d31;
+  border-radius: 5px;
+  padding: 5px 10px;
+  border: none;
+  outline: none;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 39px;
+  color: #e1e8ed;
+}
+.csv-path-input::placeholder {
+  color: #657786;
+}
+/* The 参照 button has no fixed width — it is as wide as its run plus this
+   padding. Its English, "Browse", is a wide Girassol run (147 design px at 32),
+   so the padding that widened the short 参照/"Ref" is pulled back to 18 here,
+   which keeps the button in proportion and leaves the flex input its room. */
+.csv-path-ref {
+  flex-shrink: 0;
+  background: #1da1f2;
+  box-shadow: inset 0 0 0 2px #e1e8ed;
+  border-radius: 5px;
+  padding: 5px 18px;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 39px;
+  color: #e1e8ed;
+  transition: filter 0.12s ease;
+}
+.csv-path-ref:hover {
+  filter: brightness(1.18);
+}
+
+/* Penpot: Cancel OK Button — pushed to the right, 30 apart, 25 in from the
+   edge, on a 95-tall row. */
+.csv-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  column-gap: 30px;
+  padding: 0 25px;
+  height: 95px;
+  width: 100%;
+}
+.csv-cancel,
+.csv-ok {
+  border: none;
+  border-radius: 3px;
+  padding: 0 26px 4px;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 36px;
+  line-height: 44px;
+  color: #e1e8ed;
+  transition: filter 0.12s ease;
+}
+.csv-cancel:hover,
+.csv-ok:hover {
+  filter: brightness(1.18);
+}
+/* Off until a save directory has been named. */
+.csv-ok:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.csv-ok:disabled:hover {
+  filter: none;
+}
+.csv-cancel {
+  background: #2a2d31;
+  box-shadow: inset 0 0 0 2px #657786;
+}
+.csv-ok {
+  background: #1da1f2;
+  box-shadow: inset 0 0 0 2px #e1e8ed;
+  padding: 0 47px 4px;
+}

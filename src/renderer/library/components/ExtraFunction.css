@@ -1,0 +1,180 @@
+/* Penpot: Extra Function — 441x296, fill #14171a, a 10px inner #657786 stroke.
+   The stroke is an inset shadow rather than a border, for the reason the
+   Setting board's are: Penpot's is an inner stroke painted over the shape, and
+   a CSS border would take the 441 to 421 and move every circle in it.
+
+   Not in the design: where it stands, and how it arrives. It is an absolute
+   child of the Main Display's column, held to its bottom-right corner, and it
+   rises into that corner from below — the whole board sliding up its own 296 —
+   in 110ms, half the Recorder Panel's fold: it is a small board and a long
+   slide read as it being wheeled in. Sinking back is the same
+   movement reversed. It stands over the board slot and under the dialogs (the
+   pages the Calender board is turned with are 45, the dialogs 50). */
+/* The slot is what clips: the board rises out of the column's bottom edge and
+   must not be seen crossing the footer on its way, and the column itself
+   cannot take an `overflow` — the boards' menus and hovers are meant to hang
+   past it. So the slot is exactly the board's own 441x296, held to the
+   corner, and the board slides inside it.
+
+   **Drawn at two thirds.** The design's 441x296 is a good deal of the Main
+   Display to give six circles nothing is behind yet; it is scaled rather than
+   rewritten, the way the Home board's Game Hover is drawn at three fifths, so
+   every figure below stays the design's own and the board comes out at exactly
+   2/3 of each of them — 294x197.33. The scale is on the slot, about the corner
+   the board is held to, so the clip scales with it and the corner stays put. */
+.extra-function-slot {
+  position: absolute;
+  right: 0;
+  /* **Set into the footer's rule rather than on it.** The footer's 4px top
+     rule is the same #657786 as the board's own stroke, so flush against it
+     the two read as one band — the bottom edge a third thicker than the other
+     three. Pulled down by the rule's 4, the board's stroke lands *in* the rule
+     and the bottom edge is the stroke's own 10 like the rest, the way the
+     PlayTime Graph's plates sit in the same rule. Nothing of the rise shows
+     there: the board is the footer's own colour, and its stroke the rule's. */
+  bottom: -4px;
+  width: 441px;
+  height: 296px;
+  overflow: hidden;
+  z-index: 42;
+  pointer-events: none;
+  transform: scale(calc(2 / 3));
+  transform-origin: bottom right;
+}
+
+.extra-function {
+  position: absolute;
+  inset: 0;
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 10px var(--color-text-dim);
+  pointer-events: auto;
+  animation: extra-function-rise 110ms ease-out both;
+}
+
+.extra-function.is-closing {
+  animation: extra-function-sink 110ms ease-in both;
+}
+
+@keyframes extra-function-rise {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes extra-function-sink {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* Penpot: six 100px Ellipses, in three columns at 45 / 170.33 / 295.67 and two
+   rows at 35 / 160.5 — every figure the design's own. Each carries its own fill
+   inline; nothing is written on any of them, the design naming none. */
+.extra-function-circle {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.extra-function-circle:hover {
+  filter: brightness(1.2);
+}
+
+/* Not in the design: the marks. A circle with one glyph carries it white at
+   half the circle, on the circle's middle. A circle with a question carries
+   it as a **badge**: the base moves up and to the left and the question sits
+   at the lower right, each whole and neither over the other, so what the
+   circle is about (a game, a picture) and what is asked of it are read as two
+   marks rather than as one glyph obscuring another — laid over the base's
+   middle, the question hid the gamepad it was meant to qualify. The hearts
+   take the two corners left for the same reason. Every glyph laid beside the base
+   is white with a rim of the circle's own colour (`-webkit-text-stroke` off
+   the `--circle` the button carries), so it stands off the base wherever the
+   two touch. All are placed by their own middles. */
+.extra-function-circle .extra-function-base,
+.extra-function-circle .extra-function-over,
+.extra-function-circle .extra-function-corner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  line-height: 1;
+  color: var(--color-text-bright);
+}
+
+.extra-function-circle .extra-function-base {
+  font-size: 50px;
+}
+
+.extra-function-circle.has-over .extra-function-base {
+  left: 42%;
+  top: 40%;
+  font-size: 44px;
+}
+
+.extra-function-circle .extra-function-over {
+  left: 68%;
+  top: 66%;
+  font-size: 40px;
+  -webkit-text-stroke: 4px var(--circle);
+  paint-order: stroke fill;
+}
+
+.extra-function-circle .extra-function-corner {
+  font-size: 24px;
+  -webkit-text-stroke: 3px var(--circle);
+  paint-order: stroke fill;
+}
+
+.extra-function-circle .extra-function-corner.at-bottom-left {
+  left: 30%;
+  top: 72%;
+}
+
+.extra-function-circle .extra-function-corner.at-top-right {
+  left: 72%;
+  top: 30%;
+}
+
+.extra-function-circle.circle-0 {
+  left: 45px;
+  top: 35px;
+}
+
+.extra-function-circle.circle-1 {
+  left: 170.33px;
+  top: 35px;
+}
+
+.extra-function-circle.circle-2 {
+  left: 295.67px;
+  top: 35px;
+}
+
+.extra-function-circle.circle-3 {
+  left: 45px;
+  top: 160.5px;
+}
+
+.extra-function-circle.circle-4 {
+  left: 170.33px;
+  top: 160.5px;
+}
+
+.extra-function-circle.circle-5 {
+  left: 295.67px;
+  top: 160.5px;
+}

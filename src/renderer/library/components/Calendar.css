@@ -70,6 +70,23 @@
   font-size: 100px;
 }
 
+/* Not in the design: August's mark, in the run's own ink through its alpha.
+   114 tall from the baseline — the run's baseline stands 124 under the board's
+   top (27 down, then 97 of a 100px Girassol line set at 1.2), so the mark's
+   top lands 10 under the top rule — and 118 wide, which is the file's own
+   796:769. The −30 of top margin keeps its margin box (84) inside the 97 the
+   line already has above the baseline, so the line box, and the word, stay
+   exactly where they are. 15 between it and the word, the head's own gap. */
+.calendar-august-mark {
+  display: inline-block;
+  vertical-align: baseline;
+  width: 118px;
+  height: 114px;
+  margin-top: -30px;
+  margin-right: 15px;
+  background-color: currentColor;
+}
+
 /* Penpot: "▼ hover" — Girassol 24px, #e1e8ed, drawn hidden. It stands while
    the run is under the pointer and while its list is out. */
 .calendar-head-caret {
@@ -345,6 +362,16 @@
    belongs to as the number above it does. */
 .calendar-day.outside .calendar-day-playtime {
   color: var(--color-text-dim);
+}
+
+/* And its plans are held back the same way. A chip is in the plan's own
+   colour and its name is set on it, so the two are taken down together as one
+   filter rather than the ink alone being dimmed — a dim name on a full-strength
+   plate would read as a chip that could not be read. The "+n" pill counting
+   the rest goes with them. */
+.calendar-day.outside .calendar-day-plans,
+.calendar-day.outside .calendar-day-more {
+  filter: brightness(0.55);
 }
 
 /* Whatever a cell holds arrives as the wave reaches that cell — the cell takes

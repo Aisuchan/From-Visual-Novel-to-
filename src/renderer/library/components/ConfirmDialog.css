@@ -80,14 +80,27 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 0;
+  /* Penpot draws the sentence box with no side padding — its sample is a short
+     question with air of its own either side. A question fitted to the box's
+     whole 450 stood against the board's own stroke, so it keeps the 25 the
+     notice and note variants below already carry, and is fitted to the 400
+     that leaves. */
+  padding: 40px 25px;
   font-family: var(--font-body);
   font-size: 32px;
   line-height: 1.2;
   color: var(--color-text);
   text-align: center;
-  /* A message may carry a second line — the file a launch could not find — and
-     a path has nothing in it a browser would break a line at. */
+}
+
+/* The question itself, in a box of its own so it can be measured: a text node
+   has no width to read. A message may carry a second line — the file a launch
+   could not find — and a path has nothing in it a browser would break a line
+   at. Its size is stepped down to keep it on one line where that is possible
+   (see the dialog); these two are what it falls back to where it is not. */
+.delete-confirm-message {
+  display: block;
+  max-width: 100%;
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
@@ -152,4 +165,27 @@
 
 .delete-confirm-actions button:hover {
   filter: brightness(1.18);
+}
+
+/* **A question too long for the design's 450 is asked on a wider board rather
+   than a smaller one.** The play-time question is two clauses — what was
+   changed, and whether today should carry it — and stepped down to stand on
+   one line of 400 it came out at the floor and still ran; broken in two, the
+   second clause is the longest line the board has to hold: 「今日のプレイ時間と
+   しても記録しますか？」, 19 glyphs of Hangyaku Wide at the question's 32,
+   which the face's own advances put at 525.2 (measured off the font, with its
+   112% size-adjust). 580 holds that inside the sentence's 25 either side with
+   five to spare, and the note under it — 514 at its own 17 — with it. The
+   top, the sentence and the rule follow the board; the two buttons keep the
+   design's 180 and 30 and stand in the middle of the wider row rather than
+   being stretched to fill it. */
+.delete-confirm.wide,
+.delete-confirm.wide .delete-confirm-top,
+.delete-confirm.wide .delete-confirm-sentence {
+  width: 580px;
+}
+
+.delete-confirm.wide .delete-confirm-actions {
+  width: 520px;
+  justify-content: center;
 }

@@ -104,7 +104,8 @@ const DAYS_IN_MONTH = 365.25 / 12
    unit puts the whole of itself into one of them, so what would be written is
    the total over again rather than an average, and 「--」 is written instead.
    A calendar month runs 28 to 31 days and every one of them is one month, so
-   the longest of them is what the month's own figure is held against. */
+   the longest of them is what the month's own figure is held against.
+   i18n-keys: the labels below are keys, read through `t` where drawn. */
 const AVERAGE_UNITS = [
   { label: '1日', days: 1, least: 1 },
   { label: '1週間', days: 7, least: 7 },
@@ -364,6 +365,11 @@ export default function PlaytimeGraph({
       game: games.find((one) => one.id === gameId)
     }))
     .filter((row) => row.game)
+    /* A per-day net can be negative where a hand edit took time off the day —
+       which the ring and the legend cannot draw as a share — so a game whose
+       whole net over the period is not positive is left off the chart, its
+       subtractions having already reduced whatever it is shown beside. */
+    .filter((row) => row.seconds > 0)
     .sort((a, b) => b.seconds - a.seconds)
     .map((row, index) => ({ ...row, color: colorForRank(index) }))
   const total = played.reduce((sum, row) => sum + row.seconds, 0)
@@ -436,6 +442,9 @@ export default function PlaytimeGraph({
     }
     const list = [...parts]
       .map(([gameId, seconds]) => ({ gameId, seconds }))
+      // A day-slot where a game's own net is a subtraction is not a length the
+      // bar can draw, so it is left off rather than given a negative width.
+      .filter((part) => part.seconds > 0)
       .sort((a, b) => b.seconds - a.seconds)
     return { ...slot, parts: list, total: list.reduce((sum, part) => sum + part.seconds, 0) }
   })
@@ -641,7 +650,7 @@ export default function PlaytimeGraph({
         {/* Not in the design: the way back to the board that put this one up. */}
         <button className="graph-back" onClick={onBack}>
           <span className="graph-back-arrow">◀</span>
-          <span className="graph-back-word">Calender</span>
+          <span className="graph-back-word">Calendar</span>
         </button>
       </div>
 
