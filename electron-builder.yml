@@ -1,5 +1,5 @@
 appId: com.aisuchan.fromvisualnovel
-productName: From Visual Novel
+productName: From Visual Novel to
 directories:
   buildResources: build
   output: release
@@ -13,7 +13,11 @@ win:
     - target: nsis
       arch:
         - x64
-  artifactName: ${productName}-${version}-setup.${ext}
+  # Hyphenated on purpose: the installer file must match the name electron-builder
+  # writes into latest.yml (spaces there become hyphens), or a manually uploaded
+  # release breaks auto-update — GitHub also turns spaces in an asset name into
+  # dots. The display name stays "From Visual Novel to" (productName above).
+  artifactName: From-Visual-Novel-to-${version}-setup.${ext}
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

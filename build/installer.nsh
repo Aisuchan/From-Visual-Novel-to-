@@ -35,7 +35,7 @@ Function un.DataChoicePage
     Abort
   ${EndIf}
 
-  ${NSD_CreateLabel} 0 0 100% 40u "From Visual Novel をこのパソコンからアンインストールします。$\r$\n$\r$\n削除する範囲を選んでください。"
+  ${NSD_CreateLabel} 0 0 100% 40u "From Visual Novel to をこのパソコンからアンインストールします。$\r$\n$\r$\n削除する範囲を選んでください。"
   Pop $0
 
   ${NSD_CreateCheckbox} 0 52u 100% 12u "アプリのデータ（ライブラリ・画像・設定）も削除する"
