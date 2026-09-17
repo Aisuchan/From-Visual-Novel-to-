@@ -1,6 +1,6 @@
 # From Visual Novel to
 
-ノベルゲーム（ビジュアルノベル）のライブラリを管理するための Windows デスクトップアプリです。
+主にノベルゲーム（ビジュアルノベル）のライブラリを管理するための Windows デスクトップアプリです。
 ゲームを登録してアプリから起動でき、プレイ時間を自動で記録します。プレイ中は小さな「レコーダーパネル」を最前面に表示し、経過時間の確認・一時停止・スクリーンショット・録画・録音ができます。
 
 <!-- スクリーンショットをここに追加すると分かりやすくなります（例）
@@ -30,9 +30,9 @@
 > このアプリはコード署名をしていないため、初回実行時に「WindowsによってPCが保護されました」という警告が出ることがあります。
 > その場合は **「詳細情報」→「実行」** の順にクリックすると起動できます。
 
-### 動作環境
+### 動作確認済
 
-- Windows 10 / 11（64bit）
+- Windows 10（64bit）
 
 ## 自動アップデート
 
@@ -45,8 +45,7 @@
 
 ## お問い合わせ・使い方
 
-- 使い方・お知らせ: [note](https://note.com/from_vn_to)
-- 応援・支援: [Ko-fi](https://ko-fi.com/fromvisualnovelto)
+- 使い方・コンタクト: [note](https://note.com/from_vn_to)
 
 ---
 
@@ -67,5 +66,76 @@ npm run dist      # Windows インストーラを作成（release/ に出力）
 - 管理者権限のターミナルで実行する
 
 ## ライセンス
+
+[MIT](LICENSE)
+
+---
+---
+
+# From Visual Novel to (English)
+
+> **Note:** This English section was translated from the Japanese above by Claude (an AI assistant). It may contain translation errors — the Japanese version above is authoritative.
+
+A Windows desktop app mainly for managing a library of visual novels. You can register games and launch them from the app, and your play time is tracked automatically. While you play, a small "Recorder Panel" stays on top of other windows so you can check the elapsed time, pause, take screenshots, and record video or audio.
+
+## Features
+
+- **Register and launch games** — register an executable and start it from the app; organize with groups and tags, reorder, and search
+- **Automatic play-time tracking** — records from launch to exit (paused time is excluded)
+- **Recorder Panel** — an always-on-top panel while you play: elapsed time, pause, screenshot, screen recording, and audio recording
+- **Library views (Home)** — thumbnail grid / bookshelf view, and a per-game image gallery
+- **Calendar / Playtime graph** — visualize play time by day and by period, and manage plans
+- **Ledger** — record and total your game purchases and sales
+- **Voice manager** — register and play back voice files per character
+- **CSV export** — export your library information as CSV
+- **Automatic backup** — backs up your library on launch (day / week / month / year generations)
+- **Japanese / English switch**, changeable Japanese font, and more
+
+## Download / Install
+
+1. Open the [Releases](../../releases) page
+2. Download the latest **`From-Visual-Novel-to-<version>-setup.exe`**
+3. Run the downloaded exe to install
+
+> **⚠️ About the SmartScreen warning**
+> This app is not code-signed, so on first run Windows may show a "Windows protected your PC" warning.
+> If so, click **"More info" → "Run anyway"** to start it.
+
+### Tested on
+
+- Windows 10 (64-bit)
+
+## Automatic updates
+
+When a new version is published, the app detects it, downloads it in the background, and updates itself the next time you quit. No manual reinstall is needed.
+
+## Uninstall
+
+Uninstall **"From Visual Novel to"** from *Settings → Apps → Installed apps*.
+During uninstall you can choose **whether to keep or delete your library data (your registered entries, images, and settings)**. If you keep it, a reinstall picks it up as it was.
+
+## Contact / How to use
+
+- [Ko-fi](https://ko-fi.com/fromvisualnovelto)
+
+---
+
+## For developers
+
+Built with Electron + TypeScript + React + better-sqlite3.
+
+```bash
+npm install       # install dependencies
+npm run dev       # run in development (HMR)
+npm run build     # type-check + build
+npm run dist      # build the Windows installer (output in release/)
+```
+
+If `npm run dist` fails with a symbolic-link error (winCodeSign), do one of the following:
+
+- Enable Windows "Developer Mode" (Settings → Privacy & security → For developers), or
+- Run it in a terminal with administrator privileges
+
+## License
 
 [MIT](LICENSE)
