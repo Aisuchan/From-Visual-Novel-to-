@@ -11,6 +11,11 @@ const POLL_INTERVAL_MS = 3000
    is taken to have really ended. */
 const CONFIRM_INTERVAL_MS = 1000
 const CONFIRM_GRACE_POLLS = 6
+/* A bootstrapper hands the game off within seconds of launch, so only an exit
+   that soon after launch is worth checking against the process list. An exe that
+   has been running past this has plainly exited on its own, and its session ends
+   at once — the confirmation delay is not paid on an ordinary game's close. */
+const HANDOFF_WINDOW_MS = 10000
 
 function psQuote(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
@@ -117,6 +122,7 @@ export function launchGame(
     return null
   }
 
+  const launchedAt = Date.now()
   const child = spawn(exePath, [], { cwd: workDir, detached: false })
   let failed = false
   child.once('error', (err: NodeJS.ErrnoException) => {
@@ -125,11 +131,16 @@ export function launchGame(
   })
   child.once('exit', () => {
     if (failed) return
-    /* Not taken as the game having exited on its own: the exe may be a
-       bootstrapper (a Steam game re-launched through Steam) that hands off and
-       exits at once, which is why the panel never appeared. The process list
-       decides — see `confirmExitThenWatch`. */
-    confirmExitThenWatch(exeName, onExit)
+    /* An exit soon after launch may be a bootstrapper handing the game off and
+       exiting — a Steam game re-launched through Steam — which is why the panel
+       never appeared; that one is confirmed against the process list. An exit
+       after the game has been up a while is the game's own and ends the session
+       at once, so an ordinary close pays no confirmation delay. */
+    if (Date.now() - launchedAt < HANDOFF_WINDOW_MS) {
+      confirmExitThenWatch(exeName, onExit)
+    } else {
+      onExit()
+    }
   })
   return child.pid ?? null
 }
