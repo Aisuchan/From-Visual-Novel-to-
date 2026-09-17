@@ -3,9 +3,11 @@
 主にノベルゲーム（ビジュアルノベル）のライブラリを管理するための Windows デスクトップアプリです。
 ゲームを登録してアプリから起動でき、プレイ時間を自動で記録します。プレイ中は小さな「レコーダーパネル」を最前面に表示し、経過時間の確認・一時停止・スクリーンショット・録画・録音ができます。
 
-<!-- スクリーンショットをここに追加すると分かりやすくなります（例）
-![ライブラリ画面](docs/screenshot-library.png)
--->
+![メイン画面](docs/main_display.png)
+
+プレイ中は、下のような小さな「レコーダーパネル」が最前面に表示されます。
+
+![レコーダーパネル](docs/recorder_panel.png)
 
 ## 主な機能
 
@@ -14,7 +16,7 @@
 - **レコーダーパネル** … プレイ中に最前面表示。経過時間・一時停止・スクリーンショット・画面録画・音声録音
 - **ライブラリ表示（Home）** … サムネイル一覧／本棚表示、ゲームごとの画像ギャラリー
 - **カレンダー / プレイタイムグラフ** … 日ごと・期間ごとのプレイ時間を可視化、予定（プラン）の管理
-- **家計簿（Ledger）** … ゲームの購入・売却を記録して集計
+- **帳簿** … ゲームの購入・売却を記録して集計
 - **ボイス管理** … キャラクターごとの音声ファイルを登録・再生
 - **CSV 書き出し** … ライブラリの情報を CSV でエクスポート
 - **自動バックアップ** … 起動時にライブラリをバックアップ（日/週/月/年の世代管理）
@@ -77,6 +79,12 @@ npm run dist      # Windows インストーラを作成（release/ に出力）
 > **Note:** This English section was translated from the Japanese above by Claude (an AI assistant). It may contain translation errors — the Japanese version above is authoritative.
 
 A Windows desktop app mainly for managing a library of visual novels. You can register games and launch them from the app, and your play time is tracked automatically. While you play, a small "Recorder Panel" stays on top of other windows so you can check the elapsed time, pause, take screenshots, and record video or audio.
+
+![Main screen](docs/main_display.png)
+
+While you play, a small "Recorder Panel" like the one below stays on top of your screen.
+
+![Recorder Panel](docs/recorder_panel.png)
 
 ## Features
 
