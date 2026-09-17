@@ -265,7 +265,7 @@ export default function AddGameDialog({
   }
 
   async function pickIcon(): Promise<void> {
-    const result = await window.library.pickImage()
+    const result = await window.library.pickImage(true)
     if (result) setIconPath(result)
   }
 

@@ -545,10 +545,26 @@ export default function GameDetail({
     if (!e.currentTarget.contains(e.relatedTarget as Node | null)) commitEdit()
   }
 
-  /** Digits only, and minutes never exceed 59. */
+  /** Digits only, and minutes never exceed 59. A leading zero is dropped so a
+      field showing "0" does not have to be cleared first: typing 14 into it
+      makes "014", which becomes "14" rather than being cut to "01". A lone "0"
+      stays (there is no digit after it to keep), so the field can still be set
+      to zero. */
   function onDigits(field: 'hours' | 'minutes', raw: string): void {
-    const digits = raw.replace(/\D/g, '').slice(0, field === 'hours' ? 4 : 2)
+    const digits = raw
+      .replace(/\D/g, '')
+      .replace(/^0+(?=\d)/, '')
+      .slice(0, field === 'hours' ? 4 : 2)
     setDraft((prev) => ({ ...prev, [field]: digits }))
+  }
+
+  /** Select the field's whole contents when it takes focus, so a value already
+      in it — a "0" above all — is replaced by what is typed rather than typed
+      around. Deferred a frame so a click's own caret placement, which runs after
+      focus, does not clear the selection. */
+  function selectOnFocus(e: React.FocusEvent<HTMLInputElement>): void {
+    const el = e.currentTarget
+    requestAnimationFrame(() => el.select())
   }
 
   return (
@@ -782,6 +798,7 @@ export default function GameDetail({
                   autoFocus
                   inputMode="numeric"
                   value={draft.hours}
+                  onFocus={selectOnFocus}
                   onChange={(e) => onDigits('hours', e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && commitEdit()}
                 />
@@ -789,6 +806,7 @@ export default function GameDetail({
                 <input
                   inputMode="numeric"
                   value={draft.minutes}
+                  onFocus={selectOnFocus}
                   onChange={(e) => onDigits('minutes', e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && commitEdit()}
                 />

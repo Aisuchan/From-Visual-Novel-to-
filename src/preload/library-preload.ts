@@ -29,7 +29,7 @@ const libraryApi: LibraryApi = {
   deleteGame: (gameId: number) => ipcRenderer.invoke(IpcChannels.GamesDelete, gameId),
   reorderGames: (orderedIds: number[]) => ipcRenderer.invoke(IpcChannels.GamesReorder, orderedIds),
   pickExecutable: () => ipcRenderer.invoke(IpcChannels.GamesPickExe),
-  pickImage: () => ipcRenderer.invoke(IpcChannels.GamesPickImage),
+  pickImage: (includeIco) => ipcRenderer.invoke(IpcChannels.GamesPickImage, includeIco),
   extractExeIcon: (exePath: string) => ipcRenderer.invoke(IpcChannels.GamesExtractExeIcon, exePath),
   setTotalPlaySeconds: (gameId: number, seconds: number, asPlayed?: boolean) =>
     ipcRenderer.invoke(IpcChannels.GamesSetPlayTime, gameId, seconds, asPlayed === true),

@@ -225,7 +225,9 @@ export interface LibraryApi {
   deleteGame(gameId: number): Promise<void>
   reorderGames(orderedIds: number[]): Promise<void>
   pickExecutable(): Promise<string | null>
-  pickImage(): Promise<string | null>
+  /** `includeIco` adds .ico to the filter, for the icon slot (a .ico is a
+      perfectly good icon but a poor thumbnail, so it is opt-in). */
+  pickImage(includeIco?: boolean): Promise<string | null>
   /** Writes the executable's icon to a PNG in userData and returns its path. */
   extractExeIcon(exePath: string): Promise<string | null>
   /* Sets TOTAL PLAY by hand. With `asPlayed` the change is written as a

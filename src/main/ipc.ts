@@ -783,11 +783,14 @@ export function registerIpcHandlers(): void {
     return result.filePaths[0]
   })
 
-  ipcMain.handle(IpcChannels.GamesPickImage, async () => {
+  ipcMain.handle(IpcChannels.GamesPickImage, async (_event, includeIco?: boolean) => {
+    // The icon slot can take a .ico as well as the picture formats; a thumbnail
+    // is a cover shown large, so it does not.
+    const extensions = ['png', 'jpg', 'jpeg', 'webp', ...(includeIco ? ['ico'] : [])]
     const result = await showOpen({
       title: t('画像を選択'),
       properties: ['openFile'],
-      filters: [{ name: '画像', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
+      filters: [{ name: t('画像'), extensions }]
     })
     if (result.canceled || result.filePaths.length === 0) return null
 
