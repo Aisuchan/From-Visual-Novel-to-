@@ -22,6 +22,7 @@ import {
   closeOverlayWindow,
   getLibraryWindow,
   getOverlayWindow,
+  keepOverlayOnTop,
   setOverlayWidth
 } from './windows'
 import { listSoundEffects } from './sound-effects'
@@ -97,6 +98,10 @@ function broadcastCaptureState(): void {
 
 function broadcastTick(): void {
   if (!active) return
+  /* A fullscreen game can steal the top of the z-order from the panel and leave
+     it hidden; re-asserting it each second climbs it back over a borderless- or
+     windowed-fullscreen game (an exclusive-fullscreen one it cannot answer). */
+  keepOverlayOnTop()
   getOverlayWindow()?.webContents.send(IpcChannels.OverlayTick, {
     sessionId: active.sessionId,
     elapsedSeconds: elapsedSeconds(active),

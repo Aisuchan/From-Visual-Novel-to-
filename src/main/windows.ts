@@ -305,3 +305,18 @@ export function getLibraryWindow(): BrowserWindow | null {
 export function getOverlayWindow(): BrowserWindow | null {
   return overlayWindow
 }
+
+/** Put the panel back at the top of the z-order. A game taking the whole screen
+    — a fullscreen one above all — can push an always-on-top window below itself
+    and leave it there, so the panel is never seen; re-asserted each tick of a
+    session, it climbs back over a borderless- or windowed-fullscreen game. A
+    game in true exclusive fullscreen bypasses the window compositor and can be
+    drawn over by no window at all, so this cannot answer that one. `moveTop`
+    changes the z-order without taking focus, so it never pulls the player out of
+    the game. */
+export function keepOverlayOnTop(): void {
+  const win = overlayWindow
+  if (!win || win.isDestroyed() || !win.isVisible()) return
+  win.setAlwaysOnTop(true, 'screen-saver')
+  win.moveTop()
+}
