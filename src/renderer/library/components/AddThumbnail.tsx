@@ -227,33 +227,41 @@ export default function AddThumbnail({
 
   // Start on the image that is already applied as the thumbnail, and open on
   // the page holding it rather than burying the current choice pages in.
-  const load = useCallback(
-    async (focusPath: string | null): Promise<void> => {
-      const list = await window.library.listGameImages(game.id)
-      setImages(list)
-      openedOrder.current = list.map((image) => image.id)
-      setLoaded(true)
-      const index = focusPath ? list.findIndex((image) => image.filePath === focusPath) : -1
-      setSelectedId(index >= 0 ? list[index].id : null)
-      setPage(index >= 0 ? Math.floor(index / PAGE_SIZE) + 1 : 1)
-      /* The picture the board was opened *on*, if it was opened on one: put up
-         full screen at once, with the page under it turned to where it is so
-         that closing the viewer lands on the cell it came out of. */
-      if (openOnce.current !== null) {
-        const wanted = list.findIndex((image) => image.id === openOnce.current)
-        openOnce.current = null
-        if (wanted >= 0) {
-          setViewing(wanted)
-          setPage(Math.floor(wanted / PAGE_SIZE) + 1)
-        }
+  /* The thumbnail the board opens focused on, read through a ref so that a later
+     change to it does not reload the list. `load` resetting `images` and
+     `openedOrder` is exactly the board's staged state (a reorder, a deletion),
+     so a reload triggered while the board is open would silently drop those and
+     leave APPLY with nothing to write — the board only ever loads on the game
+     it is for, once. Nothing changes the game's own thumbnail while the board is
+     open (the menu's 「メインサムネイルに設定」 stages the mark rather than writing
+     it), so there is nothing here to follow anyway. */
+  const openThumb = useRef(game.thumbnailPath)
+  openThumb.current = game.thumbnailPath
+  const load = useCallback(async (): Promise<void> => {
+    const focusPath = openThumb.current
+    const list = await window.library.listGameImages(game.id)
+    setImages(list)
+    openedOrder.current = list.map((image) => image.id)
+    setLoaded(true)
+    const index = focusPath ? list.findIndex((image) => image.filePath === focusPath) : -1
+    setSelectedId(index >= 0 ? list[index].id : null)
+    setPage(index >= 0 ? Math.floor(index / PAGE_SIZE) + 1 : 1)
+    /* The picture the board was opened *on*, if it was opened on one: put up
+       full screen at once, with the page under it turned to where it is so
+       that closing the viewer lands on the cell it came out of. */
+    if (openOnce.current !== null) {
+      const wanted = list.findIndex((image) => image.id === openOnce.current)
+      openOnce.current = null
+      if (wanted >= 0) {
+        setViewing(wanted)
+        setPage(Math.floor(wanted / PAGE_SIZE) + 1)
       }
-    },
-    [game.id]
-  )
+    }
+  }, [game.id])
 
   useEffect(() => {
-    load(game.thumbnailPath)
-  }, [load, game.thumbnailPath])
+    void load()
+  }, [load])
 
   /** How far the pointer has to travel before a press is a drag rather than a
       click, in the window's own pixels. */
@@ -717,15 +725,25 @@ export default function AddThumbnail({
     images.length !== openedOrder.current.length ||
     images.some((image, index) => image.id !== openedOrder.current[index])
   async function apply(): Promise<void> {
-    committed.current = true
-    for (const image of removed) await window.library.deleteGameImage(game.id, image.id)
-    await window.library.reorderGameImages(
-      game.id,
-      images.map((image) => image.id)
-    )
-    const image = images.find((candidate) => candidate.id === selectedId)
-    if (image) await window.library.setThumbnail(game.id, image.filePath)
-    onApplied()
+    /* `committed` is set only once the writes have gone through, and after
+       everything is written, so a write that throws leaves the board open with
+       its edits intact rather than closing as though it had saved — and, since
+       nothing was committed, the pictures added this session are still cleaned
+       up if the board is then left another way. */
+    try {
+      for (const image of removed) await window.library.deleteGameImage(game.id, image.id)
+      await window.library.reorderGameImages(
+        game.id,
+        images.map((image) => image.id)
+      )
+      const image = images.find((candidate) => candidate.id === selectedId)
+      if (image) await window.library.setThumbnail(game.id, image.filePath)
+      committed.current = true
+      onApplied()
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('APPLY failed', error)
+    }
   }
 
   /* **CANCEL puts the Main Image back to what it was when the board was
