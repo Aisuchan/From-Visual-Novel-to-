@@ -22,6 +22,20 @@
 - **自動バックアップ** … 起動時にライブラリをバックアップ（日/週/月/年の世代管理）
 - **日本語 / 英語 切り替え**、日本語フォントの変更 など
 
+## スクリーンショット
+
+### ホーム（ライブラリ一覧）
+
+![ホーム](docs/home.png)
+
+### カレンダー
+
+![カレンダー](docs/calender.png)
+
+### プレイタイムグラフ
+
+![プレイタイムグラフ](docs/playtime_graph.png)
+
 ## ダウンロード / インストール
 
 1. [Releases](../../releases) ページを開く
@@ -98,6 +112,20 @@ While you play, a small "Recorder Panel" like the one below stays on top of your
 - **CSV export** — export your library information as CSV
 - **Automatic backup** — backs up your library on launch (day / week / month / year generations)
 - **Japanese / English switch**, changeable Japanese font, and more
+
+## Screenshots
+
+### Home (library)
+
+![Home](docs/home.png)
+
+### Calendar
+
+![Calendar](docs/calender.png)
+
+### Playtime graph
+
+![Playtime graph](docs/playtime_graph.png)
 
 ## Download / Install
 
