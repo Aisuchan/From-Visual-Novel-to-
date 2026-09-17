@@ -1,5 +1,7 @@
 # From Visual Novel to
 
+> **English:** An English version of this README is available [at the bottom of this page](#from-visual-novel-to-english).
+
 主にノベルゲーム（ビジュアルノベル）のライブラリを管理するための Windows デスクトップアプリです。
 ゲームを登録してアプリから起動でき、プレイ時間を自動で記録します。プレイ中は小さな「レコーダーパネル」を最前面に表示し、経過時間の確認・一時停止・スクリーンショット・録画・録音ができます。
 
@@ -23,6 +25,8 @@
 - **日本語 / 英語 切り替え**、日本語フォントの変更 など
 
 ## スクリーンショット
+
+> スクリーンショットには、動作確認のために登録したゲームのパッケージ画像・サムネイル等が写っています。これらの著作権は各権利者に帰属し、本アプリの画面を説明する目的でのみ掲載しています。権利者からの申し出があれば速やかに差し替え・削除します。
 
 ### ホーム（ライブラリ一覧）
 
@@ -114,6 +118,8 @@ While you play, a small "Recorder Panel" like the one below stays on top of your
 - **Japanese / English switch**, changeable Japanese font, and more
 
 ## Screenshots
+
+> These screenshots include package art and thumbnails of games registered for testing. Their copyright belongs to the respective rights holders; they appear here only to illustrate the app's screens, and will be replaced or removed promptly on request from a rights holder.
 
 ### Home (library)
 
