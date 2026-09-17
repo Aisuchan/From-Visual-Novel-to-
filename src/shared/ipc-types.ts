@@ -114,6 +114,9 @@ export const IpcChannels = {
   OverlayTick: 'overlay:tick',
   OverlayCaptureState: 'overlay:capture-state',
   OverlaySetWidth: 'overlay:set-width',
+  OverlayFlipSide: 'overlay:flip-side',
+  OverlayDragStart: 'overlay:drag-start',
+  OverlayDragMove: 'overlay:drag-move',
   OverlayPlayRecordEffect: 'overlay:play-record-effect',
   /* The hidden capture window is a worker: the main process sends it commands
      and it answers on the other two channels. */
@@ -447,4 +450,14 @@ export interface OverlayApi {
    * is uncovered as the strip slides rather than all at once at the end.
    */
   setWidth(width: number): void
+  /** Turns the panel around — right-facing to left and back — in place, on a
+      double-click of its Move Button. The renderer flips its own layout to match
+      at the same time. */
+  flipSide(): void
+  /** The panel is moved by the renderer rather than the OS (a transparent
+      window's own drag region swallows the events a double-click needs): the
+      grab is registered as the Move Button is pressed, and the window follows
+      the pointer's screen position reported as it moves. */
+  dragStart(mouseX: number, mouseY: number): void
+  dragMove(mouseX: number, mouseY: number): void
 }

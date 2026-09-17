@@ -20,9 +20,13 @@ import * as reference from './reference'
 import {
   createOverlayWindow,
   closeOverlayWindow,
+  flipOverlaySide,
   getLibraryWindow,
+  getOverlayPanelOrigin,
   getOverlayWindow,
   keepOverlayOnTop,
+  overlayDragMove,
+  overlayDragStart,
   setOverlayWidth
 } from './windows'
 import { listSoundEffects } from './sound-effects'
@@ -122,6 +126,13 @@ function finishActiveSession(): void {
   // here rather than in the renderer so it lands whether or not the Route board
   // is open — or the library window is even up.
   db.addRoutePlaySeconds(session.gameId, session.durationSeconds)
+  // Where the panel was left is remembered against the game, so its next play
+  // brings it back there — read before the window is closed, and only while the
+  // Setting board's row for it is on.
+  if (db.getSettings().rememberPanelPosition === 'on') {
+    const origin = getOverlayPanelOrigin()
+    if (origin) db.setPanelPosition(finished.gameId, origin.x, origin.y)
+  }
   // Whatever was still recording is flushed to disk before the worker goes.
   void capture.shutdownCapture()
   closeOverlayWindow()
@@ -846,7 +857,11 @@ export function registerIpcHandlers(): void {
     }
 
     if (req.useRecorderPanel) {
-      createOverlayWindow()
+      // Bring the panel back to where this game left it last time, if anywhere
+      // and if the Setting board's row for it is on.
+      const saved =
+        db.getSettings().rememberPanelPosition === 'on' ? db.getPanelPosition(game.id) : null
+      createOverlayWindow(saved)
     }
 
     return { sessionId: session.id, gameTitle: game.title }
@@ -937,6 +952,22 @@ export function registerIpcHandlers(): void {
   // desktop back exactly as fast as the strip slides off it.
   ipcMain.on(IpcChannels.OverlaySetWidth, (_event, width: number) => {
     setOverlayWidth(width)
+  })
+
+  // A double-click of the panel's Move Button turns it around; the renderer has
+  // flipped its own layout and asks the window to match.
+  ipcMain.on(IpcChannels.OverlayFlipSide, () => {
+    flipOverlaySide()
+  })
+
+  // The Move Button is dragged by the renderer rather than the OS (see the
+  // OverlayApi note): the grab is registered on press, and the window follows
+  // the pointer's screen position as it moves.
+  ipcMain.on(IpcChannels.OverlayDragStart, (_event, mouseX: number, mouseY: number) => {
+    overlayDragStart(mouseX, mouseY)
+  })
+  ipcMain.on(IpcChannels.OverlayDragMove, (_event, mouseX: number, mouseY: number) => {
+    overlayDragMove(mouseX, mouseY)
   })
 
   // The library window draws its own title bar buttons (the native overlay

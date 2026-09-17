@@ -259,7 +259,13 @@ export function initDb(): void {
     // They are that face's and nothing else's, so they are columns here rather
     // than rows in `game_images`, which is the Add Thumbnail gallery's list.
     home_card_image: 'TEXT',
-    home_spine_image: 'TEXT'
+    home_spine_image: 'TEXT',
+    // Where the Recorder Panel was left for this game — the fixed corner it
+    // folds and grows from, in screen pixels — so the next play brings it back
+    // there rather than to the Setting board's default corner. NULL until the
+    // panel has been moved for the game at least once.
+    panel_x: 'INTEGER',
+    panel_y: 'INTEGER'
   })
 
   /* `play_time_offset` used to be stored against the sum over every session.
@@ -1155,6 +1161,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   videoToGallery: 'off',
   // The design's own size; the other two are the player's to ask for.
   overlaySize: 'medium',
+  rememberPanelPosition: 'on',
   // Both sounds are already made, so the rows that turn them off start on.
   crackerSound: 'on',
   balloonSound: 'on',
@@ -1252,6 +1259,11 @@ export function getSettings(): AppSettings {
       DEFAULT_SETTINGS.videoToGallery
     ),
     overlaySize: oneOf(stored.get('overlaySize'), OVERLAY_SIZES, DEFAULT_SETTINGS.overlaySize),
+    rememberPanelPosition: oneOf(
+      stored.get('rememberPanelPosition'),
+      ['on', 'off'],
+      DEFAULT_SETTINGS.rememberPanelPosition
+    ),
     crackerSound: oneOf(stored.get('crackerSound'), ['on', 'off'], DEFAULT_SETTINGS.crackerSound),
     balloonSound: oneOf(stored.get('balloonSound'), ['on', 'off'], DEFAULT_SETTINGS.balloonSound),
     /* Like `overlayDisplay`, these two hold a value that is not a list this
@@ -1584,6 +1596,25 @@ export function reorderGames(orderedIds: number[]): void {
 export function getGame(gameId: number): GameWithStats | null {
   const row = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId)
   return row ? rowToGameWithStats(row) : null
+}
+
+/** Where the Recorder Panel was last left for a game — the corner it folds and
+    grows from, in screen pixels — or null if it has never been moved for it. */
+export function getPanelPosition(gameId: number): { x: number; y: number } | null {
+  const row = db.prepare('SELECT panel_x, panel_y FROM games WHERE id = ?').get(gameId) as
+    | { panel_x: number | null; panel_y: number | null }
+    | undefined
+  if (!row || row.panel_x === null || row.panel_y === null) return null
+  return { x: row.panel_x, y: row.panel_y }
+}
+
+/** Remembers where the panel was left for a game, written as its play ends. */
+export function setPanelPosition(gameId: number, x: number, y: number): void {
+  db.prepare('UPDATE games SET panel_x = ?, panel_y = ? WHERE id = ?').run(
+    Math.round(x),
+    Math.round(y),
+    gameId
+  )
 }
 
 export function getLaunchPrefs(gameId: number): LaunchPrefs {

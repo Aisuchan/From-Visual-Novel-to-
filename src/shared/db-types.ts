@@ -501,6 +501,9 @@ export interface AppSettings {
   /** How large the Recorder Panel is drawn — the design's own size, and a
       quarter either side of it. */
   overlaySize: OverlaySize
+  /** Whether the panel returns to where it was left for a game on its next play,
+      rather than to the initial position above. Off falls back to that. */
+  rememberPanelPosition: Toggle
   /* The 音声 tab: the two sounds the finale makes. Both are already played
      and this is only whether they are — the confetti's crackers as the clip's
      own cues come up, and a balloon's pop as it is clicked. */

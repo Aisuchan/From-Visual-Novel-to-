@@ -27,6 +27,10 @@ const FRAME_MS = 1000 / 60
 /** How long a confirmation stays up. Long enough to read, short enough to miss. */
 const TOAST_MS = 1000
 
+/** How far the pointer travels before a press on the Move Button is a drag
+    rather than the first click of a double-click. */
+const DRAG_THRESHOLD = 3
+
 /** easeInOutCubic. */
 function ease(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
@@ -39,8 +43,6 @@ function ease(t: number): number {
 const CORNER = window.overlay.corner
 const AT_LEFT = CORNER.endsWith('left')
 const AT_TOP = CORNER.startsWith('top')
-/** In a left-hand corner the strip folds the other way. */
-const DIRECTION = AT_LEFT ? -1 : 1
 
 /* The 言語/language row, which arrives on the window's own command line with
    the corner and the scale — the panel is drawn once and never re-read, so
@@ -74,8 +76,14 @@ export default function App(): React.JSX.Element {
   const [busy, setBusy] = useState(false)
   const [capture, setCapture] = useState<CaptureState>({ video: false, audio: false })
   const [toast, setToast] = useState<string | null>(null)
+  /* Which way the panel faces. It opens as the Setting board's corner says
+     (`AT_LEFT`) and a double-click of the Move Button turns it around; the way
+     it folds follows it (`direction`). */
+  const [atLeft, setAtLeft] = useState(AT_LEFT)
+  const direction = atLeft ? -1 : 1
   const stripRef = useRef<HTMLDivElement | null>(null)
   const frameRef = useRef<number | null>(null)
+  const dragRef = useRef<{ startX: number; startY: number; moved: boolean } | null>(null)
 
   /* The stylesheet's own kill switch, set on the document rather than passed
      down: what it turns off is the chevron's transition, which is a rule
@@ -152,6 +160,43 @@ export default function App(): React.JSX.Element {
     setPaused(result.paused)
   }
 
+  /* A double-click of the Move Button turns the panel around. The layout flips
+     here and the window flips there, both off the one gesture, so the two stay
+     in step. Not mid-fold, when the window would be moved under the slide. */
+  function handleFlip(): void {
+    if (busy) return
+    setAtLeft((v) => !v)
+    window.overlay.flipSide()
+  }
+
+  /* The Move Button is dragged by moving the window from here rather than by the
+     OS's own drag region: a transparent window's drag region swallows every
+     event, so a double-click on it never arrives. Made a no-drag element, the
+     button keeps its double-click, and the move is done by hand — pointer
+     capture so it keeps coming once the pointer leaves the small button, a few
+     pixels of travel before it counts as a drag so a double-click never nudges
+     the window, and the pointer's *screen* position (which the window's own zoom
+     does not touch) reported to the main process. */
+  function handleMovePointerDown(e: React.PointerEvent<HTMLDivElement>): void {
+    if (e.button !== 0) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    dragRef.current = { startX: e.screenX, startY: e.screenY, moved: false }
+    window.overlay.dragStart(e.screenX, e.screenY)
+  }
+  function handleMovePointerMove(e: React.PointerEvent<HTMLDivElement>): void {
+    const drag = dragRef.current
+    if (!drag) return
+    if (!drag.moved && Math.hypot(e.screenX - drag.startX, e.screenY - drag.startY) < DRAG_THRESHOLD) {
+      return
+    }
+    drag.moved = true
+    window.overlay.dragMove(e.screenX, e.screenY)
+  }
+  function handleMovePointerUp(e: React.PointerEvent<HTMLDivElement>): void {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+    dragRef.current = null
+  }
+
   /**
    * The strip — boards, fill, stroke and all — slides out under the Move
    * Button and back again, and the window travels with it: the main process
@@ -193,13 +238,13 @@ export default function App(): React.JSX.Element {
     setBusy(true)
     // Set before the class change, so the rule for the resting state never
     // gets a frame of its own to snap to.
-    strip.style.transform = `translateX(${from * DIRECTION}px)`
+    strip.style.transform = `translateX(${from * direction}px)`
     setShrunk(next)
 
     const started = performance.now()
     const step = (now: number): void => {
       const progress = Math.min(1, (now - started) / SHRINK_ANIM_MS)
-      strip.style.transform = `translateX(${offsetAt(progress) * DIRECTION}px)`
+      strip.style.transform = `translateX(${offsetAt(progress) * direction}px)`
 
       const ahead = next ? progress : Math.min(1, progress + FRAME_MS / SHRINK_ANIM_MS)
       window.overlay.setWidth(PANEL_WIDTH - offsetAt(ahead))
@@ -224,7 +269,7 @@ export default function App(): React.JSX.Element {
 
   return (
     <div
-      className={`overlay-panel${AT_LEFT ? ' at-left' : ''}${AT_TOP ? ' at-top' : ''}${
+      className={`overlay-panel${atLeft ? ' at-left' : ''}${AT_TOP ? ' at-top' : ''}${
         shrunk ? ' is-shrunk' : ''
       }${paused ? ' is-paused' : ''}`}
       style={{ zoom: SCALE }}
@@ -279,8 +324,17 @@ export default function App(): React.JSX.Element {
         </div>
       </div>
 
-      {/* Outside the strip: the corner the strip slides under. */}
-      <div className="overlay-move" title={t('ドラッグして移動')}>
+      {/* Outside the strip: the corner the strip slides under. Dragged to move
+          the panel (the window is moved from here — see `handleMovePointerDown`)
+          and double-clicked to turn it around. */}
+      <div
+        className="overlay-move"
+        title={t('ドラッグして移動 / ダブルクリックで左右反転')}
+        onPointerDown={handleMovePointerDown}
+        onPointerMove={handleMovePointerMove}
+        onPointerUp={handleMovePointerUp}
+        onDoubleClick={handleFlip}
+      >
         <span>⋮⋮</span>
       </div>
 

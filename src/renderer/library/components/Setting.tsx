@@ -547,6 +547,16 @@ const ROWS: Row[] = [
     ]
   },
   {
+    kind: 'toggle',
+    id: 'rememberPanelPosition',
+    tab: 'overlay',
+    name: 'パネルの位置を記憶',
+    description: 'ゲームごとに前回の位置へパネルを復元する',
+    title: 'パネルの位置の記憶の入り切り',
+    current: (settings) => settings.rememberPanelPosition,
+    patch: (value) => ({ rememberPanelPosition: value })
+  },
+  {
     kind: 'select',
     id: 'screenshotFormat',
     tab: 'overlay',

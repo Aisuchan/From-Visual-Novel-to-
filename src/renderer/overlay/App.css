@@ -287,9 +287,12 @@ body {
 
 /* Move Button — 24x28, pad 0 5, row / align start. It is the one part that
    does not travel: it stays in the corner and the strip disappears beneath
-   it, so it carries the plate's fill and the stroke down its right side. */
+   it, so it carries the plate's fill and the stroke down its right side.
+   **Not an OS drag region**: the window is moved from the page instead (see
+   `handleMovePointerDown`), because a transparent window's own drag region
+   swallows the events a double-click-to-flip needs. */
 .overlay-move {
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
   position: absolute;
   top: 0;
   right: 0;

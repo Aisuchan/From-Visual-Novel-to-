@@ -46,7 +46,12 @@ const overlayApi: OverlayApi = {
   toggleVideo: () => ipcRenderer.invoke(IpcChannels.SessionToggleVideo),
   toggleAudio: () => ipcRenderer.invoke(IpcChannels.SessionToggleAudio),
   togglePause: () => ipcRenderer.invoke(IpcChannels.SessionTogglePause),
-  setWidth: (width: number) => ipcRenderer.send(IpcChannels.OverlaySetWidth, width)
+  setWidth: (width: number) => ipcRenderer.send(IpcChannels.OverlaySetWidth, width),
+  flipSide: () => ipcRenderer.send(IpcChannels.OverlayFlipSide),
+  dragStart: (mouseX: number, mouseY: number) =>
+    ipcRenderer.send(IpcChannels.OverlayDragStart, mouseX, mouseY),
+  dragMove: (mouseX: number, mouseY: number) =>
+    ipcRenderer.send(IpcChannels.OverlayDragMove, mouseX, mouseY)
 }
 
 contextBridge.exposeInMainWorld('overlay', overlayApi)

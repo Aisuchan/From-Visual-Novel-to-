@@ -177,7 +177,19 @@ function overlayDisplay(id: string): Electron.Display {
   return named ?? screen.getPrimaryDisplay()
 }
 
-export function createOverlayWindow(): BrowserWindow {
+/** Whether a remembered point still lands on a connected display, so a panel is
+    never restored to where a since-unplugged screen was. */
+function pointOnScreen(p: { x: number; y: number }): boolean {
+  return screen.getAllDisplays().some(
+    (d) =>
+      p.x >= d.bounds.x &&
+      p.x <= d.bounds.x + d.bounds.width &&
+      p.y >= d.bounds.y &&
+      p.y <= d.bounds.y + d.bounds.height
+  )
+}
+
+export function createOverlayWindow(savedOrigin?: { x: number; y: number } | null): BrowserWindow {
   if (overlayWindow) {
     overlayWindow.show()
     return overlayWindow
@@ -187,7 +199,12 @@ export function createOverlayWindow(): BrowserWindow {
      the usable desktop (the work area, so the taskbar does not sit on top of
      it). The window is wholly inside it — the panel is in the window's own
      corner of the same name, and the slack on the other two sides is shaped
-     away rather than pushed off the screen. */
+     away rather than pushed off the screen.
+
+     `savedOrigin`, where the game left the panel last time, overrides that: it
+     is the panel's own top-left on screen — the expanded panel's, so which way
+     it was folded or facing does not matter — and the window is placed so the
+     panel opens there. A point no longer on any screen is dropped to the default. */
   const settings = getSettings()
   overlayScale = OVERLAY_SCALES[settings.overlaySize]
   overlayPanelWidth = panelWidth()
@@ -196,13 +213,30 @@ export function createOverlayWindow(): BrowserWindow {
   overlayTop = corner.startsWith('top')
   const { workArea } = overlayDisplay(settings.overlayDisplay)
 
+  /* The panel fills the window at full width, so its top-left is the window's
+     left; vertically the window carries its slack on the side away from the
+     corner, which is added back to reach the window's own top. */
+  const useSaved = savedOrigin != null && pointOnScreen(savedOrigin)
+  const posX = useSaved
+    ? savedOrigin.x
+    : overlaySide === 'right'
+      ? workArea.x + workArea.width - panelWidth()
+      : workArea.x
+  const posY = useSaved
+    ? overlayTop
+      ? savedOrigin.y
+      : savedOrigin.y - (windowHeight() - panelHeight())
+    : overlayTop
+      ? workArea.y
+      : workArea.y + workArea.height - windowHeight()
+
   const win = new BrowserWindow({
     // Penpot "Recorder Panel" board is 225x28 plus its 1px outer stroke; the
     // height is the floor, the panel taking 30 of it at the corner's own end.
     width: panelWidth(),
     height: windowHeight(),
-    x: overlaySide === 'right' ? workArea.x + workArea.width - panelWidth() : workArea.x,
-    y: overlayTop ? workArea.y : workArea.y + workArea.height - windowHeight(),
+    x: posX,
+    y: posY,
     frame: false,
     transparent: true,
     // A frameless transparent panel has nothing to cast one, and a shadow is
@@ -304,6 +338,61 @@ export function getLibraryWindow(): BrowserWindow | null {
 
 export function getOverlayWindow(): BrowserWindow | null {
   return overlayWindow
+}
+
+/** The panel's own top-left on screen — the expanded panel's, so it is the same
+    point whichever way the panel is folded or facing — read off the live window.
+    Saved as a game's play ends so the next play brings the panel back to it.
+    Null when there is no panel. */
+export function getOverlayPanelOrigin(): { x: number; y: number } | null {
+  const win = overlayWindow
+  if (!win || win.isDestroyed()) return null
+  const b = win.getBounds()
+  return {
+    // The fold holds the panel's fixed edge, so the expanded panel runs to
+    // panelWidth() from it: from the right edge on a right panel, the left edge
+    // on a left one.
+    x: overlaySide === 'right' ? b.x + b.width - panelWidth() : b.x,
+    y: overlayTop ? b.y : b.y + b.height - panelHeight()
+  }
+}
+
+/** Turns the panel around — right-facing to left and back — on a double-click of
+    its Move Button. The panel stays put on screen: its visible box is held while
+    the fixed edge (which the fold holds and the shape sits against) moves to the
+    other side, so only the way it folds and where the Move Button sits change.
+    Returns the new side, for the renderer that asked to draw itself to match. */
+export function flipOverlaySide(): 'left' | 'right' | null {
+  const win = overlayWindow
+  if (!win || win.isDestroyed()) return null
+  const b = win.getBounds()
+  const panelLeft = b.x + (overlaySide === 'right' ? b.width - overlayPanelWidth : 0)
+  overlaySide = overlaySide === 'right' ? 'left' : 'right'
+  const nextShapeX = overlaySide === 'right' ? b.width - overlayPanelWidth : 0
+  win.setBounds({ x: Math.round(panelLeft - nextShapeX), y: b.y, width: b.width, height: b.height })
+  applyOverlayShape(win, overlayPanelWidth)
+  return overlaySide
+}
+
+/* The panel is dragged by its Move Button, which the renderer moves the window
+   for rather than the OS: a transparent window's own drag region is handled
+   inside Chromium and swallows every event, so a double-click on it never
+   reaches the page. Made an ordinary (no-drag) element, the button keeps the
+   double-click and the move is done here, from the pointer's screen position
+   the page reports — the grab offset held from the press so the window follows
+   the pointer with the same point under it. `setPosition` carries the window's
+   shape with it, so nothing is re-clipped. */
+let overlayDragOffset = { x: 0, y: 0 }
+export function overlayDragStart(mouseX: number, mouseY: number): void {
+  const win = overlayWindow
+  if (!win || win.isDestroyed()) return
+  const b = win.getBounds()
+  overlayDragOffset = { x: b.x - mouseX, y: b.y - mouseY }
+}
+export function overlayDragMove(mouseX: number, mouseY: number): void {
+  const win = overlayWindow
+  if (!win || win.isDestroyed()) return
+  win.setPosition(Math.round(mouseX + overlayDragOffset.x), Math.round(mouseY + overlayDragOffset.y))
 }
 
 /** Put the panel back at the top of the z-order. A game taking the whole screen

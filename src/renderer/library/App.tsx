@@ -110,6 +110,7 @@ export default function App(): React.JSX.Element {
     screenshotToGallery: 'off',
     videoToGallery: 'off',
     overlaySize: 'medium',
+    rememberPanelPosition: 'on',
     crackerSound: 'on',
     balloonSound: 'on',
     screenshotSound: 'off',
