@@ -985,8 +985,8 @@ export default function App(): React.JSX.Element {
               : t('減らした {0} を\n今日のプレイ時間からも引きますか？', formatPlaytime(-playTimeEdit.delta))
           }
           note={t('反映すると、フッターの時間・カレンダー・プレイタイムグラフも変わります')}
-          confirmLabel={t('反映する')}
-          cancelLabel={t('反映しない')}
+          confirmLabel={t('はい')}
+          cancelLabel={t('いいえ')}
           /* Walked away from — the backdrop, or Escape — the edit is dropped:
              nothing has been written yet, so the total stands where it was. */
           onDismiss={() => setPlayTimeEdit(null)}
