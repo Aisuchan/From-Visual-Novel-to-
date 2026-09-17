@@ -3,17 +3,28 @@ import path from 'node:path'
 import { t } from '../shared/i18n'
 
 const POLL_INTERVAL_MS = 3000
+/* How a hand-off is waited out. A launched exe can be a bootstrapper that starts
+   the game through another process of the same name and exits at once — a Steam
+   game re-launched through Steam is the common one — so its own exit is not the
+   game's. After it exits the process list is watched for that name to be (or come
+   back) up; these bound how long a re-launch is given to appear before the game
+   is taken to have really ended. */
+const CONFIRM_INTERVAL_MS = 1000
+const CONFIRM_GRACE_POLLS = 6
 
 function psQuote(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
+}
+
+function isRunning(stdout: string | null | undefined, exeName: string): boolean {
+  return !!stdout && stdout.toLowerCase().includes(exeName.toLowerCase())
 }
 
 function pollUntilExited(exeName: string, onExit: () => void): void {
   let seenRunning = false
   const timer = setInterval(() => {
     execFile('tasklist', ['/FI', `IMAGENAME eq ${exeName}`, '/NH'], (_err, stdout) => {
-      const running = !!stdout && stdout.toLowerCase().includes(exeName.toLowerCase())
-      if (running) {
+      if (isRunning(stdout, exeName)) {
         seenRunning = true
         return
       }
@@ -23,6 +34,29 @@ function pollUntilExited(exeName: string, onExit: () => void): void {
       }
     })
   }, POLL_INTERVAL_MS)
+}
+
+/* Called when the launched exe has exited, to decide whether the game exited
+   with it. If a process of the same name is (or comes) up within the grace, the
+   exe was a bootstrapper and the game is still running — it is watched until it
+   truly goes; if the name stays gone, the game really ended. This is what keeps
+   the Recorder Panel up for a Steam game, whose exe hands off to Steam and exits
+   before the panel has settled. */
+function confirmExitThenWatch(exeName: string, onExit: () => void): void {
+  let checks = 0
+  const timer = setInterval(() => {
+    execFile('tasklist', ['/FI', `IMAGENAME eq ${exeName}`, '/NH'], (_err, stdout) => {
+      if (isRunning(stdout, exeName)) {
+        clearInterval(timer)
+        pollUntilExited(exeName, onExit)
+        return
+      }
+      if (++checks >= CONFIRM_GRACE_POLLS) {
+        clearInterval(timer)
+        onExit()
+      }
+    })
+  }, CONFIRM_INTERVAL_MS)
 }
 
 /* What a spawn's own failure is worth saying. `spawn` reports these on the
@@ -91,7 +125,11 @@ export function launchGame(
   })
   child.once('exit', () => {
     if (failed) return
-    onExit()
+    /* Not taken as the game having exited on its own: the exe may be a
+       bootstrapper (a Steam game re-launched through Steam) that hands off and
+       exits at once, which is why the panel never appeared. The process list
+       decides — see `confirmExitThenWatch`. */
+    confirmExitThenWatch(exeName, onExit)
   })
   return child.pid ?? null
 }
