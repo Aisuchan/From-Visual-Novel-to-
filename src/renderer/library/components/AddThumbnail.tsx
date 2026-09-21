@@ -126,6 +126,18 @@ export default function AddThumbnail({
   const [added, setAdded] = useState<number[]>([])
   const addedRef = useRef<number[]>([])
   addedRef.current = added
+  /* The latest `game.id` and `onGamesChanged`, kept in refs so the unmount
+     cleanup can read them without `discardAdded` depending on them. The parent
+     passes a fresh `onGamesChanged` (an unmemoised `refreshGames`) on every one
+     of its renders, and a `discardAdded` that changed identity with it made the
+     `[discardAdded]` cleanup below run on every parent render rather than only
+     on unmount — silently deleting this session's added pictures, files and all,
+     while the board stood open. Read through refs, `discardAdded` is stable and
+     the cleanup fires only when the board is actually left. */
+  const onGamesChangedRef = useRef(onGamesChanged)
+  onGamesChangedRef.current = onGamesChanged
+  const gameIdRef = useRef(game.id)
+  gameIdRef.current = game.id
   const openedOrder = useRef<number[]>([])
   /** True once APPLY or CANCEL has answered for the board's edits. */
   const committed = useRef(false)
@@ -770,9 +782,9 @@ export default function AddThumbnail({
     const ids = addedRef.current
     if (ids.length === 0) return
     addedRef.current = []
-    for (const id of ids) await window.library.deleteGameImage(game.id, id)
-    onGamesChanged()
-  }, [game.id, onGamesChanged])
+    for (const id of ids) await window.library.deleteGameImage(gameIdRef.current, id)
+    onGamesChangedRef.current()
+  }, [])
 
   useEffect(
     () => () => {
