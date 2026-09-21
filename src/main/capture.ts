@@ -11,12 +11,16 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { getSettings, setSettings } from './db'
+import { finalizeFragmentedMp4 } from './mp4-finalize'
+import { buildHeader, type SampleMeta } from './mp4-mux'
 import { getOverlayWindow, loadRenderer } from './windows'
 import { IpcChannels } from '../shared/ipc-types'
 import { t } from '../shared/i18n'
 import type {
   CaptureChunkPayload,
   CaptureCommand,
+  CaptureMuxConfigPayload,
+  CaptureMuxSamplePayload,
   CaptureResultPayload,
   CaptureState,
   CaptureToggleResult,
@@ -389,6 +393,12 @@ async function closeWriter(track: CaptureTrack): Promise<string | null> {
   writers.delete(track)
   await new Promise<void>((resolve) => writer.stream.end(resolve))
   if (writer.wav) await patchWavSizes(writer.filePath, writer.bytes)
+  // MediaRecorder only writes fragmented MP4, whose `moov` carries no total
+  // duration, so a concatenated recording reads as "a few seconds" to a player
+  // that does not walk every fragment. Remux it into a plain progressive MP4
+  // once the last chunk is down; the helper leaves anything it does not
+  // understand untouched, so this never costs a recording. See mp4-finalize.ts.
+  if (track === 'video') await finalizeFragmentedMp4(writer.filePath)
   return writer.filePath
 }
 
@@ -485,6 +495,107 @@ async function offerToSave(
   return target
 }
 
+/* The WebCodecs recording's own state, separate from the chunk `writers`: the
+   worker ships encoded video (H.264) and audio (AAC) samples, whose bytes are
+   streamed to two scratch files while their sizes/timestamps are kept in memory,
+   and on stop the two are muxed into one progressive MP4. See mp4-mux.ts. */
+const VIDEO_TIMESCALE = 1_000_000
+const DEFAULT_FRAME_US = 33_333
+
+interface MuxRecording {
+  filePath: string
+  videoTmp: string
+  audioTmp: string
+  videoStream: fs.WriteStream
+  audioStream: fs.WriteStream
+  videoSamples: { ts: number; size: number; sync: boolean }[]
+  audioSamples: number[]
+  videoConfig: { avcC: Buffer; width: number; height: number } | null
+  audioConfig: { asc: Buffer; sampleRate: number; channels: number } | null
+}
+
+let muxRec: MuxRecording | null = null
+
+function startMux(filePath: string): void {
+  muxRec = {
+    filePath,
+    videoTmp: filePath + '.v',
+    audioTmp: filePath + '.a',
+    videoStream: fs.createWriteStream(filePath + '.v'),
+    audioStream: fs.createWriteStream(filePath + '.a'),
+    videoSamples: [],
+    audioSamples: [],
+    videoConfig: null,
+    audioConfig: null
+  }
+}
+
+function endStream(stream: fs.WriteStream): Promise<void> {
+  return new Promise((resolve) => stream.end(() => resolve()))
+}
+
+/** Appends `src`'s bytes to the already-open `dest` without closing it. */
+function appendFileInto(dest: fs.WriteStream, src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const read = fs.createReadStream(src)
+    read.on('error', reject)
+    read.on('end', () => resolve())
+    read.pipe(dest, { end: false })
+  })
+}
+
+/**
+ * Muxes the two scratch files into the final MP4 and returns its path, or null
+ * if nothing usable was recorded. The scratch files are removed either way.
+ */
+async function finishMux(): Promise<string | null> {
+  const rec = muxRec
+  if (!rec) return null
+  muxRec = null
+  await Promise.all([endStream(rec.videoStream), endStream(rec.audioStream)])
+
+  const cleanup = (): void => {
+    fs.rmSync(rec.videoTmp, { force: true })
+    fs.rmSync(rec.audioTmp, { force: true })
+  }
+
+  if (!rec.videoConfig || rec.videoSamples.length === 0) {
+    cleanup()
+    return null
+  }
+
+  // Per-frame durations from the presentation timestamps — baseline H.264 has no
+  // reordering, so they are monotonic; the last frame borrows the previous delta.
+  const vs = rec.videoSamples
+  const videoMeta: SampleMeta[] = vs.map((s, i) => {
+    const delta =
+      i < vs.length - 1 ? vs[i + 1].ts - s.ts : i > 0 ? vs[i].ts - vs[i - 1].ts : DEFAULT_FRAME_US
+    return { size: s.size, duration: Math.max(1, delta), sync: s.sync }
+  })
+
+  const video = { config: rec.videoConfig, timescale: VIDEO_TIMESCALE, samples: videoMeta }
+  const audio =
+    rec.audioConfig && rec.audioSamples.length > 0
+      ? {
+          config: rec.audioConfig,
+          timescale: rec.audioConfig.sampleRate,
+          samples: rec.audioSamples.map((size) => ({ size, duration: 1024, sync: true }))
+        }
+      : null
+
+  const head = buildHeader(video, audio)
+  const out = fs.createWriteStream(rec.filePath)
+  await new Promise<void>((resolve, reject) => {
+    out.on('error', reject)
+    out.write(head, (err) => (err ? reject(err) : resolve()))
+  })
+  await appendFileInto(out, rec.videoTmp)
+  if (audio) await appendFileInto(out, rec.audioTmp)
+  await endStream(out)
+  cleanup()
+  return rec.filePath
+}
+
 export function registerCaptureHandlers(): void {
   /*
    * `audio: 'loopback'` is what the system is playing. Windows offers no way
@@ -512,6 +623,35 @@ export function registerCaptureHandlers(): void {
     const chunk = Buffer.from(payload.data)
     writer.bytes += chunk.length
     writer.stream.write(chunk)
+  })
+
+  ipcMain.on(IpcChannels.CaptureMuxConfig, (_event, payload: CaptureMuxConfigPayload) => {
+    if (!muxRec) return
+    if (payload.kind === 'video') {
+      muxRec.videoConfig = {
+        avcC: Buffer.from(payload.avcC),
+        width: payload.width,
+        height: payload.height
+      }
+    } else {
+      muxRec.audioConfig = {
+        asc: Buffer.from(payload.asc),
+        sampleRate: payload.sampleRate,
+        channels: payload.channels
+      }
+    }
+  })
+
+  ipcMain.on(IpcChannels.CaptureMuxSample, (_event, payload: CaptureMuxSamplePayload) => {
+    if (!muxRec) return
+    const buf = Buffer.from(payload.data)
+    if (payload.kind === 'video') {
+      muxRec.videoStream.write(buf)
+      muxRec.videoSamples.push({ ts: payload.timestamp, size: buf.length, sync: payload.sync })
+    } else {
+      muxRec.audioStream.write(buf)
+      muxRec.audioSamples.push(buf.length)
+    }
   })
 
   ipcMain.on(IpcChannels.CaptureResult, (_event, payload: CaptureResultPayload) => {
@@ -577,27 +717,26 @@ export function toggleVideo(
     if (state.video) {
       await send({ kind: 'stop-video' })
       state.video = false
-      const filePath = await closeWriter('video')
+      const filePath = await finishMux()
       const savedTo = filePath ? await offerToSave(filePath, target.title, 'video') : null
       return { state: getCaptureState(), savedTo }
     }
 
     /*
-     * The extension is the Setting board's, the bytes are not: this runtime's
-     * MediaRecorder muxes MP4 (H.264 + AAC) and WebM and nothing else, so a
-     * .mov holds the same ISO-BMFF stream an .mp4 does. Every reader of the
-     * format sniffs the `ftyp` brand rather than the name, so the file opens
-     * as a QuickTime movie — but it is not a QuickTime mux, and making one
-     * would take a remuxer this app does not carry.
+     * The extension is the Setting board's, the bytes are not: the recording is
+     * always H.264 + AAC in an ISO-BMFF file, so a .mov holds the same stream a
+     * .mp4 does and every reader sniffs the `ftyp` brand rather than the name.
+     * The samples are encoded in the worker (in software, to dodge the hardware
+     * encoder the game corrupts) and muxed here on stop.
      */
     const source = await findSource(target)
-    openWriter('video', outputPath(userDataDir, 'videos', gameId, getSettings().videoFormat))
+    startMux(outputPath(userDataDir, 'videos', gameId, getSettings().videoFormat))
     nextDisplayMedia = { source, audio: true }
     try {
       await send({ kind: 'start-video' })
       state.video = true
     } catch (error) {
-      void closeWriter('video')
+      void finishMux()
       throw error
     } finally {
       nextDisplayMedia = null
@@ -653,7 +792,7 @@ export async function shutdownCapture(): Promise<void> {
     if (state.video) {
       await send({ kind: 'stop-video' }).catch(() => undefined)
       state.video = false
-      await closeWriter('video')
+      await finishMux()
     }
     if (state.audio) {
       await send({ kind: 'stop-audio' }).catch(() => undefined)

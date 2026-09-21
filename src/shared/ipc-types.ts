@@ -123,6 +123,12 @@ export const IpcChannels = {
   CaptureReady: 'capture:ready',
   CaptureCommand: 'capture:command',
   CaptureChunk: 'capture:chunk',
+  /* The WebCodecs recording path: the worker encodes the window to H.264 in
+     software and its audio to AAC, and streams the encoded samples (and, once,
+     each track's codec config) to the main process, which muxes them into an
+     MP4. Separate from CaptureChunk, which the audio-only (mp3/wav) path uses. */
+  CaptureMuxConfig: 'capture:mux-config',
+  CaptureMuxSample: 'capture:mux-sample',
   CaptureResult: 'capture:result',
   WindowMinimize: 'window:minimize',
   WindowToggleMaximize: 'window:toggle-maximize',
@@ -214,10 +220,26 @@ export interface CaptureChunkPayload {
   data: Uint8Array
 }
 
+/** Each track's codec configuration, sent once when the first sample is ready:
+    the video track's `avcC` (with its coded size) and the audio track's AAC
+    `AudioSpecificConfig` (with its sample rate and channel count). */
+export type CaptureMuxConfigPayload =
+  | { kind: 'video'; avcC: Uint8Array; width: number; height: number }
+  | { kind: 'audio'; asc: Uint8Array; sampleRate: number; channels: number }
+
+/** One encoded sample. Video carries its presentation timestamp (microseconds)
+    so the main process can work out per-frame durations for a variable frame
+    rate, and whether it is a keyframe; audio frames are a fixed 1024 samples. */
+export type CaptureMuxSamplePayload =
+  | { kind: 'video'; data: Uint8Array; timestamp: number; sync: boolean }
+  | { kind: 'audio'; data: Uint8Array }
+
 export interface CaptureApi {
   ready(): void
   onCommand(cb: (command: CaptureCommand) => void): () => void
   sendChunk(payload: CaptureChunkPayload): void
+  sendMuxConfig(payload: CaptureMuxConfigPayload): void
+  sendMuxSample(payload: CaptureMuxSamplePayload): void
   sendResult(payload: CaptureResultPayload): void
 }
 

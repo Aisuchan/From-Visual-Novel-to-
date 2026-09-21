@@ -1,6 +1,6 @@
 import { Mp3Encoder } from '@breezystack/lamejs'
 import type { AudioFormat } from '../../shared/db-types'
-import type { CaptureCommand, CaptureTrack } from '../../shared/ipc-types'
+import type { CaptureCommand } from '../../shared/ipc-types'
 
 /*
  * The hidden capture worker. It has no UI: the main process picks the window,
@@ -10,8 +10,15 @@ import type { CaptureCommand, CaptureTrack } from '../../shared/ipc-types'
  * fit in memory and an interrupted one still leaves a playable file.
  */
 
-/** How often MediaRecorder hands over what it has, in milliseconds. */
-const CHUNK_MS = 2000
+/* MediaStreamTrackProcessor is a real API in this Chromium but not yet in the
+   TypeScript DOM lib, so it is declared here. It turns a track into a stream of
+   the decoded frames the WebCodecs encoders take. */
+declare const MediaStreamTrackProcessor: {
+  new <T extends VideoFrame | AudioData = VideoFrame>(init: {
+    track: MediaStreamTrack
+    maxBufferSize?: number
+  }): { readable: ReadableStream<T> }
+}
 
 /** Constant bit rate for the MP3, in kbps. */
 const MP3_KBPS = 192
@@ -22,20 +29,30 @@ const MP3_KBPS = 192
  */
 const MP3_BLOCK = 1152
 
-interface Recording {
+/**
+ * The screen recording. It does **not** go through `MediaRecorder`: that routes
+ * H.264 through the GPU's hardware encoder (NVENC / Media Foundation on Windows),
+ * which a game's own GPU load corrupts — the file decodes for a few seconds and
+ * then throws PIPELINE_ERROR_DECODE though every frame is on disk (measured on
+ * two real recordings; a screen with no game load records cleanly). WebCodecs
+ * lets the H.264 be encoded in **software** (`hardwareAcceleration:
+ * 'prefer-software'`), which the game cannot disturb, and the audio in AAC, and
+ * the encoded samples are shipped to the main process to be muxed into an MP4.
+ */
+interface VideoRecording {
   stream: MediaStream
-  recorder: MediaRecorder
-  /** Resolves once the recorder has said it is done. */
-  stopped: Promise<void>
-  /**
-   * The chain of `ondataavailable` handlers still reading their blobs. Reading
-   * one is asynchronous, and `onstop` does not wait for it — with a container
-   * that hands everything over at the end, that race lost the whole recording.
-   */
-  writing: Promise<void>
+  videoEncoder: VideoEncoder
+  audioEncoder: AudioEncoder | null
+  vreader: ReadableStreamDefaultReader<VideoFrame>
+  areader: ReadableStreamDefaultReader<AudioData> | null
+  /** Resolves once both reader loops have drained, so a stop can flush safely. */
+  reading: Promise<void>
 }
 
-const recordings = new Map<CaptureTrack, Recording>()
+let videoRec: VideoRecording | null = null
+
+/** How often a keyframe is forced, in microseconds of media time. */
+const KEYFRAME_INTERVAL_US = 2_000_000
 
 /**
  * The audio recording, which does not go through MediaRecorder at all: this
@@ -109,73 +126,217 @@ function stopStream(stream: MediaStream): void {
   stream.getTracks().forEach((track) => track.stop())
 }
 
-/** The first codec the runtime actually supports, or the container default. */
-function pickMimeType(candidates: string[]): string | undefined {
-  return candidates.find((type) => MediaRecorder.isTypeSupported(type))
+/**
+ * The H.264 codec string for a resolution: baseline profile (42 E0) at the
+ * lowest level that accommodates the frame, chosen by asking the encoder. The
+ * level matters — `isConfigSupported` refuses a config whose level is too small
+ * for the resolution — and software encoding must be available for it, which is
+ * the whole point here.
+ */
+async function pickVideoCodec(width: number, height: number): Promise<string | null> {
+  // Levels 4.0 → 6.2: enough for 1080p up through 8K.
+  const levels = ['28', '29', '2a', '32', '33', '34', '3c', '3d', '3e']
+  for (const level of levels) {
+    const codec = `avc1.42e0${level}`
+    try {
+      const support = await VideoEncoder.isConfigSupported({
+        codec,
+        width,
+        height,
+        bitrate: 8_000_000,
+        framerate: 30,
+        hardwareAcceleration: 'prefer-software'
+      })
+      if (support.supported) return codec
+    } catch {
+      // try the next level
+    }
+  }
+  return null
 }
 
-async function startRecording(track: CaptureTrack): Promise<void> {
-  if (recordings.has(track)) return
+async function startVideo(): Promise<void> {
+  if (videoRec) return
 
   const stream = await openStream()
   try {
-    // MP4 first: it is what the files are asked to be, and this runtime does
-    // encode it (H.264 + AAC). MediaRecorder writes it fragmented, so appending
-    // the chunks as they arrive still leaves a file a player can open.
-    const mimeType = pickMimeType([
-      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-      'video/mp4',
-      'video/webm;codecs=vp9,opus',
-      'video/webm'
-    ])
+    const videoTrack = stream.getVideoTracks()[0]
+    const audioTrack = stream.getAudioTracks()[0] ?? null
+    const settings = videoTrack.getSettings()
+    const width = settings.width ?? 1920
+    const height = settings.height ?? 1080
 
-    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
-    const recording: Recording = {
-      stream,
-      recorder,
-      stopped: Promise.resolve(),
-      writing: Promise.resolve()
-    }
+    const codec = await pickVideoCodec(width, height)
+    if (!codec) throw new Error('この環境ではソフトウェアH.264エンコードに対応していません')
 
-    recorder.ondataavailable = (event): void => {
-      if (event.data.size === 0) return
-      // Chained rather than awaited in place, so the chunks reach the file in
-      // the order the recorder produced them.
-      recording.writing = recording.writing.then(async () => {
-        const data = new Uint8Array(await event.data.arrayBuffer())
-        window.capture.sendChunk({ track, data })
+    // ≈0.25 bits per pixel at 30fps. The first pass was a third of this, which
+    // starved the P-frames — a change could not be fully coded and the residual
+    // read as ghosting on colour transitions. This is still well within software
+    // encode's headroom (measured ~68fps at 1080p), and caps at 50Mbps so a very
+    // large display does not ask for more than the encoder can keep up with.
+    const bitrate = Math.min(50_000_000, Math.max(12_000_000, Math.round(width * height * 7.5)))
+
+    let sentVideoConfig = false
+    const videoEncoder = new VideoEncoder({
+      output: (chunk, meta) => {
+        if (!sentVideoConfig && meta?.decoderConfig?.description) {
+          sentVideoConfig = true
+          window.capture.sendMuxConfig({
+            kind: 'video',
+            avcC: new Uint8Array(meta.decoderConfig.description as ArrayBuffer),
+            width,
+            height
+          })
+        }
+        const data = new Uint8Array(chunk.byteLength)
+        chunk.copyTo(data)
+        window.capture.sendMuxSample({
+          kind: 'video',
+          data,
+          timestamp: chunk.timestamp,
+          sync: chunk.type === 'key'
+        })
+      },
+      error: (error) => {
+        // eslint-disable-next-line no-console
+        console.error('video encode', error)
+      }
+    })
+    videoEncoder.configure({
+      codec,
+      width,
+      height,
+      bitrate,
+      bitrateMode: 'variable', // spend bits where the picture needs them
+      framerate: 30,
+      avc: { format: 'avc' },
+      hardwareAcceleration: 'prefer-software',
+      // 'quality' rather than 'realtime': this is a recording, not a live
+      // stream, so it can trade a little encode latency for better rate control.
+      // The baseline codec string keeps B-frames out either way, so the muxer's
+      // "decode order is presentation order" assumption still holds.
+      latencyMode: 'quality'
+    })
+
+    // The audio encoder is configured from the first AudioData, since the
+    // loopback stream's own sample rate and channel count are not known up front
+    // (measured: a mono 48kHz loopback where the guess of stereo failed the
+    // encoder outright).
+    let audioEncoder: AudioEncoder | null = null
+    let sentAudioConfig = false
+    let audioReady = false
+    let audioParams: { sampleRate: number; channels: number } | null = null
+    if (audioTrack) {
+      audioEncoder = new AudioEncoder({
+        output: (chunk, meta) => {
+          if (!sentAudioConfig && meta?.decoderConfig?.description && audioParams) {
+            sentAudioConfig = true
+            window.capture.sendMuxConfig({
+              kind: 'audio',
+              asc: new Uint8Array(meta.decoderConfig.description as ArrayBuffer),
+              sampleRate: audioParams.sampleRate,
+              channels: audioParams.channels
+            })
+          }
+          const data = new Uint8Array(chunk.byteLength)
+          chunk.copyTo(data)
+          window.capture.sendMuxSample({ kind: 'audio', data })
+        },
+        error: (error) => {
+          // eslint-disable-next-line no-console
+          console.error('audio encode', error)
+        }
       })
     }
 
-    recording.stopped = new Promise<void>((resolve) => {
-      recorder.onstop = (): void => resolve()
-    })
+    const vproc = new MediaStreamTrackProcessor<VideoFrame>({ track: videoTrack })
+    const vreader = vproc.readable.getReader()
+    let areader: ReadableStreamDefaultReader<AudioData> | null = null
 
-    // The player closing the game pulls the stream out from under us; the file
-    // is closed off rather than left half-written.
-    stream.getTracks().forEach((streamTrack) => {
-      streamTrack.onended = (): void => {
-        if (recorder.state !== 'inactive') recorder.stop()
+    let lastKeyframe = -KEYFRAME_INTERVAL_US
+    const readVideo = async (): Promise<void> => {
+      try {
+        for (;;) {
+          const { done, value } = await vreader.read()
+          if (done) break
+          const keyFrame = value.timestamp - lastKeyframe >= KEYFRAME_INTERVAL_US
+          if (keyFrame) lastKeyframe = value.timestamp
+          if (videoEncoder.state === 'configured') videoEncoder.encode(value, { keyFrame })
+          value.close()
+        }
+      } catch {
+        // The stream ended under us; the reader throws and the loop ends.
+      }
+    }
+    const readAudio = async (): Promise<void> => {
+      if (!audioTrack || !audioEncoder) return
+      try {
+        const aproc = new MediaStreamTrackProcessor<AudioData>({ track: audioTrack })
+        const reader = aproc.readable.getReader()
+        areader = reader
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          if (!audioReady) {
+            audioParams = { sampleRate: value.sampleRate, channels: value.numberOfChannels }
+            audioEncoder.configure({
+              codec: 'mp4a.40.2',
+              sampleRate: audioParams.sampleRate,
+              numberOfChannels: audioParams.channels,
+              bitrate: 128_000
+            })
+            audioReady = true
+          }
+          if (audioEncoder.state === 'configured') audioEncoder.encode(value)
+          value.close()
+        }
+      } catch {
+        // As above.
+      }
+    }
+
+    const reading = Promise.all([readVideo(), readAudio()]).then(() => undefined)
+
+    // The player closing the game pulls the stream out from under us; the tracks
+    // end, the readers finish, and a stop still flushes what was encoded.
+    stream.getTracks().forEach((track) => {
+      track.onended = (): void => {
+        vreader.cancel().catch(() => undefined)
+        areader?.cancel().catch(() => undefined)
       }
     })
 
-    recorder.start(CHUNK_MS)
-    recordings.set(track, recording)
+    videoRec = { stream, videoEncoder, audioEncoder, vreader, areader, reading }
   } catch (error) {
     stopStream(stream)
     throw error
   }
 }
 
-async function stopRecording(track: CaptureTrack): Promise<void> {
-  const recording = recordings.get(track)
-  if (!recording) return
-  recordings.delete(track)
-  if (recording.recorder.state !== 'inactive') recording.recorder.stop()
-  await recording.stopped
-  // Only now is every blob actually read and on its way to the file.
-  await recording.writing
-  stopStream(recording.stream)
+async function stopVideo(): Promise<void> {
+  const rec = videoRec
+  if (!rec) return
+  videoRec = null
+
+  await rec.vreader.cancel().catch(() => undefined)
+  await rec.areader?.cancel().catch(() => undefined)
+  await rec.reading
+  stopStream(rec.stream)
+
+  try {
+    await rec.videoEncoder.flush()
+  } catch {
+    // A flush on an already-errored encoder throws; the samples are already out.
+  }
+  rec.videoEncoder.close()
+  if (rec.audioEncoder) {
+    try {
+      if (rec.audioEncoder.state === 'configured') await rec.audioEncoder.flush()
+    } catch {
+      // As above.
+    }
+    if (rec.audioEncoder.state !== 'closed') rec.audioEncoder.close()
+  }
 }
 
 /** Float samples as lame wants them: 16-bit, one channel at a time. */
@@ -320,10 +481,10 @@ async function stopAudio(): Promise<void> {
 async function run(command: CaptureCommand): Promise<{ image?: Uint8Array }> {
   switch (command.kind) {
     case 'start-video':
-      await startRecording('video')
+      await startVideo()
       return {}
     case 'stop-video':
-      await stopRecording('video')
+      await stopVideo()
       return {}
     case 'start-audio':
       await startAudio(command.format)
