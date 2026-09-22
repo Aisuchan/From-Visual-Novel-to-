@@ -107,8 +107,10 @@ export default function App(): React.JSX.Element {
     overlayCorner: 'bottom-right',
     overlayDisplay: 'primary',
     animations: 'on',
+    groupFrame: 'on',
     screenshotToGallery: 'off',
     videoToGallery: 'off',
+    audioToVoice: 'off',
     overlaySize: 'medium',
     rememberPanelPosition: 'on',
     crackerSound: 'on',
@@ -116,6 +118,7 @@ export default function App(): React.JSX.Element {
     screenshotSound: 'off',
     videoSound: 'off',
     audioSound: 'off',
+    voiceVolume: 1,
     launchAtLogin: 'off',
     addGameMore: 'off',
     // Assumed seen until the store says otherwise, so a returning library does
@@ -226,6 +229,10 @@ export default function App(): React.JSX.Element {
   /* The CSV export dialog — Penpot's "CSV Game" and "CSV Setting" side by side,
      which the Extra Function board's yellow-green circle puts up. */
   const [showCsv, setShowCsv] = useState(false)
+  /* A tag clicked under a Game board title opens the Home board narrowed to it.
+     It is read once as Home mounts (the board is remounted every open), and
+     cleared whenever Home is reached another way so it does not linger. */
+  const [homeInitialTag, setHomeInitialTag] = useState<string | null>(null)
   /* It is about one opening of the gallery and no other. The board's own
      CANCEL and APPLY let it go, but the gallery is left by other doors too —
      a game picked in the side panel, HOME, the clock, the mouse's side
@@ -617,6 +624,10 @@ export default function App(): React.JSX.Element {
         <VoiceManager
           games={games}
           initialGame={games.find((game) => game.id === voiceGameId) ?? null}
+          initialVolume={settings.voiceVolume}
+          onVolumeChange={async (voiceVolume) =>
+            setSettings(await window.library.setSettings({ voiceVolume }))
+          }
           onApplied={() => setMainView('game')}
           onCancel={() => setMainView('game')}
         />
@@ -642,6 +653,7 @@ export default function App(): React.JSX.Element {
           onSpinesChange={async (homeSpines) =>
             setSettings(await window.library.setSettings({ homeSpines }))
           }
+          initialTag={homeInitialTag ?? undefined}
           onSelect={(gameId) => {
             setSelectedGameId(gameId)
             // The effect below only fires when the id actually changes, and
@@ -739,6 +751,10 @@ export default function App(): React.JSX.Element {
           void refreshFooterStats()
         }}
         onSaveReference={handleSaveReference}
+        onTagClick={(name) => {
+          setHomeInitialTag(name)
+          setMainView('home')
+        }}
       />
     )
   }
@@ -751,6 +767,7 @@ export default function App(): React.JSX.Element {
         <SidePanel
           games={games}
           groups={groups}
+          groupFrame={settings.groupFrame}
           onGroupContext={openGroupMenu}
           tags={tags}
           /* The panel's highlight is where the content column *is*, not what
@@ -780,7 +797,12 @@ export default function App(): React.JSX.Element {
           onEditGame={setEditingGame}
           onDeleteGame={setDeletingGameId}
           onAddGroup={() => setShowNewGroup(true)}
-          onHome={() => setMainView((current) => (current === 'home' ? 'game' : 'home'))}
+          onHome={() => {
+            // A plain HOME press opens the board unfiltered; the tag it may have
+            // been opened with before does not linger.
+            setHomeInitialTag(null)
+            setMainView((current) => (current === 'home' ? 'game' : 'home'))
+          }}
           homeOpen={mainView === 'home'}
           /* The graph is reached from the calendar and stands in its slot, so
              the clock is lit for either and takes both away again. */

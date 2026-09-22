@@ -126,6 +126,12 @@ function bucketFor(spanDays: number): Bucket {
   return 'day'
 }
 
+/** A local "YYYY-MM-DD" back into the Date the day names. */
+function parseDateKey(key: string): Date {
+  const [y, m, d] = key.split('-').map(Number)
+  return new Date(y, (m || 1) - 1, d || 1)
+}
+
 /** Penpot: "9999:99:99" — hours, minutes and seconds, each padded to two but
     the hours as long as they run. */
 /** An average is a rate rather than a stopwatch, so it is written in hours and
@@ -292,10 +298,21 @@ export default function PlaytimeGraph({
      a specified one is the two dates as they were typed, either way round —
      the earlier of them is where the span starts. */
   const picked = periodKey ? periodRow(periodKey).range(today) : specified
-  const spanFrom = picked.from <= picked.to ? picked.from : picked.to
-  const spanTo = picked.from <= picked.to ? picked.to : picked.from
-  const fromKey = toDateKey(spanFrom)
-  const toKey = toDateKey(spanTo)
+  /* The range the sessions are read over. All Time reaches far enough back to
+     hold every session, so this is what the fetch uses; the display below is
+     clamped to the data so the histogram is not a run of empty months. */
+  const fetchFrom = picked.from <= picked.to ? picked.from : picked.to
+  const fetchTo = picked.from <= picked.to ? picked.to : picked.from
+  const fromKey = toDateKey(fetchFrom)
+  const toKey = toDateKey(fetchTo)
+  /* The first day actually played, for All Time — the fetch is wide, so every
+     session is in `rows` to find it. Every other period shows its own range. */
+  const earliestPlayed =
+    periodKey === 'all-time' && rows.length > 0
+      ? rows.reduce((min, row) => (row.date < min ? row.date : min), rows[0].date)
+      : null
+  const spanFrom = earliestPlayed ? parseDateKey(earliestPlayed) : fetchFrom
+  const spanTo = fetchTo
   /* Penpot writes the row's own name into the field in capitals. Girassol sets
      lowercase as small caps either way; the characters are the design's. */
   const periodLabel = periodKey ? periodRow(periodKey).label.toUpperCase() : 'SPECIFY THE PERIOD'

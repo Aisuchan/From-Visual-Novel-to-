@@ -3,6 +3,7 @@ import type { GameWithStats, NewVoiceInput, Voice, VoiceCharacter } from '../../
 import { t } from '../../../shared/i18n'
 import { useContextMenuDismiss } from '../context-menu'
 import { suggestsGroup } from '../filter'
+import { mediaUrl } from '../../../shared/media-url'
 import { displayName } from '../sort'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu from './ContextMenu'
@@ -119,7 +120,12 @@ export default function AddVoiceDialog({
     if (gameMenu === 'none') return []
     return games
       .filter((game) => gameMenu === 'all' || suggestsGroup(displayName(game), gameText))
-      .map((game) => ({ key: String(game.id), label: displayName(game) }))
+      .map((game) => ({
+        key: String(game.id),
+        label: displayName(game),
+        // The game's own icon at the row's left, so the list reads by picture.
+        iconUrl: game.iconPath ? mediaUrl(game.iconPath) : ''
+      }))
   }, [games, gameMenu, gameText])
 
   const charOptions = useMemo(() => {

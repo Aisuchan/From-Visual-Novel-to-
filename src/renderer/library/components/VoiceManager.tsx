@@ -39,6 +39,10 @@ interface Props {
       filter opens set to — a voice is most often looked for in the game
       being played. */
   initialGame: GameWithStats | null
+  /** The saved playback volume the bar opens on, 0–1. */
+  initialVolume: number
+  /** Persists the volume once the bar is let go of. */
+  onVolumeChange: (volume: number) => void
   /** APPLY, once what was added has been kept. */
   onApplied: () => void
   /** CANCEL, with what was added taken back out. */
@@ -77,6 +81,8 @@ interface Props {
 export default function VoiceManager({
   games,
   initialGame,
+  initialVolume,
+  onVolumeChange,
   onApplied,
   onCancel
 }: Props): React.JSX.Element {
@@ -88,6 +94,9 @@ export default function VoiceManager({
   const [page, setPage] = useState(0)
   /** The one voice playing; a second one pressed pauses the first. */
   const [playing, setPlaying] = useState<number | null>(null)
+  /** Playback volume for every card, 0–1, opened on the saved level and saved
+      again when the bar is let go of. */
+  const [volume, setVolume] = useState(initialVolume)
   /* The voices added since the board was opened, which is what CANCEL takes
      back out. A ref beside the state, so the unmount effect reads what stands
      at the moment the board goes rather than what it was set up with. */
@@ -105,6 +114,19 @@ export default function VoiceManager({
      pixels the way every right-click menu in the app is. */
   const [menu, setMenu] = useState<{ voice: Voice; left: number; top: number } | null>(null)
   const menuOpener = useContextMenuDismiss(menu !== null, () => setMenu(null))
+  /* The character list a card's name/+ drops, placed against the board in the
+     same design pixels the right-click menu is, and as wide as the card. */
+  const [cardCharMenu, setCardCharMenu] = useState<{
+    voice: Voice
+    left: number
+    top: number
+    width: number
+    /** Which way it unfolds: down out of the card, or up when there is no room
+        below it. */
+    flip: 'up' | 'down'
+  } | null>(null)
+  const charMenuOpener = useContextMenuDismiss(cardCharMenu !== null, () => setCardCharMenu(null))
+  const [charAdding, setCharAdding] = useState(false)
 
   /* The three filters. A select's text and the name the container is
      narrowed to are two pieces of state, settled the way the Home board's
@@ -244,6 +266,74 @@ export default function VoiceManager({
     )
   }
 
+  /* One field of a voice changed in place — the title typed on the card, or a
+     character picked from its menu. It is staged like 情報を変更 (APPLY writes
+     it) and merged onto any patch already held for the voice, keeping a file it
+     may have staged. */
+  function stageField(voice: Voice, changes: Partial<Pick<Voice, 'title' | 'characterId'>>): void {
+    const next = { ...voice, ...changes }
+    setEdits((was) => {
+      const prev = was.get(voice.id)
+      const patch: VoicePatch = {
+        gameId: next.gameId,
+        characterId: next.characterId,
+        title: next.title,
+        ...(prev?.sourcePath ? { sourcePath: prev.sourcePath } : {})
+      }
+      return new Map(was).set(voice.id, patch)
+    })
+    setVoices((was) => was.map((one) => (one.id === voice.id ? next : one)))
+  }
+
+  /* Adds a character and hands back its id, so a card that made one from its own
+     menu can file the voice under it at once. */
+  async function addCharacter(name: string): Promise<number | null> {
+    const list = await window.library.addVoiceCharacter(name)
+    setCharacters(list)
+    return list.find((one) => one.name === name)?.id ?? null
+  }
+
+  /* Opens the character list under a card's name/+, in the board's own design
+     pixels and as wide as the card. */
+  function openCharMenu(voice: Voice, event: React.MouseEvent): void {
+    // A second press on the same card's + is a toggle: put the list away rather
+    // than reopening it. The button's own mousedown is stopped (see the card) so
+    // the outside-press dismissal does not close it first and let this reopen it.
+    if (cardCharMenu && cardCharMenu.voice.id === voice.id) {
+      setCardCharMenu(null)
+      return
+    }
+    const target = event.currentTarget as HTMLElement
+    const board = target.closest('.add-voice')
+    const card = target.closest('.voice-card')
+    if (!board || !card) return
+    const box = board.getBoundingClientRect()
+    const cardBox = card.getBoundingClientRect()
+    const scale = box.width / BOARD_WIDTH
+    const boardHeight = box.height / scale
+    const cardTop = (cardBox.top - box.top) / scale
+    const cardBottom = (cardBox.bottom - box.top) / scale
+    /* The list's own height: its rows (capped where it scrolls) plus the add
+       row, plus a clear row when a character is set. A card near the bottom has
+       no room under it, so the menu opens above it instead. */
+    const CHAR_ROW = 40
+    const CHAR_LIST_MAX = 240
+    const menuHeight =
+      Math.min(characters.length * CHAR_ROW, CHAR_LIST_MAX) +
+      CHAR_ROW +
+      (voice.characterId !== null ? CHAR_ROW : 0)
+    const flipUp = cardBottom + 4 + menuHeight > boardHeight && cardTop - 4 - menuHeight >= 0
+    charMenuOpener.current = target
+    setCharAdding(false)
+    setCardCharMenu({
+      voice,
+      left: (cardBox.left - box.left) / scale,
+      top: flipUp ? cardTop - 4 - menuHeight : cardBottom + 4,
+      width: cardBox.width / scale,
+      flip: flipUp ? 'up' : 'down'
+    })
+  }
+
   function stageDelete(voice: Voice): void {
     setDeleting(null)
     setRemoved((was) => [...was, voice])
@@ -313,7 +403,14 @@ export default function VoiceManager({
     if (gameMenu === 'none') return []
     const rows = games
       .filter((game) => gameMenu === 'all' || suggestsGroup(displayName(game), gameText))
-      .map((game) => ({ key: String(game.id), label: displayName(game) }))
+      .map((game) => ({
+        key: String(game.id),
+        label: displayName(game),
+        // The game's own icon at the row's left, the way the Ledger's game list
+        // carries it — a name is quicker to find beside the picture it is filed
+        // under.
+        iconUrl: game.iconPath ? mediaUrl(game.iconPath) : ''
+      }))
     return gameMenu === 'all' ? [{ key: ALL_KEY, label: t('すべて') }, ...rows] : rows
   }, [games, gameMenu, gameText])
   const charOptions = useMemo(() => {
@@ -380,6 +477,11 @@ export default function VoiceManager({
                   setGameFilter(displayName(picked))
                 }
               }}
+              onClear={() => {
+                setGameMenu('none')
+                setGameText('')
+                setGameFilter('')
+              }}
             />
             {/* Penpot: Character Select — the same pill at 46 of padding, with
                 the Show Option ▼ */}
@@ -411,17 +513,31 @@ export default function VoiceManager({
                   setCharFilter(picked.name)
                 }
               }}
+              onClear={() => {
+                setCharMenu('none')
+                setCharText('')
+                setCharFilter('')
+              }}
             />
           </div>
-          {/* Penpot: Search Box — 691x49, held to the block's right end. It
-              narrows as it is typed, there being no button beside it. */}
-          <div className="voice-search">
-            <input
-              className="voice-search-input"
-              placeholder="SEARCH..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
+          {/* The bottom row: the volume control under GAME on the left (not in
+              the design — an icon by a right-rising triangle that sets every
+              card's playback volume), and the Search Box held to the right. */}
+          <div className="voice-controls">
+            <div className="voice-volume-control">
+              <i className={`voice-volume-icon fa-solid ${volumeIcon(volume)}`} aria-hidden="true" />
+              <VolumeBar volume={volume} onChange={setVolume} onCommit={onVolumeChange} />
+            </div>
+            {/* Penpot: Search Box — 691x49. It narrows as it is typed, there
+                being no button beside it. */}
+            <div className="voice-search">
+              <input
+                className="voice-search-input"
+                placeholder="SEARCH..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -434,11 +550,14 @@ export default function VoiceManager({
           <VoiceCard
             key={voice.id}
             voice={voice}
-            name={characterName(voice.characterId) || '---'}
+            name={characterName(voice.characterId)}
             thumbnail={gameThumbnail(voice)}
+            volume={volume}
             playing={playing === voice.id}
             onPlaying={(on) => setPlaying((was) => (on ? voice.id : was === voice.id ? null : was))}
             onContextMenu={(event) => openMenu(voice, event)}
+            onRename={(title) => stageField(voice, { title })}
+            onOpenCharMenu={(event) => openCharMenu(voice, event)}
           />
         ))}
       </div>
@@ -491,6 +610,78 @@ export default function VoiceManager({
             }
           ]}
         />
+      )}
+
+      {/* The character list a card's name/+ drops — the characters, a way to
+          clear one, and a row that adds one — as wide as the card it hangs off. */}
+      {cardCharMenu && (
+        <div
+          className={`voice-char-menu${cardCharMenu.flip === 'up' ? ' flip-up' : ''}`}
+          style={{
+            left: `${cardCharMenu.left}px`,
+            top: `${cardCharMenu.top}px`,
+            width: `${cardCharMenu.width}px`
+          }}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="voice-char-list">
+            {cardCharMenu.voice.characterId !== null && (
+              <button
+                type="button"
+                className="voice-char-option is-none"
+                onClick={() => {
+                  stageField(cardCharMenu.voice, { characterId: null })
+                  setCardCharMenu(null)
+                }}
+              >
+                {t('キャラクターなし')}
+              </button>
+            )}
+            {characters.map((character) => (
+              <button
+                type="button"
+                key={character.id}
+                className={`voice-char-option${
+                  character.id === cardCharMenu.voice.characterId ? ' is-current' : ''
+                }`}
+                onClick={() => {
+                  stageField(cardCharMenu.voice, { characterId: character.id })
+                  setCardCharMenu(null)
+                }}
+              >
+                {character.name}
+              </button>
+            ))}
+          </div>
+          {charAdding ? (
+            <input
+              className="voice-char-input"
+              autoFocus
+              maxLength={40}
+              placeholder={t('キャラクター名')}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur()
+                if (event.key === 'Escape') {
+                  setCharAdding(false)
+                  setCardCharMenu(null)
+                }
+              }}
+              onBlur={(event) => {
+                const name = event.currentTarget.value.trim()
+                const voice = cardCharMenu.voice
+                setCardCharMenu(null)
+                if (!name) return
+                void addCharacter(name).then((id) => {
+                  if (id !== null) stageField(voice, { characterId: id })
+                })
+              }}
+            />
+          ) : (
+            <button type="button" className="voice-char-add" onClick={() => setCharAdding(true)}>
+              {t('新しいキャラを追加 ＋')}
+            </button>
+          )}
+        </div>
       )}
 
       {adding && (
@@ -552,7 +743,8 @@ function FilterSelect({
   onText,
   onMenu,
   onSettle,
-  onPick
+  onPick,
+  onClear
 }: {
   className: string
   placeholder: string
@@ -565,11 +757,13 @@ function FilterSelect({
   onMenu: (menu: 'none' | 'all' | 'suggest') => void
   onSettle: () => void
   onPick: (key: string) => void
+  /** Clears the field and its filter — the ✕ shown once one is chosen. */
+  onClear: () => void
 }): React.JSX.Element {
   return (
     <div className="voice-select" ref={anchorRef}>
       <input
-        className={`voice-select-value ${className}`}
+        className={`voice-select-value ${className}${text.trim() ? ' has-clear' : ''}`}
         placeholder={placeholder}
         value={text}
         onChange={(event) => onText(event.target.value)}
@@ -587,6 +781,20 @@ function FilterSelect({
           }
         }}
       />
+      {text.trim() && (
+        <button
+          type="button"
+          className="voice-select-clear"
+          /* Not the field's blur first, which would settle the name and leave
+             this press clearing something already gone. */
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={onClear}
+          title={t('選択を解除')}
+          aria-label={t('選択を解除')}
+        >
+          <i className="fa-solid fa-xmark" />
+        </button>
+      )}
       <button
         type="button"
         className="voice-select-caret"
@@ -609,6 +817,62 @@ function FilterSelect({
           anchorRef={anchorRef}
         />
       )}
+    </div>
+  )
+}
+
+/** The speaker mark for a level: muted, then low / medium / high by thirds. */
+function volumeIcon(volume: number): string {
+  if (volume <= 0) return 'fa-volume-xmark'
+  if (volume <= 1 / 3) return 'fa-volume-low'
+  if (volume <= 2 / 3) return 'fa-volume'
+  return 'fa-volume-high'
+}
+
+/* Not in the design: a right-rising triangle that sets the board's playback
+   volume — thin on the left, full on the right, the fill running from the left
+   up to where the pointer is. A press or a drag on it moves the level. */
+function VolumeBar({
+  volume,
+  onChange,
+  onCommit
+}: {
+  volume: number
+  onChange: (volume: number) => void
+  /** Called once the press or drag ends — where the level is saved, rather than
+      on every frame of a drag. */
+  onCommit: (volume: number) => void
+}): React.JSX.Element {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const latest = useRef(volume)
+  function setFrom(clientX: number): void {
+    const box = ref.current?.getBoundingClientRect()
+    if (!box || box.width === 0) return
+    const next = Math.min(1, Math.max(0, (clientX - box.left) / box.width))
+    latest.current = next
+    onChange(next)
+  }
+  return (
+    <div
+      className="voice-volume"
+      ref={ref}
+      role="slider"
+      aria-label={t('音量')}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(volume * 100)}
+      title={t('音量')}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return
+        event.currentTarget.setPointerCapture(event.pointerId)
+        setFrom(event.clientX)
+      }}
+      onPointerMove={(event) => {
+        if (event.buttons & 1) setFrom(event.clientX)
+      }}
+      onPointerUp={() => onCommit(latest.current)}
+    >
+      <span className="voice-volume-fill" style={{ width: `${volume * 100}%` }} />
     </div>
   )
 }
@@ -636,21 +900,54 @@ function VoiceCard({
   voice,
   name,
   thumbnail,
+  volume,
   playing,
   onPlaying,
-  onContextMenu
+  onContextMenu,
+  onRename,
+  onOpenCharMenu
 }: {
   voice: Voice
   name: string
   thumbnail: string | null
+  /** Playback volume 0–1, the volume bar's own. */
+  volume: number
   playing: boolean
   onPlaying: (on: boolean) => void
   onContextMenu: (event: React.MouseEvent) => void
+  /** The title typed on the card, settled on Enter or blur. */
+  onRename: (title: string) => void
+  /** The name/+ pressed, which drops the character list. */
+  onOpenCharMenu: (event: React.MouseEvent) => void
 }): React.JSX.Element {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const barRef = useRef<HTMLDivElement | null>(null)
   const [position, setPosition] = useState(0)
   const [duration, setDuration] = useState(0)
+  /** True while the title is being typed, opened by a double-click on it. */
+  const [editingTitle, setEditingTitle] = useState(false)
+  /* True while the Infinity-duration nudge below is resolving the real length,
+     so the seek it costs is put back rather than left as the position. */
+  const fixingDuration = useRef(false)
+
+  /* The clip's own length, which the seek bar and the time both need. Some
+     encodings report an unknown (Infinity) duration until the whole file has
+     been read — a seek past the end makes Chromium resolve it — so without this
+     the bar could neither show a length nor seek. */
+  function resolveDuration(audio: HTMLAudioElement): void {
+    const value = audio.duration
+    if (Number.isFinite(value) && value > 0) {
+      setDuration(value)
+      if (fixingDuration.current) {
+        fixingDuration.current = false
+        audio.currentTime = 0
+        setPosition(0)
+      }
+    } else if (value === Infinity && !fixingDuration.current) {
+      fixingDuration.current = true
+      audio.currentTime = 1e101
+    }
+  }
 
   /* Another card taking the ▶ puts this one on pause: one voice at a time is
      what the board plays. */
@@ -658,6 +955,11 @@ function VoiceCard({
     const audio = audioRef.current
     if (!playing && audio && !audio.paused) audio.pause()
   }, [playing])
+
+  /* The volume bar's level, applied to this card's own element. */
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume
+  }, [volume])
 
   function toggle(): void {
     const audio = audioRef.current
@@ -691,9 +993,49 @@ function VoiceCard({
         <img className="voice-card-ground" src={mediaUrl(thumbnail)} alt="" draggable={false} />
       )}
       <div className="voice-card-head">
-        <span className="voice-card-title">{voice.title}</span>
+        {editingTitle ? (
+          <input
+            className="voice-card-title-input"
+            autoFocus
+            defaultValue={voice.title}
+            maxLength={120}
+            onFocus={(event) => event.currentTarget.select()}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur()
+              if (event.key === 'Escape') {
+                event.currentTarget.value = voice.title
+                event.currentTarget.blur()
+              }
+            }}
+            onBlur={(event) => {
+              setEditingTitle(false)
+              const next = event.currentTarget.value.trim()
+              if (next && next !== voice.title) onRename(next)
+            }}
+          />
+        ) : (
+          <span
+            className="voice-card-title"
+            onDoubleClick={() => setEditingTitle(true)}
+            title={t('ダブルクリックで名前を変更')}
+          >
+            {voice.title}
+          </span>
+        )}
         <span className="voice-card-rule" />
-        <span className="voice-card-name">{name}</span>
+        {/* The character, or a + to file the voice under one — either way a
+            button that drops the character list. */}
+        <button
+          type="button"
+          className={`voice-card-name${name ? '' : ' is-empty'}`}
+          /* The outside-press dismissal must not fire for this button, or it
+             would close the list a click on it means to toggle. */
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={onOpenCharMenu}
+          title={name || t('キャラクターを設定')}
+        >
+          {name || '+'}
+        </button>
       </div>
       {/* Penpot: Player — 445x44: ▶, a rule, 00:00, the bar */}
       <div className="voice-card-player">
@@ -701,9 +1043,13 @@ function VoiceCard({
           ref={audioRef}
           src={mediaUrl(voice.filePath)}
           preload="metadata"
-          onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)}
-          onDurationChange={(event) => setDuration(event.currentTarget.duration || 0)}
-          onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
+          onLoadedMetadata={(event) => resolveDuration(event.currentTarget)}
+          onDurationChange={(event) => resolveDuration(event.currentTarget)}
+          onTimeUpdate={(event) => {
+            // Ignore the timeupdate the Infinity-duration seek causes; the real
+            // position is 0 until the clip is actually played.
+            if (!fixingDuration.current) setPosition(event.currentTarget.currentTime)
+          }}
           onEnded={(event) => {
             event.currentTarget.currentTime = 0
             setPosition(0)
@@ -721,8 +1067,10 @@ function VoiceCard({
           <i className={`fa-solid ${playing ? 'fa-pause' : 'fa-play'}`} />
         </button>
         <span className="voice-card-player-rule" />
+        {/* Until it is played the time reads the clip's own length; once it is
+            playing (or paused partway) it reads the position. */}
         <span className="voice-card-time" title={duration > 0 ? formatClock(duration) : undefined}>
-          {formatClock(position)}
+          {formatClock(playing || position > 0 ? position : duration)}
         </span>
         <div
           className="voice-card-bar"

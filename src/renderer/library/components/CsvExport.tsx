@@ -97,6 +97,9 @@ export default function CsvExport({ games, groups, tags, onClose }: Props): Reac
     const rows = groups.map((group) => ({
       key: String(group.id),
       label: group.name,
+      // Each name in its own group's colour, the way every other group list
+      // draws it — the side panel's, the Home board's and the graph's.
+      color: group.color,
       current: group.name === groupName
     }))
     if (groupMenu === 'list') return [{ key: ALL_GROUPS_KEY, label: t('すべて') }, ...rows]

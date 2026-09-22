@@ -1154,11 +1154,16 @@ const DEFAULT_SETTINGS: AppSettings = {
   overlayDisplay: 'primary',
   // The app's arrivals are what it already does, so they stay on.
   animations: 'on',
+  // On: the frame is how a glance down the side panel says a game's group.
+  groupFrame: 'on',
   // Off, so an install that predates this row keeps writing a screenshot to
   // one place only — the file it is offered to save.
   screenshotToGallery: 'off',
   // The same for a recording, and off for the same reason.
   videoToGallery: 'off',
+  // The same for an audio recording, filed in the Voice Manager; off so an
+  // install that predates it keeps writing the recording to one place only.
+  audioToVoice: 'off',
   // The design's own size; the other two are the player's to ask for.
   overlaySize: 'medium',
   rememberPanelPosition: 'on',
@@ -1170,6 +1175,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   screenshotSound: 'off',
   videoSound: 'off',
   audioSound: 'off',
+  // Full volume until the bar is moved.
+  voiceVolume: 1,
   // Nothing about the machine is touched until the row is turned on.
   launchAtLogin: 'off',
   // The Add Game dialog is the design's own board alone until the advanced
@@ -1258,6 +1265,8 @@ export function getSettings(): AppSettings {
       ['on', 'off'],
       DEFAULT_SETTINGS.videoToGallery
     ),
+    audioToVoice: oneOf(stored.get('audioToVoice'), ['on', 'off'], DEFAULT_SETTINGS.audioToVoice),
+    groupFrame: oneOf(stored.get('groupFrame'), ['on', 'off'], DEFAULT_SETTINGS.groupFrame),
     overlaySize: oneOf(stored.get('overlaySize'), OVERLAY_SIZES, DEFAULT_SETTINGS.overlaySize),
     rememberPanelPosition: oneOf(
       stored.get('rememberPanelPosition'),
@@ -1271,6 +1280,12 @@ export function getSettings(): AppSettings {
        the folder is what says which numbers there are. Anything that is not
        `off` or a run of digits is `off`; a number with no file behind it is
        caught where the file is looked up (`soundEffectFile`). */
+    voiceVolume: (() => {
+      const value = Number(stored.get('voiceVolume'))
+      return Number.isFinite(value) && value >= 0 && value <= 1
+        ? value
+        : DEFAULT_SETTINGS.voiceVolume
+    })(),
     screenshotSound: soundKey(stored.get('screenshotSound')),
     /* `recordingSound` was the one row these two came out of. It is read as
        the fallback for both so an install that chose a sound before the split

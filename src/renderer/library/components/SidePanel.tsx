@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import type { GameWithStats, Group, Tag } from '../../../shared/db-types'
+import type { GameWithStats, Group, Tag, Toggle } from '../../../shared/db-types'
 import { mediaUrl } from '../../../shared/media-url'
 import { getLanguage } from '../../../shared/i18n'
 import { useContextMenuDismiss } from '../context-menu'
@@ -28,6 +28,9 @@ interface Props {
   games: GameWithStats[]
   /** The groups the Select Group menu offers. */
   groups: Group[]
+  /** Whether a row's icon carries its group's colour as a frame; the UI tab's
+      own row turns it off. */
+  groupFrame: Toggle
   /** The tag vocabulary the filter chips are matched against. */
   tags: Tag[]
   selectedGameId: number | null
@@ -123,6 +126,7 @@ function useFontsReady(): boolean {
 export default function SidePanel({
   games,
   groups,
+  groupFrame,
   tags,
   selectedGameId,
   onSelect,
@@ -706,7 +710,12 @@ export default function SidePanel({
                   nothing. */}
               <span
                 className="game-icon"
-                style={{ '--icon-frame': groupInk(game.groupName, groups) } as CSSProperties}
+                style={
+                  {
+                    '--icon-frame':
+                      groupFrame === 'on' ? groupInk(game.groupName, groups) : 'transparent'
+                  } as CSSProperties
+                }
               >
                 {game.iconPath ? <img src={mediaUrl(game.iconPath)} alt="" /> : null}
               </span>

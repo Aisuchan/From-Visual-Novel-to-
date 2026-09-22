@@ -100,6 +100,14 @@ export const PERIOD_ROWS: PeriodRow[] = [
     key: 'last-year',
     label: 'Last Year',
     range: (today) => months(today.getFullYear() - 1, 0, 12)
+  },
+  {
+    /* The whole history. The span reaches far enough back to hold any session —
+       nothing here predates a computer's own clock — and the graph clamps what
+       it draws to the first day it actually finds data on. */
+    key: 'all-time',
+    label: 'All Time',
+    range: (today) => ({ from: new Date(1990, 0, 1), to: localDay(today) })
   }
 ]
 

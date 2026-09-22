@@ -42,6 +42,9 @@ interface Props {
   /** Writes the four values the Game Info board draws, which its own gear
       edits in place. */
   onSaveReference: (gameId: number, input: GameReference) => void
+  /** A press on one of the tags under the title opens the Home board narrowed
+      to that tag. */
+  onTagClick: (name: string) => void
 }
 
 /* Penpot "Under decoration" geometry, in the 1585px content space: the rule
@@ -238,7 +241,8 @@ export default function GameDetail({
   onCelebrate,
   onCelebrateRoute,
   onGamesChanged,
-  onSaveReference
+  onSaveReference,
+  onTagClick
 }: Props): React.JSX.Element {
   const lastPlayed = formatLastPlayed(game.stats.lastPlayedAt)
   const detailRef = useRef<HTMLElement | null>(null)
@@ -620,7 +624,7 @@ export default function GameDetail({
           {gameTags.length > 0 && (
             <div className="game-tags" ref={tagRowRef}>
               {gameTags.map((tag) => (
-                <TagChip key={tag.id} name={tag.name} />
+                <TagChip key={tag.id} name={tag.name} onActivate={() => onTagClick(tag.name)} />
               ))}
             </div>
           )}

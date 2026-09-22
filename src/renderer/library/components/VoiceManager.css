@@ -133,6 +133,15 @@
   opacity: 1;
 }
 
+/* With a value chosen the ✕ stands at the right, so the run is cut with an
+   ellipsis that ends just short of it — the ✕ button's own left edge is 32px in
+   from the pill's right, so the run is held that far clear and no further. */
+.voice-select-value.has-clear {
+  padding-right: 36px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Penpot: Show Groups / Show Option — 50x49 on #2a2d31, 10 of air before the
    caret and 15 after it, ▼ at Girassol 25 in #aab8c2, centred on the pill.
    The mark turns over while its list is out, on the app's 0.14s clock. */
@@ -164,13 +173,104 @@
   transform: rotate(180deg);
 }
 
+/* Shown once a game or character is chosen: a ✕ at the field's right end, just
+   inside the ▼, that clears the field and its filter. Laid over the pill so the
+   design's own widths are untouched. */
+.voice-select-clear {
+  position: absolute;
+  /* Hard against the ▼ so it clears the value's own run, which is truncated to
+     stop short of it. */
+  right: 50px;
+  top: 0;
+  width: 28px;
+  height: 49px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.voice-select-clear:hover {
+  color: var(--color-danger-bright);
+}
+
+/* No focus ring on the filter controls, the way the Home board's and the side
+   panel's carry none — the caret is what says where the typing goes. */
+.voice-select-value:focus-visible,
+.voice-search-input:focus-visible {
+  box-shadow: none;
+}
+
+.voice-select-caret:focus-visible,
+.voice-select-clear:focus-visible {
+  outline: none;
+}
+
 /* Penpot: Search Box — 691x49 on #2a2d31, rounded 30, 30 of padding either
    side and 5 above and below, held to the block's right end. */
+/* The bottom row of Show Condition: the volume control on the left, under GAME,
+   and the Search Box held to the right end (its own 691 within the 954). */
+.voice-controls {
+  width: 954px;
+  height: 49px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+/* The icon sits at the far left — a little in from the edge — and the bar is
+   pushed to the right of the region, up against the Search Box. */
+.voice-volume-control {
+  flex: 1;
+  min-width: 0;
+  padding-left: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.voice-volume-icon {
+  flex-shrink: 0;
+  width: 40px;
+  font-size: 28px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* Not in the design: a right-rising triangle volume slider — thin on the left,
+   full on the right. The track is the shape at low opacity and the fill the
+   brighter left share of it, both cut to the triangle by the container's own
+   clip. A press or a drag moves the level. */
+.voice-volume {
+  position: relative;
+  width: 200px;
+  height: 32px;
+  flex-shrink: 0;
+  clip-path: polygon(0 100%, 100% 0, 100% 100%);
+  background: rgba(177, 178, 181, 0.3);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.voice-volume-fill {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 100%;
+  background: var(--color-text);
+}
+
 .voice-search {
   width: 691px;
   height: 49px;
   flex-shrink: 0;
-  align-self: flex-end;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -280,6 +380,27 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Double-clicked to rename, so it reads as something to aim at. */
+  cursor: text;
+}
+
+/* The title being typed: the same run, stretched over where it stood. */
+.voice-card-title-input {
+  flex: 1;
+  min-width: 0;
+  height: 39px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.voice-card-title-input:focus-visible {
+  box-shadow: none;
 }
 
 .voice-card-rule {
@@ -290,12 +411,33 @@
   background: #b1b2b5;
 }
 
+/* The character, a button now: it drops the character list. Its default button
+   chrome is stripped so it reads as the design's own name run. */
 .voice-card-name {
+  flex-shrink: 0;
+  max-width: 45%;
+  padding: 0;
+  background: none;
+  border: none;
   font-family: var(--font-display);
   font-size: 32px;
   line-height: 1.2;
   color: var(--color-text);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.voice-card-name:hover {
+  opacity: 0.7;
+}
+
+/* With no character the button is a + to file the voice under one — set in the
+   title's own ink at full strength, like the rest of the head. */
+.voice-card-name.is-empty {
+  color: var(--color-text);
 }
 
 /* Penpot: Player — 445x44 with 10 between its parts: ▶ at Girassol 32, a
@@ -325,13 +467,14 @@
   border: none;
   font-size: 24px;
   line-height: 1;
-  color: var(--color-text-muted);
+  /* The same ink the title is set in, so the two read as one control. */
+  color: var(--color-text);
   cursor: pointer;
-  transition: color 0.15s ease;
+  transition: opacity 0.15s ease;
 }
 
 .voice-card-play:hover {
-  color: var(--color-text);
+  opacity: 0.7;
 }
 
 .voice-card-player-rule {
@@ -345,7 +488,8 @@
   font-family: var(--font-display);
   font-size: 24px;
   line-height: 1.2;
-  color: var(--color-text-muted);
+  /* Set in the title's own ink, like the play button beside it. */
+  color: var(--color-text);
   white-space: nowrap;
 }
 
@@ -355,7 +499,9 @@
   position: relative;
   flex: 1;
   height: 25px;
-  background: #b1b2b5;
+  /* The track is the part not yet played, held at 30% opacity so the filled
+     (played) share reads as the brighter of the two. */
+  background: rgba(177, 178, 181, 0.3);
   border-radius: 5px;
   overflow: hidden;
   cursor: pointer;
@@ -367,6 +513,125 @@
   height: 100%;
   background: var(--color-text);
   border-radius: 5px;
+}
+
+/* The character list a card's name/+ drops. Absolute against the board in its
+   own design pixels, as wide as the card, over the cards below it. */
+.voice-char-menu {
+  position: absolute;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 2px var(--color-text-dim);
+  border-radius: 5px;
+  overflow: hidden;
+  /* Unfolds out of the card the way the Game board's Play settings grow out of
+     the Play button — revealed top to bottom, clipped until there is room.
+     Taken to nothing when アニメーション is off. */
+  animation: voice-char-menu-drop 0.11s ease-out;
+}
+
+/* Opened above the card (no room below), it unfolds upward instead — revealed
+   bottom to top, from the edge that meets the card. */
+.voice-char-menu.flip-up {
+  animation: voice-char-menu-rise 0.11s ease-out;
+}
+
+@keyframes voice-char-menu-drop {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes voice-char-menu-rise {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.voice-char-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 240px;
+  overflow-y: auto;
+  /* Clear of the menu's own 2px inset stroke, so the first row is not crowded
+     up against it and read as high. */
+  padding-top: 4px;
+}
+
+.voice-char-option,
+.voice-char-add {
+  height: 40px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  /* The display face's ink is cap height, so even a run centred on its line box
+     reads high with the descender's room empty under it. A little top padding
+     pushes the ink down onto the middle of the row (the row stays 40 tall,
+     `border-box` holding it there). */
+  padding: 3px 15px 0;
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.voice-char-option:hover {
+  background: rgba(225, 232, 237, 0.14);
+}
+
+/* The row the voice is filed under, picked out with the app's accent plate. */
+.voice-char-option.is-current {
+  background: var(--color-accent);
+}
+
+.voice-char-option.is-none {
+  color: var(--color-text-muted);
+}
+
+/* The add row carries the Add Game button's own accent plate, so it reads as
+   the one thing on the list that makes something new. */
+.voice-char-add {
+  background: var(--color-accent);
+  color: var(--color-text);
+}
+
+.voice-char-add:hover {
+  filter: brightness(1.18);
+}
+
+.voice-char-input {
+  height: 40px;
+  flex-shrink: 0;
+  padding: 0 15px;
+  background: transparent;
+  border: none;
+  outline: none;
+  box-shadow: inset 0 1px 0 var(--color-text-dim);
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 40px;
+  color: var(--color-text);
+}
+
+.voice-char-input:focus-visible {
+  box-shadow: inset 0 1px 0 var(--color-text-dim);
 }
 
 /* Penpot: Bottom — 1585x99, row-reverse with a 30px gap and 50px side padding,

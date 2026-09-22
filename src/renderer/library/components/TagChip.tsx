@@ -11,6 +11,9 @@ interface Props {
   /** Left out where the chip only says what a game is filed under; the ✕ is
       drawn only for a row that can be taken apart. */
   onDelete?: () => void
+  /** A press on the name opens the Home board filtered by this tag — the Game
+      board's own chips, which only say what a game is filed under, use it. */
+  onActivate?: () => void
 }
 
 /**
@@ -35,7 +38,8 @@ export default function TagChip({
   name,
   editing = false,
   onCommit,
-  onDelete
+  onDelete,
+  onActivate
 }: Props): React.JSX.Element {
   const [value, setValue] = useState(name)
   /** Set by a double-click on a settled chip; the row knows nothing about it. */
@@ -70,7 +74,11 @@ export default function TagChip({
   }
 
   return (
-    <span className={`tag-chip ${onDelete ? '' : 'static'} ${renamable ? 'renamable' : ''}`}>
+    <span
+      className={`tag-chip ${onDelete ? '' : 'static'} ${renamable ? 'renamable' : ''} ${
+        onActivate ? 'clickable' : ''
+      }`}
+    >
       {open ? (
         <span className="tag-chip-edit">
           {/* The sizer is what the chip measures; it is never seen. */}
@@ -108,7 +116,14 @@ export default function TagChip({
         <span
           className="tag-chip-name"
           onDoubleClick={renamable ? () => setReopened(true) : undefined}
-          title={renamable ? t('ダブルクリックで名前を変更') : undefined}
+          onClick={onActivate}
+          title={
+            renamable
+              ? t('ダブルクリックで名前を変更')
+              : onActivate
+                ? t('このタグでホームを検索')
+                : undefined
+          }
         >
           {name}
         </span>

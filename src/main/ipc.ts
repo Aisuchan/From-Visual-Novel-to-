@@ -939,11 +939,28 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IpcChannels.SessionToggleAudio, async () => {
     if (!active) throw new Error(t('進行中のセッションがありません'))
-    const result = await capture.toggleAudio(
-      captureTarget(active),
-      active.gameId,
-      app.getPath('userData')
-    )
+    const gameId = active.gameId
+    const result = await capture.toggleAudio(captureTarget(active), gameId, app.getPath('userData'))
+    /* The Setting board's 録音の自動保存 row: a recording the player saved is
+       filed in the Voice Manager under the game the session was for. Its title
+       is the saved file's own name and its source is where the player put it;
+       the copy this makes under userData is what `fvn-media:` plays and what it
+       falls back to if that file is later gone — the shape a voice added by hand
+       already has. The library window is not told, the Voice Manager reading its
+       list as it opens. */
+    if (result.savedTo && db.getSettings().audioToVoice === 'on') {
+      try {
+        db.addVoice({
+          gameId,
+          characterId: null,
+          title: path.basename(result.savedTo, path.extname(result.savedTo)),
+          filePath: copyVoiceFile(result.savedTo),
+          sourcePath: result.savedTo
+        })
+      } catch {
+        // Filing it is a convenience; the recording itself is already saved.
+      }
+    }
     broadcastCaptureState()
     return result
   })

@@ -416,7 +416,11 @@ export const GRAPH_PERIODS = [
   'this-half',
   'last-half',
   'this-year',
-  'last-year'
+  'last-year',
+  /* The whole of the library's history — the first day anything was played
+     through to today. Its range spans from far enough back to hold every
+     session; the graph clamps what it draws to the first day with data. */
+  'all-time'
 ] as const
 export type GraphPeriod = (typeof GRAPH_PERIODS)[number]
 
@@ -489,6 +493,10 @@ export interface AppSettings {
      the ring, the bars and the Recorder Panel's own fold — so a screen is
      simply there rather than arriving. */
   animations: Toggle
+  /* Whether a side-panel row's icon carries a frame in its game's group colour.
+     On by default — the frame is how a glance down the list says which group a
+     game is in — but a player who files by something else can turn it off. */
+  groupFrame: Toggle
   /* Whether a shot taken from the Recorder Panel is also filed in the game's
      own Add Thumbnail gallery, which is what `game_images.source` has always
      told apart. */
@@ -498,6 +506,11 @@ export interface AppSettings {
      a different thing from a folder of stills, and a player who wants one
      filed does not necessarily want the other. */
   videoToGallery: Toggle
+  /* Whether an audio recording taken from the Recorder Panel is filed in the
+     Voice Manager, under the game the session was for. The voice's title is the
+     saved file's own name, its source is where the player saved it, and the
+     app's own copy under `userData` is what it falls back to if that is gone. */
+  audioToVoice: Toggle
   /** How large the Recorder Panel is drawn — the design's own size, and a
       quarter either side of it. */
   overlaySize: OverlaySize
@@ -520,6 +533,8 @@ export interface AppSettings {
      into both. */
   videoSound: string
   audioSound: string
+  /** The Voice Manager's playback volume, 0–1, set by its volume bar. */
+  voiceVolume: number
   /* Whether Windows starts the app when the machine does. It is the one row
      that is not the app's own state: what it writes is the system's Run key,
      through `app.setLoginItemSettings`, so the row and the machine are kept in

@@ -329,6 +329,10 @@ interface Props {
   /* A right press on one of the rows the group list drops. It is the shell's
      to answer: the list is the shell's, and so is the board that edits one. */
   onGroupContext?: (key: string, event: React.MouseEvent) => void
+  /** A tag to open the board already narrowed to — set when a Game board tag
+      was clicked. The board is remounted every open, so it is read once, on
+      mount, the way the face and the count are. */
+  initialTag?: string
 }
 
 export default function Home({
@@ -343,7 +347,8 @@ export default function Home({
   onColumnsChange,
   spines,
   onSpinesChange,
-  onGroupContext
+  onGroupContext,
+  initialTag
 }: Props): React.JSX.Element {
   const boardRef = useRef<HTMLDivElement | null>(null)
   const sortRef = useRef<HTMLButtonElement | null>(null)
@@ -373,7 +378,9 @@ export default function Home({
      more — a chip is a piece of text, and taking one off never touches a tag
      on a game. `newTagId` is the chip that has just appeared, which takes the
      caret. */
-  const [tagFilters, setTagFilters] = useState<{ id: number; text: string }[]>([])
+  const [tagFilters, setTagFilters] = useState<{ id: number; text: string }[]>(() =>
+    initialTag ? [{ id: 0, text: initialTag }] : []
+  )
   const [newTagId, setNewTagId] = useState<number | null>(null)
   const nextTagId = useRef(1)
   /* Which of Penpot's "Menu" boards is out, at most one at a time. 'group' is

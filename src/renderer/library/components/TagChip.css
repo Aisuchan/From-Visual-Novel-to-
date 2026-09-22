@@ -48,6 +48,18 @@
   user-select: none;
 }
 
+/* A Game board chip is a link to the Home board filtered by the tag, so it
+   reads as something to aim at and lifts to the app's text under the pointer. */
+.tag-chip.clickable .tag-chip-name {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+.tag-chip.clickable .tag-chip-name:hover {
+  color: var(--color-text);
+}
+
 /* While the chip is being written in, the sizer lays the text out and the
    input is stretched over it — the two must be set in exactly the same face.
    An empty chip still has to be wide enough to aim at. */

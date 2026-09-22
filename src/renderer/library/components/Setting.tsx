@@ -287,11 +287,11 @@ const ROWS: Row[] = [
     kind: 'select',
     id: 'launchWindowMode',
     tab: 'general',
-    name: '起動時のウインドウサイズ',
+    name: 'このアプリの起動時のウインドウサイズ',
     fields: [
       {
         id: 'launchWindowMode',
-        title: '起動時のウインドウサイズを選ぶ',
+        title: 'このアプリの起動時のウインドウサイズを選ぶ',
         options: () => [
           { key: 'window', label: t('ウインドウ') },
           { key: 'fullscreen', label: t('フルスクリーン') }
@@ -474,6 +474,15 @@ const ROWS: Row[] = [
   },
   {
     kind: 'toggle',
+    id: 'groupFrame',
+    tab: 'ui',
+    name: 'ゲームリストのアイコンにグループ色の枠を付ける',
+    title: 'ゲームリストのアイコンのグループ色枠の入り切り',
+    current: (settings) => settings.groupFrame,
+    patch: (value) => ({ groupFrame: value })
+  },
+  {
+    kind: 'toggle',
     id: 'crackerSound',
     tab: 'audio',
     name: 'クラッカー音',
@@ -632,6 +641,16 @@ const ROWS: Row[] = [
     title: '画面録画をサムネイルに追加するかどうか',
     current: (settings) => settings.videoToGallery,
     patch: (value) => ({ videoToGallery: value })
+  },
+  {
+    kind: 'toggle',
+    id: 'audioToVoice',
+    tab: 'overlay',
+    name: '録音の自動保存',
+    description: 'レコーダーパネルからの録音をボイスマネージャーに追加する',
+    title: '録音をボイスマネージャーに追加するかどうか',
+    current: (settings) => settings.audioToVoice,
+    patch: (value) => ({ audioToVoice: value })
   },
   {
     kind: 'select',
