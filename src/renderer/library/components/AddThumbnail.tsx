@@ -11,14 +11,21 @@ import { t } from '../../../shared/i18n'
 
 interface Props {
   game: GameWithStats
-  onCancel: () => void
-  onApplied: () => void
+  /* Both carry the picture the Game board's carousel should open on when it
+     comes back: CANCEL the one that was the Main Image when the board opened,
+     APPLY the first picture added this time, or — nothing having been added —
+     the Main Image as it now stands. Null centres on the thumbnail as before. */
+  onCancel: (focusPath: string | null) => void
+  onApplied: (focusPath: string | null) => void
   /** Deleting an image can clear the game's thumbnail, so the list is reread. */
   onGamesChanged: () => void
   /** A picture to open full screen as the board arrives — the Extra Function
       board's blue circle lands here on one drawn at random. Read once, on
       the first list; the viewer is the reader's after that. */
   openImageId?: number | null
+  /** The picture the Game board's carousel was on when this board was opened,
+      which is where CANCEL sends it back. */
+  openedFrom?: string | null
 }
 
 /* Penpot: Image Container — a 5x5 grid of 273x154 cells, so 25 images a page.
@@ -30,11 +37,6 @@ const ROWS = 5
 /** Penpot: the content column's own width, which the right-click menu's
     placement is measured off the way every other menu in the app is. */
 const BOARD_WIDTH = 1585
-/** Penpot: Right Click Menu — 201 wide, and about this tall at three rows.
-    The plate is pulled back inside the board by them, so a press near an edge
-    does not put half of it past one. */
-const MENU_WIDTH = 201
-const MENU_HEIGHT = 160
 const PAGE_SIZE = COLUMNS * ROWS
 
 /* Penpot's own cell and the gaps between them, which `AddThumbnail.css` draws
@@ -106,7 +108,8 @@ export default function AddThumbnail({
   onCancel,
   onApplied,
   onGamesChanged,
-  openImageId = null
+  openImageId = null,
+  openedFrom = null
 }: Props): React.JSX.Element {
   const [images, setImages] = useState<GameImage[]>([])
   // "no images yet" is a verdict, not a waiting state: it stays off until the
@@ -157,8 +160,37 @@ export default function AddThumbnail({
   const [faded, setFaded] = useState(() => motionOff())
   /* Where a right-click landed, in the board's own design pixels, and which
      picture it landed on. */
-  const [menu, setMenu] = useState<{ image: GameImage; x: number; y: number } | null>(null)
+  /* The menu holds the pointer it was opened at, in the board's own design
+     pixels; where the plate actually lands is worked out once it has been drawn
+     and measured (`menuXY`), since its width is its longest label's and not a
+     constant — a Japanese row runs well past the design's 201. */
+  const [menu, setMenu] = useState<{ image: GameImage; px: number; py: number } | null>(null)
+  const [menuXY, setMenuXY] = useState<{ x: number; y: number } | null>(null)
   const menuOpener = useContextMenuDismiss(menu !== null, () => setMenu(null))
+
+  /* Placed after it is drawn: the plate's real size is measured (`offsetWidth`
+     is the unzoomed design pixel the position is in), and it opens to the left
+     of the pointer when it would otherwise run off the right, and is held inside
+     the board top and bottom. */
+  useLayoutEffect(() => {
+    if (!menu) {
+      setMenuXY(null)
+      return
+    }
+    const section = sectionRef.current
+    const plate = section?.querySelector('.context-menu') as HTMLElement | null
+    if (!section || !plate) return
+    const rect = section.getBoundingClientRect()
+    if (rect.width <= 0) return
+    const scale = rect.width / BOARD_WIDTH
+    const boardHeight = rect.height / scale
+    const w = plate.offsetWidth
+    const h = plate.offsetHeight
+    setMenuXY({
+      x: Math.max(0, menu.px + w > BOARD_WIDTH ? menu.px - w : menu.px),
+      y: Math.max(0, Math.min(menu.py, boardHeight - h))
+    })
+  }, [menu])
   /* What the menu is positioned in, and therefore what its pointer position is
      measured against: the two have to be the same box. The grid inside it
      scrolls, so it is the section rather than the container. */
@@ -751,7 +783,13 @@ export default function AddThumbnail({
       const image = images.find((candidate) => candidate.id === selectedId)
       if (image) await window.library.setThumbnail(game.id, image.filePath)
       committed.current = true
-      onApplied()
+      /* The picture to bring to the front of the Game board's carousel: the
+         first one added this time, or — nothing added — the Main Image as it
+         now stands (the mark just applied, or the thumbnail that was already
+         there). */
+      const firstAdded =
+        added.length > 0 ? (images.find((one) => one.id === added[0])?.filePath ?? null) : null
+      onApplied(firstAdded ?? image?.filePath ?? game.thumbnailPath ?? null)
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('APPLY failed', error)
@@ -771,7 +809,9 @@ export default function AddThumbnail({
   async function cancel(): Promise<void> {
     committed.current = true
     await discardAdded()
-    onCancel()
+    // Back to the picture the carousel was on when the board opened — the one
+    // the gear was pressed over — falling back to the thumbnail.
+    onCancel(openedFrom ?? game.thumbnailPath ?? null)
   }
 
   /* The pictures added this time are the one edit that had to be written on
@@ -853,11 +893,12 @@ export default function AddThumbnail({
                        recovers the shell's scale — the conversion every other
                        menu in the app makes against its own width. */
                     const scale = box.width / BOARD_WIDTH
-                    const height = box.height / scale
+                    /* The pointer in the board's own pixels; the plate is placed
+                       against it once it has been measured (see the effect). */
                     setMenu({
                       image,
-                      x: Math.min((event.clientX - box.left) / scale, BOARD_WIDTH - MENU_WIDTH),
-                      y: Math.min((event.clientY - box.top) / scale, height - MENU_HEIGHT)
+                      px: (event.clientX - box.left) / scale,
+                      py: (event.clientY - box.top) / scale
                     })
                   }}
                   aria-pressed={selectedId === image.id}
@@ -960,7 +1001,14 @@ export default function AddThumbnail({
 
       {menu && (
         <ContextMenu
-          style={{ top: `${menu.y}px`, left: `${menu.x}px` }}
+          /* Placed at the pointer and hidden until the effect has measured the
+             plate and set where it really goes, so it never flashes at the
+             wrong spot. */
+          style={{
+            top: `${menuXY?.y ?? menu.py}px`,
+            left: `${menuXY?.x ?? menu.px}px`,
+            visibility: menuXY ? 'visible' : 'hidden'
+          }}
           items={[
             /* **A clip cannot be the game's Main Image.** What a thumbnail is
                read by — the side panel's row, the Home board's cards and

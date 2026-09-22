@@ -1010,6 +1010,24 @@
   text-overflow: ellipsis;
 }
 
+.ledger-hover-amountrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  max-width: 100%;
+}
+
+.ledger-hover-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 2px var(--color-text-dim);
+}
+
 /* The amount is the figure the row was pointed at for, so it is the larger of
    the two — blue for a buy and red for a sell, the way the list's own figures
    are when both kinds are shown. */

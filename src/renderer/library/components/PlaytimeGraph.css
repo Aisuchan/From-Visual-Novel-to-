@@ -701,6 +701,25 @@
   color: var(--color-text);
 }
 
+/* The time, with the game's own icon to its left. */
+.graph-hover-timerow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  max-width: 100%;
+}
+
+.graph-hover-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: var(--color-bg-alt);
+  box-shadow: inset 0 0 0 2px var(--color-text-dim);
+}
+
 /* In the middle of the ring the two are weighted the other way round. Nothing
    else is on the chart at that moment, and what the row was pointed at for is
    the time — the name is the label on it.
@@ -840,8 +859,23 @@
 .graph-game-color {
   flex: 0 0 30px;
   height: 30px;
+  box-sizing: border-box;
   margin-right: 10px;
   border-radius: 10px;
+  overflow: hidden;
+}
+
+/* The colour is a frame around the icon when there is one. */
+.graph-game-color:has(img) {
+  padding: 3px;
+}
+
+.graph-game-color img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  background: var(--color-bg-alt);
 }
 
 /* Penpot: "Title Example" — Girassol 24px, #e1e8ed, in the 294 the row leaves

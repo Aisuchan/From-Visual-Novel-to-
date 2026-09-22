@@ -217,6 +217,7 @@ export default function Ledger({ games, language }: Props): React.JSX.Element {
     amount: string
     kind: LedgerKind
     color: string
+    icon: string | null
     x: number
     y: number
   } | null>(null)
@@ -510,6 +511,7 @@ export default function Ledger({ games, language }: Props): React.JSX.Element {
       amount: formatMoney(row.total, language),
       kind: row.kind,
       color: row.color,
+      icon: gameIcon(row.gameId),
       x,
       y
     })
@@ -831,7 +833,19 @@ export default function Ledger({ games, language }: Props): React.JSX.Element {
           <span className="ledger-hover-name" style={{ color: hoverInfo.color }}>
             {hoverInfo.name}
           </span>
-          <span className={`ledger-hover-amount ${hoverInfo.kind}`}>{hoverInfo.amount}</span>
+          <div className="ledger-hover-amountrow">
+            {/* The game's own icon, to the left of the amount — the way the
+                PlayTime Graph's hover panel carries it beside the time. */}
+            {hoverInfo.icon && (
+              <img
+                className="ledger-hover-icon"
+                src={hoverInfo.icon}
+                alt=""
+                draggable={false}
+              />
+            )}
+            <span className={`ledger-hover-amount ${hoverInfo.kind}`}>{hoverInfo.amount}</span>
+          </div>
         </div>
       )}
 

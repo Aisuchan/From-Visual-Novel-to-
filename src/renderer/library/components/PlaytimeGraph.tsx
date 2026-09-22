@@ -8,6 +8,7 @@ import type {
 } from '../../../shared/db-types'
 import { colorForRank } from '../color'
 import { filterGames, suggestsGroup } from '../filter'
+import { mediaUrl } from '../../../shared/media-url'
 import { toDateKey } from '../format'
 import { periodRow, startOfWeek } from '../period'
 import { displayName } from '../sort'
@@ -730,7 +731,23 @@ export default function PlaytimeGraph({
                 {hovered.name}
               </span>
             )}
-            <span className="graph-hover-time">{formatTotal(hovered.seconds)}</span>
+            <div className="graph-hover-timerow">
+              {/* The game's own icon, to the left of the time — the pointer's
+                  panel has the room (the ring's own has no plate). */}
+              {!hovered.atPie &&
+                (() => {
+                  const iconPath = games.find((game) => game.id === hovered.gameId)?.iconPath
+                  return iconPath ? (
+                    <img
+                      className="graph-hover-icon"
+                      src={mediaUrl(iconPath)}
+                      alt=""
+                      draggable={false}
+                    />
+                  ) : null
+                })()}
+              <span className="graph-hover-time">{formatTotal(hovered.seconds)}</span>
+            </div>
           </div>
         )}
       </div>
@@ -759,7 +776,13 @@ export default function PlaytimeGraph({
               }
               onLeave={() => setHovered(null)}
             >
-              <span className="graph-game-color" style={{ background: row.color }} />
+              {/* The rank colour shows as a frame around the game's own icon; a
+                  game with no icon keeps the solid colour square. */}
+              <span className="graph-game-color" style={{ background: row.color }}>
+                {row.game!.iconPath && (
+                  <img src={mediaUrl(row.game!.iconPath)} alt="" draggable={false} />
+                )}
+              </span>
               <span className="graph-game-name">{displayName(row.game!)}</span>
               <span className="graph-game-share">{((row.seconds / total) * 100).toFixed(1)}%</span>
             </LegendRow>

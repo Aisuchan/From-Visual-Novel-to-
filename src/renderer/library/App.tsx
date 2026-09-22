@@ -221,6 +221,13 @@ export default function App(): React.JSX.Element {
      its board" effect reads: the game changes and the board asked for is the
      gallery, not the Game board that effect would put up. */
   const [galleryOpenImage, setGalleryOpenImage] = useState<number | null>(null)
+  /* Which picture the Game board's carousel opens on when it comes back from
+     Add Thumbnail — set by that board's CANCEL/APPLY, null to centre on the
+     thumbnail as usual. Read once as the Game board mounts. */
+  const [carouselFocus, setCarouselFocus] = useState<string | null>(null)
+  /* The picture the Game board's carousel was on when Add Thumbnail was opened,
+     which is where CANCEL brings it back to. */
+  const [thumbOpenedFrom, setThumbOpenedFrom] = useState<string | null>(null)
   const galleryOpenOn = useRef<number | null>(null)
   /* What a circle has to say when it has nothing to answer with — the green
      one pressed with no picture marked R18, or the blue with no picture at
@@ -294,6 +301,8 @@ export default function App(): React.JSX.Element {
          would open the gallery the next time that game was picked. */
       if (pick.gameId !== selectedGameId) galleryOpenOn.current = pick.gameId
       setGalleryOpenImage(pick.imageId)
+      // Not opened from a carousel, so CANCEL falls back to the thumbnail.
+      setThumbOpenedFrom(null)
       setSelectedGameId(pick.gameId)
       setMainView('add-thumbnail')
     },
@@ -713,12 +722,15 @@ export default function App(): React.JSX.Element {
         <AddThumbnail
           game={selectedGame}
           openImageId={galleryOpenImage}
-          onCancel={() => {
+          openedFrom={thumbOpenedFrom}
+          onCancel={(focusPath) => {
             setGalleryOpenImage(null)
+            setCarouselFocus(focusPath)
             setMainView('game')
           }}
-          onApplied={async () => {
+          onApplied={async (focusPath) => {
             setGalleryOpenImage(null)
+            setCarouselFocus(focusPath)
             await refreshGames()
             setMainView('game')
           }}
@@ -731,9 +743,14 @@ export default function App(): React.JSX.Element {
         game={selectedGame}
         tags={tags}
         isPlaying={playingGameId === selectedGame.id}
+        focusImage={carouselFocus}
         onLaunch={handleLaunch}
         onEditPlayTime={handleEditPlayTime}
-        onOpenThumbnails={() => setMainView('add-thumbnail')}
+        onOpenThumbnails={(fromImage) => {
+          setThumbOpenedFrom(fromImage)
+          setCarouselFocus(null)
+          setMainView('add-thumbnail')
+        }}
         onSetProgress={handleSetProgress}
         onCelebrate={(on) => {
           setCelebration(on ? 'ok' : null)

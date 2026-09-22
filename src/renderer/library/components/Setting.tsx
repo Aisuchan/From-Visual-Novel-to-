@@ -276,7 +276,7 @@ const ROWS: Row[] = [
   {
     kind: 'toggle',
     id: 'addGameMore',
-    tab: 'general',
+    tab: 'ui',
     name: 'Add Gameに高度な設定を追加',
     description: 'ブランド名・発売日・購入日・購入額を入力できるようにする',
     title: 'Add Gameの高度な設定の入り切り',

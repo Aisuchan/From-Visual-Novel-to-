@@ -26,11 +26,16 @@ interface Props {
   game: GameWithStats
   /** The vocabulary, which is what names the tags the game is filed under. */
   tags: Tag[]
+  /** A picture to open the carousel on when the board arrives back from Add
+      Thumbnail — read once, as it mounts; null centres on the thumbnail. */
+  focusImage?: string | null
   isPlaying: boolean
   onLaunch: (opts: { recordTime: boolean; useRecorderPanel: boolean; runAsAdmin: boolean }) => void
   onEditPlayTime: (gameId: number, seconds: number) => void
   /** Opens the Add Thumbnail screen for this game. */
-  onOpenThumbnails: () => void
+  /** Opens Add Thumbnail, carrying the picture the carousel is on so CANCEL can
+      bring it back to the front. */
+  onOpenThumbnails: (fromImage: string | null) => void
   /** Writes what the Progress triangle reads. */
   onSetProgress: (gameId: number, state: ProgressState | null, score: number | null) => void
   /** Runs the finale — confetti and balloons — over the whole window. */
@@ -233,6 +238,7 @@ function CarouselClip({
 export default function GameDetail({
   game,
   tags,
+  focusImage,
   isPlaying,
   onLaunch,
   onEditPlayTime,
@@ -255,6 +261,9 @@ export default function GameDetail({
   const [infoWidth, setInfoWidth] = useState(782)
   const [carousel, setCarousel] = useState<string[]>([])
   const [imageIndex, setImageIndex] = useState(0)
+  /** The picture Add Thumbnail asked the carousel to open on, spent on the
+      first seed the way `openImageId` is spent on the board's first list. */
+  const focusOnce = useRef(focusImage ?? null)
   const [animated, setAnimated] = useState(false)
   /* Whether the entries have settled onto their slots. False as a game's
      pictures are put down, which puts them `ARRIVE_TURN` past those slots;
@@ -338,7 +347,14 @@ export default function GameDetail({
         paths.unshift(game.thumbnailPath)
       }
       setCarousel(paths)
-      setImageIndex(Math.max(0, game.thumbnailPath ? paths.indexOf(game.thumbnailPath) : 0))
+      /* Open on the picture Add Thumbnail asked for, if it named one and it is
+         still there — consumed the once, so a later thumbnail change falls back
+         to centring on the thumbnail as usual. */
+      const focus = focusOnce.current
+      focusOnce.current = null
+      const centre =
+        focus && paths.includes(focus) ? focus : game.thumbnailPath ? game.thumbnailPath : null
+      setImageIndex(Math.max(0, centre ? paths.indexOf(centre) : 0))
       /* Put down turned, in the same commit as the new pictures: the entries
          are keyed on the game, so these are new elements painted for the first
          time at the turned position, with the transition still off — nothing
@@ -728,7 +744,18 @@ export default function GameDetail({
                        the middle for good when the game has no images at all. */
                     <button
                       className={`main-image-setting ${imageCount === 0 ? 'centered' : ''}`}
-                      onClick={onOpenThumbnails}
+                      /* The picture actually in the middle, so CANCEL can bring
+                         it back — `imageIndex` runs unbounded as the arrows step
+                         it, so it is wrapped the way the slot's own src is
+                         (line above), not read raw. */
+                      onClick={() =>
+                        onOpenThumbnails(
+                          imageCount
+                            ? (carousel[((imageIndex % imageCount) + imageCount) % imageCount] ??
+                                null)
+                            : null
+                        )
+                      }
                     >
                       <svg viewBox={GEAR_VIEW_BOX} aria-hidden="true">
                         <path d={GEAR_PATH} />
