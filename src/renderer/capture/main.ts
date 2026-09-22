@@ -401,15 +401,14 @@ async function startAudio(format: AudioFormat): Promise<void> {
 
   const stream = await openStream()
   try {
-    // getDisplayMedia insists on a video track; it is dropped before anything
-    // is recorded.
-    stream.getVideoTracks().forEach((videoTrack) => {
-      videoTrack.stop()
-      stream.removeTrack(videoTrack)
-    })
     if (stream.getAudioTracks().length === 0) {
+      stopStream(stream)
       throw new Error('システム音声を取得できませんでした')
     }
+    /* getDisplayMedia insists on a video track, and nothing here records it —
+       but it is kept *live* rather than dropped, so the window keeps the frame
+       the system draws around a capture for as long as the recording runs. It
+       is stopped with the rest of the stream on `stopAudio`. */
 
     const context = new AudioContext()
     // Served verbatim out of the renderer's public folder rather than bundled:
