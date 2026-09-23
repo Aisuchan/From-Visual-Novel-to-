@@ -14,6 +14,19 @@ import appIcon from '../renderer/assets/icon_gen_ring.png?asset'
 let libraryWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
 
+/* **The marker Windows launches the app with at login.** Windows gives Electron
+   no "was I opened at login" flag of its own (that field is macOS only), so the
+   startup entry carries this argument (`applyLaunchAtLogin` puts it on the Run
+   key) and the process reads it back off its own command line. It is what tells
+   the library window to come up *without* stealing focus at login — the show
+   that focuses is what Windows' boot-time foreground lock turns into a flashing,
+   yellow taskbar button, which then pins an auto-hidden taskbar on screen. */
+export const LOGIN_LAUNCH_FLAG = '--opened-at-login'
+
+export function wasOpenedAtLogin(): boolean {
+  return process.argv.includes(LOGIN_LAUNCH_FLAG)
+}
+
 /** Exported for the capture worker, which lives outside this module. */
 export function loadRenderer(win: BrowserWindow, htmlFile: string): void {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
@@ -73,7 +86,11 @@ export function createLibraryWindow(): BrowserWindow {
   win.on('maximize', () => emitMaximized(true))
   win.on('unmaximize', () => emitMaximized(false))
 
-  win.once('ready-to-show', () => win.show())
+  /* Opened at login, the window is shown without focus: `show()` tries to
+     activate, which Windows refuses during boot and turns into a taskbar-button
+     flash that keeps an auto-hidden taskbar visible. A manual launch is granted
+     the foreground by Explorer, so it keeps `show()` and comes up focused. */
+  win.once('ready-to-show', () => (wasOpenedAtLogin() ? win.showInactive() : win.show()))
   win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }

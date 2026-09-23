@@ -25,6 +25,7 @@ import {
   getOverlayPanelOrigin,
   getOverlayWindow,
   keepOverlayOnTop,
+  LOGIN_LAUNCH_FLAG,
   overlayDragMove,
   overlayDragStart,
   setOverlayWidth
@@ -49,7 +50,15 @@ import type { StartSessionRequest } from '../shared/ipc-types'
  * on a machine that never had it.
  */
 export function applyLaunchAtLogin(settings: AppSettings): void {
-  app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin === 'on' })
+  /* The startup entry carries a marker argument so the process can tell, off its
+     own command line, that Windows launched it at login — see `wasOpenedAtLogin`
+     in windows.ts, which uses it to show the window without stealing focus (and
+     so without the boot-time taskbar-button flash). This runs at every startup
+     and on every write, so the Run key is rewritten with the marker on its own. */
+  app.setLoginItemSettings({
+    openAtLogin: settings.launchAtLogin === 'on',
+    args: [LOGIN_LAUNCH_FLAG]
+  })
 }
 
 /* Every dialog this module puts up belongs to the library window. Unparented,

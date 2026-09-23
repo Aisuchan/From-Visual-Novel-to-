@@ -1,6 +1,6 @@
 {
   "name": "from-visual-novel",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "ノベルゲームのライブラリ管理・プレイ時間計測・拡張UIオーバーレイを提供するデスクトップアプリ",
   "main": "./out/main/main.js",
   "author": "Aisuchan",
