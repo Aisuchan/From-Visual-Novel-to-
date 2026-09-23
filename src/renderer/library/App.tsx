@@ -14,6 +14,7 @@ import type {
   ProgressState
 } from '../../shared/db-types'
 import { useUiScale } from './useUiScale'
+import { DEFAULT_DIRECTION, DEFAULT_SORT, sortGames } from './sort'
 import Header from './components/Header'
 import SidePanel from './components/SidePanel'
 import GameDetail from './components/GameDetail'
@@ -59,6 +60,15 @@ const SHELL_WIDTH = 1920
    row and gap plus its 10 of padding either side. */
 const GROUP_MENU_WIDTH = 201
 const GROUP_MENU_HEIGHT = 10 + 42 * 2 + 5 + 10
+
+/** The first game the side panel shows with nothing filtered — the top row of
+    its default sort (プレイ順), which is what "the first game in the list" means
+    on the screen. The initial selection is picked from here rather than from the
+    database's own `sort_order`, so the game opened is the one at the top of the
+    list rather than one sitting lower in it. */
+function firstListedGameId(list: GameWithStats[]): number | null {
+  return sortGames(list, DEFAULT_SORT, DEFAULT_DIRECTION[DEFAULT_SORT])[0]?.id ?? null
+}
 
 export default function App(): React.JSX.Element {
   const [games, setGames] = useState<GameWithStats[]>([])
@@ -119,6 +129,7 @@ export default function App(): React.JSX.Element {
     videoSound: 'off',
     audioSound: 'off',
     voiceVolume: 1,
+    voiceInitialSearch: 'on',
     launchAtLogin: 'off',
     addGameMore: 'off',
     // Assumed seen until the store says otherwise, so a returning library does
@@ -132,7 +143,8 @@ export default function App(): React.JSX.Element {
     backupRestorePath: '',
     lastSaveScreenshot: '',
     lastSaveVideo: '',
-    lastSaveAudio: ''
+    lastSaveAudio: '',
+    lastOpenGameId: ''
   })
   /* The アニメーション row, written onto the document rather than passed down:
      the stylesheet's own kill switch is keyed on it, and so is `motion.ts`,
@@ -268,7 +280,10 @@ export default function App(): React.JSX.Element {
       /* Penpot's "Add Voice" board, in the Main Display's slot. It is the
          app's rather than a game's, the way Home is. */
       if (action === 'voice-manager') {
-        setVoiceGameId(mainView === 'game' ? selectedGameId : null)
+        /* The UI-tab ボイスマネージャーの初期検索 row: on, it opens narrowed to
+           the game whose board was up; off, it opens on the whole library. */
+        const preselect = settings.voiceInitialSearch === 'on' && mainView === 'game'
+        setVoiceGameId(preselect ? selectedGameId : null)
         setMainView('voice')
         return
       }
@@ -306,7 +321,7 @@ export default function App(): React.JSX.Element {
       setSelectedGameId(pick.gameId)
       setMainView('add-thumbnail')
     },
-    [games, selectedGameId, mainView, closeExtra]
+    [games, selectedGameId, mainView, closeExtra, settings.voiceInitialSearch]
   )
   const calendarFlips = useRef(0)
   const shellRef = useRef<HTMLDivElement | null>(null)
@@ -320,7 +335,9 @@ export default function App(): React.JSX.Element {
     // subscription, whose closure would otherwise still see the selection as
     // it was when the subscription was set up and jump back to the first game.
     setSelectedGameId((current) =>
-      current !== null && list.some((game) => game.id === current) ? current : (list[0]?.id ?? null)
+      current !== null && list.some((game) => game.id === current)
+        ? current
+        : firstListedGameId(list)
     )
   }
 
@@ -332,9 +349,6 @@ export default function App(): React.JSX.Element {
     setTags(await window.library.listTags())
   }
 
-  async function refreshSettings(): Promise<void> {
-    setSettings(await window.library.getSettings())
-  }
 
   async function refreshFooterStats(): Promise<void> {
     setFooterStats(await window.library.getFooterStats())
@@ -347,11 +361,36 @@ export default function App(): React.JSX.Element {
     setDuePlans(rows.filter((plan) => plan.notify))
   }
 
+  /** Set once the initial selection has been restored, so the effect that
+      persists the open game does nothing until then — a write before the
+      restore is read would race the read to the same row. */
+  const initDone = useRef(false)
+  /** The last value written to `lastOpenGameId`, so an unchanged navigation is
+      not written again. */
+  const lastPersisted = useRef<string | null>(null)
+
   useEffect(() => {
-    refreshGames()
+    /* Games and settings are read together so the initial selection can be the
+       game left open last time: restored when it still exists, and otherwise
+       the first game the list shows. Done here rather than in `refreshGames`,
+       which only ever keeps a valid selection. */
+    void (async () => {
+      const [list, loaded] = await Promise.all([
+        window.library.listGames(),
+        window.library.getSettings()
+      ])
+      setGames(list)
+      setSettings(loaded)
+      const remembered = Number(loaded.lastOpenGameId)
+      const restore =
+        loaded.lastOpenGameId !== '' && list.some((game) => game.id === remembered)
+          ? remembered
+          : firstListedGameId(list)
+      setSelectedGameId(restore)
+      initDone.current = true
+    })()
     refreshGroups()
     refreshTags()
-    refreshSettings()
     refreshFooterStats()
     refreshDuePlans()
     const due = setInterval(refreshDuePlans, 60000)
@@ -376,6 +415,20 @@ export default function App(): React.JSX.Element {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /* **Remember the game whose board is open, for the next launch.** Written on
+     every change of the open game or the board, so whatever it holds at close
+     is the state the app was left in — a game board's own game, or empty when
+     the board is not a game's (Home, Setting…), which is what falls the next
+     launch back to the first listed game. Fire-and-forget: nothing reads it
+     until the next launch, so the in-memory settings need not follow it. */
+  useEffect(() => {
+    if (!initDone.current) return
+    const value = mainView === 'game' && selectedGameId !== null ? String(selectedGameId) : ''
+    if (lastPersisted.current === value) return
+    lastPersisted.current = value
+    void window.library.setSettings({ lastOpenGameId: value })
+  }, [mainView, selectedGameId])
 
   /* The Calender board is turned to rather than simply shown: the two months
      before it are flicked away by their top-right corners, and the board fades

@@ -145,7 +145,7 @@ export default function FooterBar({
       {/* Penpot: Play Time */}
       <div className="footer-play-time">
         Today {formatHours(stats?.todaySeconds ?? 0)}/Week {formatHours(stats?.weekSeconds ?? 0)}
-        /Month {formatHours(stats?.monthSeconds ?? 0)}
+        /Month {formatHours(stats?.monthSeconds ?? 0)}/Year {formatHours(stats?.yearSeconds ?? 0)}
       </div>
 
       {/* Penpot: Today List — "Notification▲". The design draws it inert;

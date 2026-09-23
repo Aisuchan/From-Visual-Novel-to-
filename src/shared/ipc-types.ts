@@ -52,6 +52,7 @@ export const IpcChannels = {
   GameImagesRandom: 'game-images:random',
   GameImagesSetR18: 'game-images:set-r18',
   GameImagesAdd: 'game-images:add',
+  GameImagesAddPaths: 'game-images:add-paths',
   GameImagesDelete: 'game-images:delete',
   GameImagesReorder: 'game-images:reorder',
   ReferencePage: 'reference:page',
@@ -295,6 +296,13 @@ export interface LibraryApi {
   setGameImageR18(gameId: number, imageId: number, r18: boolean): Promise<GameImage[]>
   /** Opens the picker, copies the chosen files in, and returns the new list. */
   addGameImages(gameId: number): Promise<GameImage[]>
+  /** The same, for files dropped onto the board from the file manager: the paths
+      are filtered to the gallery's own image and video kinds, copied in, and the
+      new list comes back. */
+  addGameImagesFromPaths(gameId: number, paths: string[]): Promise<GameImage[]>
+  /** The absolute path of a File the renderer was handed by a drop, resolved
+      through `webUtils` in the preload (a renderer cannot read it itself). */
+  pathForFile(file: File): string
   deleteGameImage(gameId: number, imageId: number): Promise<GameImage[]>
   /** The order the Add Thumbnail grid was dragged into: the game's whole list,
       in the order it is to be read back in. */

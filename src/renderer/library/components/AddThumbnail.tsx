@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { GameImage, GameWithStats } from '../../../shared/db-types'
-import { isVideoPath, mediaUrl } from '../../../shared/media-url'
+import {
+  GALLERY_IMAGE_EXTENSIONS,
+  GALLERY_VIDEO_EXTENSIONS,
+  isVideoPath,
+  mediaUrl
+} from '../../../shared/media-url'
 import { WHEEL_NOTCH, useWheelStepper } from '../useWheelStepper'
 import ConfirmDialog from './ConfirmDialog'
 import ContextMenu from './ContextMenu'
@@ -226,6 +231,10 @@ export default function AddThumbnail({
      and turned off once the last diagonal has landed; `is-ready` goes on doing
      what it always did, which is to say the pictures may be turned face up. */
   const [arriving, setArriving] = useState(false)
+  /* Whether a file drag from the file manager is over the board — draws the
+     drop hint and nothing else. Internal cell reordering is pointer-driven, not
+     a native drag, so the two never meet. */
+  const [dragOver, setDragOver] = useState(false)
   /* **Which picture is being carried, looked up rather than held.** The frame
      it belongs to is what its offset is measured against, and that frame is
      found by its id every time it is wanted: a page turned mid-drag draws a
@@ -693,15 +702,14 @@ export default function AddThumbnail({
     setPage(target)
   }
 
-  async function addImages(): Promise<void> {
-    const before = images.length
-    const list = await window.library.addGameImages(game.id)
-    /* The rows are written as they are added — the copies have to be under
-       `userData` for `fvn-media:` to draw them — so what comes back is the
-       whole gallery in the database's own order, with the pictures this board
-       has staged for deletion still in it. Only the new ones are taken, onto
-       the end of the board's own list, and their ids are kept so that CANCEL
-       can take them out again. */
+  /* The rows are written as they are added — the copies have to be under
+     `userData` for `fvn-media:` to draw them — so what comes back is the whole
+     gallery in the database's own order, with the pictures this board has staged
+     for deletion still in it. Only the new ones are taken, onto the end of the
+     board's own list, and their ids are kept so that CANCEL can take them out
+     again. Shared by the picker and a drop, which differ only in where the
+     files came from. */
+  function absorbAdded(list: GameImage[], before: number): void {
     const known = new Set([...images, ...removed].map((image) => image.id))
     const fresh = list.filter((image) => !known.has(image.id))
     if (fresh.length === 0) return
@@ -710,6 +718,29 @@ export default function AddThumbnail({
     // Land on the page the first newly added image went to, but leave the
     // selection — and so the applied thumbnail — where it was.
     setPage(Math.floor(before / PAGE_SIZE) + 1)
+  }
+
+  async function addImages(): Promise<void> {
+    const before = images.length
+    absorbAdded(await window.library.addGameImages(game.id), before)
+  }
+
+  /* **Files dropped from the file manager.** A dropped File carries no usable
+     path across contextIsolation, so each is resolved through `webUtils` in the
+     preload; the paths are narrowed to the gallery's own image and video kinds
+     here (and again in the main process, which does the copy) so a stray file
+     is simply left out rather than added and then undrawable. */
+  async function addDropped(files: File[]): Promise<void> {
+    const drawable = [...GALLERY_IMAGE_EXTENSIONS, ...GALLERY_VIDEO_EXTENSIONS]
+    const paths = files
+      .map((file) => window.library.pathForFile(file))
+      .filter((one) => {
+        const dot = one.lastIndexOf('.')
+        return dot >= 0 && drawable.includes(one.slice(dot + 1).toLowerCase())
+      })
+    if (paths.length === 0) return
+    const before = images.length
+    absorbAdded(await window.library.addGameImagesFromPaths(game.id, paths), before)
   }
 
   // The index is left unbounded so each slot keeps a distinct key across a
@@ -834,7 +865,35 @@ export default function AddThumbnail({
   )
 
   return (
-    <section className="add-thumbnail" ref={sectionRef}>
+    <section
+      className={`add-thumbnail${dragOver ? ' is-drop' : ''}`}
+      ref={sectionRef}
+      /* A file drag from the file manager adds it, the way ADD IMAGE does.
+         Gated on the drag carrying files so an internal image drag (which is
+         pointer-driven anyway) never lights the hint. */
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+        if (!dragOver) setDragOver(true)
+      }}
+      onDragLeave={(event) => {
+        // Only when the pointer leaves the board itself, not on the way across
+        // its own children.
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragOver(false)
+      }}
+      onDrop={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return
+        event.preventDefault()
+        setDragOver(false)
+        void addDropped(Array.from(event.dataTransfer.files))
+      }}
+    >
+      {dragOver && (
+        <div className="thumb-drop" aria-hidden="true">
+          <span>{t('ここにドロップして画像・動画を追加')}</span>
+        </div>
+      )}
       {/* Penpot: Image Container — 1585x885, 35px top / 50px side padding */}
       <div className="thumb-container" ref={gridRef} onWheel={onWheel}>
         {!loaded ? null : images.length === 0 ? (

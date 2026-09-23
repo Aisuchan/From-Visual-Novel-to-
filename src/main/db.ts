@@ -1177,6 +1177,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   audioSound: 'off',
   // Full volume until the bar is moved.
   voiceVolume: 1,
+  // On: opening the Voice Manager searches by the game that was open, which is
+  // what it has always done.
+  voiceInitialSearch: 'on',
   // Nothing about the machine is touched until the row is turned on.
   launchAtLogin: 'off',
   // The Add Game dialog is the design's own board alone until the advanced
@@ -1197,7 +1200,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   // Nothing saved yet, so each dialog opens where it always did.
   lastSaveScreenshot: '',
   lastSaveVideo: '',
-  lastSaveAudio: ''
+  lastSaveAudio: '',
+  // No game remembered yet, so the first launch opens on the first listed game.
+  lastOpenGameId: ''
 }
 
 /** A stored value only counts if this build knows it; anything else is the
@@ -1286,6 +1291,11 @@ export function getSettings(): AppSettings {
         ? value
         : DEFAULT_SETTINGS.voiceVolume
     })(),
+    voiceInitialSearch: oneOf(
+      stored.get('voiceInitialSearch'),
+      ['on', 'off'],
+      DEFAULT_SETTINGS.voiceInitialSearch
+    ),
     screenshotSound: soundKey(stored.get('screenshotSound')),
     /* `recordingSound` was the one row these two came out of. It is read as
        the fallback for both so an install that chose a sound before the split
@@ -1317,7 +1327,8 @@ export function getSettings(): AppSettings {
     backupRestorePath: stored.get('backupRestorePath') ?? DEFAULT_SETTINGS.backupRestorePath,
     lastSaveScreenshot: stored.get('lastSaveScreenshot') ?? DEFAULT_SETTINGS.lastSaveScreenshot,
     lastSaveVideo: stored.get('lastSaveVideo') ?? DEFAULT_SETTINGS.lastSaveVideo,
-    lastSaveAudio: stored.get('lastSaveAudio') ?? DEFAULT_SETTINGS.lastSaveAudio
+    lastSaveAudio: stored.get('lastSaveAudio') ?? DEFAULT_SETTINGS.lastSaveAudio,
+    lastOpenGameId: stored.get('lastOpenGameId') ?? DEFAULT_SETTINGS.lastOpenGameId
   }
 }
 
@@ -1766,6 +1777,7 @@ export function getFooterStats(): FooterStats {
   const startOfWeek = new Date(startOfDay)
   startOfWeek.setDate(startOfDay.getDate() - startOfDay.getDay())
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const startOfYear = new Date(now.getFullYear(), 0, 1)
 
   const sumSince = (iso: string): number => {
     const result = db
@@ -1781,7 +1793,8 @@ export function getFooterStats(): FooterStats {
   return {
     todaySeconds: sumSince(startOfDay.toISOString()),
     weekSeconds: sumSince(startOfWeek.toISOString()),
-    monthSeconds: sumSince(startOfMonth.toISOString())
+    monthSeconds: sumSince(startOfMonth.toISOString()),
+    yearSeconds: sumSince(startOfYear.toISOString())
   }
 }
 

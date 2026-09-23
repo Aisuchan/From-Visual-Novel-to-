@@ -295,6 +295,7 @@ export interface FooterStats {
   todaySeconds: number
   weekSeconds: number
   monthSeconds: number
+  yearSeconds: number
 }
 
 /* The Setting board's 言語/language row. The app is written in Japanese and
@@ -535,6 +536,11 @@ export interface AppSettings {
   audioSound: string
   /** The Voice Manager's playback volume, 0–1, set by its volume bar. */
   voiceVolume: number
+  /* Whether opening the Voice Manager narrows its list to the game whose board
+     was up when it was opened. On, it opens searched by that game; off, it
+     opens on the whole library. Opened from Home or another of the app's own
+     boards there is no game to narrow by either way. */
+  voiceInitialSearch: Toggle
   /* Whether Windows starts the app when the machine does. It is the one row
      that is not the app's own state: what it writes is the system's Run key,
      through `app.setLoginItemSettings`, so the row and the machine are kept in
@@ -568,6 +574,12 @@ export interface AppSettings {
   lastSaveScreenshot: string
   lastSaveVideo: string
   lastSaveAudio: string
+  /* The game whose board was open when the app was last left, as a string id —
+     restored into the main display on the next launch. Empty when no game board
+     was open, which is what falls the next launch back to the first game the
+     list shows. Not a row on the Setting board; it is what the app was last left
+     on, the way `homeLayout` is. */
+  lastOpenGameId: string
 }
 
 /** A character a voice is filed under — one flat list the Add Voice dialog's

@@ -709,6 +709,34 @@ export function registerIpcHandlers(): void {
     return db.addGameImages(gameId, copied)
   })
 
+  /* **Files dropped onto the Add Thumbnail board from the file manager.** The
+     same copy the picker does, but the paths come from the drop rather than a
+     dialog, so the extensions are checked here — the renderer resolves each
+     File's path through `webUtils` and can send anything — and only the
+     gallery's own image and video kinds are taken. A path off disk is dropped
+     rather than throwing. Nothing dropped that is drawable leaves the list as it
+     was. */
+  ipcMain.handle(
+    IpcChannels.GameImagesAddPaths,
+    async (_event, gameId: number, paths: string[]) => {
+      const drawable = new Set([...GALLERY_IMAGE_EXTENSIONS, ...GALLERY_VIDEO_EXTENSIONS])
+      const wanted = paths.filter((src) => {
+        const ext = path.extname(src).slice(1).toLowerCase()
+        return drawable.has(ext) && fs.existsSync(src)
+      })
+      if (wanted.length === 0) return db.listGameImages(gameId)
+
+      const destDir = path.join(app.getPath('userData'), 'game-images', String(gameId))
+      fs.mkdirSync(destDir, { recursive: true })
+      const copied = wanted.map((src) => {
+        const dest = path.join(destDir, `${randomUUID()}${path.extname(src)}`)
+        fs.copyFileSync(src, dest)
+        return { filePath: dest, sourcePath: src }
+      })
+      return db.addGameImages(gameId, copied)
+    }
+  )
+
   /* **A page opened in the system's own browser.** Checked here rather than
      trusted from the renderer: `openExternal` hands its argument to the desktop,
      which will act on schemes that are not pages at all, so only http and https

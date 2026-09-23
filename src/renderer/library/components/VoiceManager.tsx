@@ -7,7 +7,7 @@ import type {
   VoicePatch
 } from '../../../shared/db-types'
 import { t } from '../../../shared/i18n'
-import { mediaUrl } from '../../../shared/media-url'
+import { GALLERY_VIDEO_EXTENSIONS, mediaUrl, VOICE_AUDIO_EXTENSIONS } from '../../../shared/media-url'
 import { useContextMenuDismiss } from '../context-menu'
 import { suggestsGroup } from '../filter'
 import { displayName } from '../sort'
@@ -103,6 +103,9 @@ export default function VoiceManager({
   const [added, setAdded] = useState<number[]>([])
   const addedRef = useRef<number[]>([])
   const committed = useRef(false)
+  /* Whether a file drag from the file manager is over the board — draws the
+     drop hint only. */
+  const [dragOver, setDragOver] = useState(false)
   /* What is staged and not yet written: the voices to go, and the rows
      rewritten from 情報を変更, each held as the patch APPLY will send. The
      local list already shows both. */
@@ -233,6 +236,37 @@ export default function VoiceManager({
       setPage(Math.max(0, Math.ceil((shownAll.length + 1) / VOICES_PER_PAGE) - 1))
     } catch (err) {
       setError(err instanceof Error ? err.message.replace(/^.*Error: /, '') : String(err))
+    }
+  }
+
+  /* **Files dropped from the file manager become voices**, the way ADD VOICE's
+     dialog makes one but with nothing to fill in: the title is the file's own
+     name, the character is unset, and the game is whichever the GAME filter is
+     narrowed to (so dropping onto a game's list files them under it) or none.
+     A dropped File carries no usable path across contextIsolation, so each is
+     resolved through `webUtils` in the preload; the kinds are narrowed here to
+     what a voice can be, and the main process checks the extension again as it
+     copies. Each is staged the way a picked one is, so CANCEL takes them back
+     out. */
+  async function addDropped(files: File[]): Promise<void> {
+    const playable = [...VOICE_AUDIO_EXTENSIONS, ...GALLERY_VIDEO_EXTENSIONS]
+    const paths = files
+      .map((file) => window.library.pathForFile(file))
+      .filter((one) => {
+        const dot = one.lastIndexOf('.')
+        return dot >= 0 && playable.includes(one.slice(dot + 1).toLowerCase())
+      })
+    if (paths.length === 0) return
+    // The game the GAME filter is settled on, matched whole the way the list
+    // itself is — nothing, or a name no game answers to, files them under none.
+    const target = gameFilter.trim().toLowerCase()
+    const gameId = target
+      ? (games.find((one) => displayName(one).trim().toLowerCase() === target)?.id ?? null)
+      : null
+    for (const sourcePath of paths) {
+      const base = sourcePath.split(/[\\/]/).pop() ?? sourcePath
+      const title = base.replace(/\.[^.]+$/, '')
+      await addVoice({ gameId, characterId: null, title, sourcePath })
     }
   }
 
@@ -427,7 +461,31 @@ export default function VoiceManager({
       : (games.find((one) => one.id === voice.gameId)?.thumbnailPath ?? null)
 
   return (
-    <section className="add-voice">
+    <section
+      className={`add-voice${dragOver ? ' is-drop' : ''}`}
+      /* A file drag from the file manager adds voices, the way ADD VOICE does.
+         Gated on the drag carrying files so nothing else lights the hint. */
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+        if (!dragOver) setDragOver(true)
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragOver(false)
+      }}
+      onDrop={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return
+        event.preventDefault()
+        setDragOver(false)
+        void addDropped(Array.from(event.dataTransfer.files))
+      }}
+    >
+      {dragOver && (
+        <div className="voice-drop" aria-hidden="true">
+          <span>{t('ここにドロップして音声を追加')}</span>
+        </div>
+      )}
       {/* Penpot: Top — 1515x106 at 35/30, the Headline against the Show Condition */}
       <div className="voice-top">
         {/* Penpot: Headline — 304x106, "VOICE" over the Under Line */}

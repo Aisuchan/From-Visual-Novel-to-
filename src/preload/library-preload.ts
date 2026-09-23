@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { IpcChannels } from '../shared/ipc-types'
 import type {
   GameReference,
@@ -47,6 +47,11 @@ const libraryApi: LibraryApi = {
   setGameImageR18: (gameId: number, imageId: number, r18: boolean) =>
     ipcRenderer.invoke(IpcChannels.GameImagesSetR18, gameId, imageId, r18),
   addGameImages: (gameId: number) => ipcRenderer.invoke(IpcChannels.GameImagesAdd, gameId),
+  addGameImagesFromPaths: (gameId: number, paths: string[]) =>
+    ipcRenderer.invoke(IpcChannels.GameImagesAddPaths, gameId, paths),
+  /* A dropped File carries no usable path across contextIsolation; `webUtils`
+     resolves it in the preload, which the renderer cannot reach itself. */
+  pathForFile: (file: File) => webUtils.getPathForFile(file),
   deleteGameImage: (gameId: number, imageId: number) =>
     ipcRenderer.invoke(IpcChannels.GameImagesDelete, gameId, imageId),
   reorderGameImages: (gameId: number, orderedIds: number[]) =>

@@ -483,6 +483,16 @@ const ROWS: Row[] = [
   },
   {
     kind: 'toggle',
+    id: 'voiceInitialSearch',
+    tab: 'ui',
+    name: 'ボイスマネージャーの初期検索',
+    description: 'ボイスマネージャーを開いた際に直前まで開いていたゲームで検索をかける',
+    title: 'ボイスマネージャーの初期検索の入り切り',
+    current: (settings) => settings.voiceInitialSearch,
+    patch: (value) => ({ voiceInitialSearch: value })
+  },
+  {
+    kind: 'toggle',
     id: 'crackerSound',
     tab: 'audio',
     name: 'クラッカー音',
